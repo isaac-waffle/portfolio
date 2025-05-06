@@ -57,12 +57,12 @@ const CONFIG = {
   },
   social: {
     linkedin: 'eunho-kim',
-    website: 'https://www.arifszn.com',
+    website: '',
     phone: '',
     email: 'eunho203@gmail.com',
   },
   skills: [
-    'Python',
+    'Python', 'R', 'SQL', 'Data Analyst', 'Automation', 'Big Data Management',
   ],
   experiences: [
     {
@@ -75,10 +75,10 @@ const CONFIG = {
   ],
   certifications: [
     {
-      name: 'Lorem ipsum',
-      body: 'Lorem ipsum dolor sit amet',
-      year: 'March 2022',
-      link: 'https://example.com',
+      name: 'SAS Certified Specialist',
+      body: 'Base Programming Using SAS 9.4 ',
+      year: 'Aug 2024',
+      link: '',
     },
   ],
   educations: [
