@@ -52,22 +52,18 @@ const CONFIG = {
     },
   },
   seo: {
-    title: 'Portfolio of Ariful Alam',
+    title: 'Portfolio of Isaac Kim',
     description: '',
     imageURL: '',
   },
   social: {
-    linkedin: 'ariful-alam',
-    x: 'arif_szn',
-    medium: 'arifszn',
-    dev: 'arifszn',
-    stackoverflow: '', // example: '1/jeff-atwood'
+    linkedin: 'eunho-kim',
     website: 'https://www.arifszn.com',
     phone: '',
-    email: 'arifulalamszn@gmail.com',
+    email: 'eunho203@gmail.com',
   },
   skills: [
-    'PHP',
+    'Python',
   ],
   experiences: [
     {
@@ -105,11 +101,11 @@ const CONFIG = {
   ],
   publications: [
     {
-      title: 'A Comparative Analysis of Explainable AI Techniques and Econometrics: Evaluating Partial Effects and Effect Sizes using Accumulated Local Effects and Cohen f2',
+      title: 'A Comparative Analysis of Explainable AI Techniques and Econometrics',
       authors: 'Isaac Kim',
       link: 'https://scripties.uba.uva.nl/search?id=c11249314',
       description:
-        'The emergence of big data has challenged traditional econometric approaches, leading to a shift towards AI techniques like Random Forests, Neural Networks, and Support Vector Machines. These methods, however, often act as "black boxes," complicating the understand- ing of their internal workings. Explainable Artificial Intelligence (XAI) techniques, such as Accumulated Local Effects (ALE), have been developed to address this issue by visualizing local average effects alongside global explanations. This paper compares ALE with tradi- tional econometric models in terms of partial effects and effect sizes, using both artificial and real datasets. Results indicate that while linear regression models capture linear relation- ships effectively, ALE reveals more complex, non-linear patterns. Additionally, Cohen’s f 2 effect sizes and ALE-based effect sizes, such as ALE Deviation (ALED) and ALE Range (ALER), provide insights into variable impacts. The study highlights the value of integrating machine learning and XAI techniques, enhancing the interpretability and robustness of data analysis.',
+        'This paper compares traditional econometric models with machine learning methods using Explainable AI techniques like ALE. ALE reveals complex, non-linear patterns and provides interpretable effect size metrics. The study shows XAI improves understanding of black-box models.',
     },
   ],
   // Display articles from your medium or dev account. (Optional)
