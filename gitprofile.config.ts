@@ -65,7 +65,6 @@ const CONFIG = {
     instagram: '',
     reddit: '',
     threads: '',
-    youtube: '', // example: 'pewdiepie'
     udemy: '',
     dribbble: '',
     behance: '',
