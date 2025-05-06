@@ -29,7 +29,7 @@ const CONFIG = {
       },
     },
     external: {
-      header: 'My Projects',
+      header: 'Projects',
       // To hide the `External Projects` section, keep it empty.
       projects: [
         {
@@ -71,18 +71,11 @@ const CONFIG = {
   ],
   experiences: [
     {
-      company: 'Company Name',
-      position: 'Position',
-      from: 'September 2021',
-      to: 'Present',
-      companyLink: 'https://example.com',
-    },
-    {
-      company: 'Company Name',
-      position: 'Position',
-      from: 'July 2019',
-      to: 'August 2021',
-      companyLink: 'https://example.com',
+      company: 'Infineon Technologies',
+      position: 'Data Scientist Intern',
+      from: 'November 2024',
+      to: 'April 2025',
+      companyLink: 'https://www.infineon.com/',
     },
   ],
   certifications: [
@@ -95,27 +88,28 @@ const CONFIG = {
   ],
   educations: [
     {
-      institution: 'Institution Name',
-      degree: 'Degree',
-      from: '2015',
-      to: '2019',
+    institution: 'University of Amsterdam',
+    degree: "Bachelor's Degree",
+    major: 'Econometrics and Data Science',
+    from: '2019',
+    to: '2024',
+    honors: 'Cum Laude',
     },
     {
-      institution: 'Institution Name',
-      degree: 'Degree',
-      from: '2012',
-      to: '2014',
+      institution: 'University of Ajou',
+      degree: "Bachelor's Degree",
+      major: 'Industrial Engineering',  
+      from: '2018',
+      to: '2018',
     },
   ],
   publications: [
     {
-      title: 'Publication Title',
-      conferenceName: '',
-      journalName: 'Journal Name',
-      authors: 'John Doe, Jane Smith',
-      link: 'https://example.com',
+      title: 'A Comparative Analysis of Explainable AI Techniques and Econometrics: Evaluating Partial Effects and Effect Sizes using Accumulated Local Effects and Cohen's f2',
+      authors: 'Isaac Kim',
+      link: 'https://scripties.uba.uva.nl/search?id=c11249314',
       description:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+        'The emergence of big data has challenged traditional econometric approaches, leading to a shift towards AI techniques like Random Forests, Neural Networks, and Support Vector Machines. These methods, however, often act as "black boxes," complicating the understand- ing of their internal workings. Explainable Artificial Intelligence (XAI) techniques, such as Accumulated Local Effects (ALE), have been developed to address this issue by visualizing local average effects alongside global explanations. This paper compares ALE with tradi- tional econometric models in terms of partial effects and effect sizes, using both artificial and real datasets. Results indicate that while linear regression models capture linear relation- ships effectively, ALE reveals more complex, non-linear patterns. Additionally, Cohen’s f 2 effect sizes and ALE-based effect sizes, such as ALE Deviation (ALED) and ALE Range (ALER), provide insights into variable impacts. The study highlights the value of integrating machine learning and XAI techniques, enhancing the interpretability and robustness of data analysis.',
     },
   ],
   // Display articles from your medium or dev account. (Optional)
