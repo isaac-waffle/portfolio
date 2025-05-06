@@ -105,7 +105,7 @@ const CONFIG = {
   ],
   publications: [
     {
-      title: 'A Comparative Analysis of Explainable AI Techniques and Econometrics: Evaluating Partial Effects and Effect Sizes using Accumulated Local Effects and Cohen's f2',
+      title: 'A Comparative Analysis of Explainable AI Techniques and Econometrics: Evaluating Partial Effects and Effect Sizes using Accumulated Local Effects and Cohen f2',
       authors: 'Isaac Kim',
       link: 'https://scripties.uba.uva.nl/search?id=c11249314',
       description:
