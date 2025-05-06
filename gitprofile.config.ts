@@ -32,20 +32,20 @@ const CONFIG = {
       header: 'Projects',
       projects: [
         {
-          title: 'Bank Churn',
+          title: 'Bank Churn Prediction',
           description:
-            'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, nunc ut.',
+            'Neural Network, Random Forest.',
           imageUrl:
             'https://img.freepik.com/free-vector/illustration-gallery-icon_53876-27002.jpg',
           link: 'https://example.com',
         },
         {
-          title: 'Project Name',
+          title: 'Data Science Blog',
           description:
-            'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, nunc ut.',
+            'Machine Learning, Explainable AI(XAI)',
           imageUrl:
             'https://img.freepik.com/free-vector/illustration-gallery-icon_53876-27002.jpg',
-          link: 'https://example.com',
+          link: 'https://isaac-waffle.github.io/',
         },
       ],
     },
@@ -104,7 +104,7 @@ const CONFIG = {
       authors: 'Isaac Kim',
       link: 'https://scripties.uba.uva.nl/search?id=c11249314',
       description:
-        'This paper compares traditional econometric models with machine learning methods using Explainable AI techniques like ALE. ALE reveals complex, non-linear patterns and provides interpretable effect size metrics. The study shows XAI improves understanding of black-box models.',
+        'This paper compares traditional econometric models with machine learning methods using Explainable AI techniques like ALE, showing XAI improves understanding of black-box models.',
     },
   ],
   // Display articles from your medium or dev account. (Optional)
