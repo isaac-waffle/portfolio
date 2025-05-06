@@ -24,7 +24,7 @@ const ListItem = ({
     <h3 className="font-semibold">{degree}</h3>
     <div className="font-normal">{institution}</div>
     {major && <div className="text-sm text-opacity-80">Major: {major}</div>}
-    {honors && <div className="text-sm italic text-green-600">Honors: {honors}</div>}
+    {honors && <div className="text-sm italic">Honors: {honors}</div>}
   </li>
 );
 
