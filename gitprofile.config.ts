@@ -124,6 +124,9 @@ const CONFIG = {
   ],
   // Display articles from your medium or dev account. (Optional)
   blog: {
+  source: '', // or 'medium' / 'dev'
+  username: '',
+  limit: 0,
   },
   googleAnalytics: {
     id: 'G-LF9100HZBE', // GA3 tracking id/GA4 tag id UA-XXXXXXXXX-X | G-XXXXXXXXXX
