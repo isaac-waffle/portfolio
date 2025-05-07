@@ -81,18 +81,6 @@ const CONFIG = {
       link: '',
     },
     {
-      name: 'Exam P',
-      body: 'Society of Actuaries',
-      year: 'Jul 2020',
-      link: '',
-    },
-    {
-      name: 'Databases and SQL for Data Science with Python',
-      body: 'with honors, IBM',
-      year: 'JUL 2024',
-      link: 'https://www.coursera.org/account/accomplishments/certificate/SN6JCJCMASDN',
-    },
-    {
       name: 'Data Visualization and Communication with Tableau',
       body: 'Duke University',
       year: 'Aug 2024',
@@ -103,6 +91,18 @@ const CONFIG = {
       body: 'SAS',
       year: 'Aug 2024',
       link: 'https://www.coursera.org/account/accomplishments/specialization/certificate/CNYXRG9WIEA4',
+    },  
+    {
+      name: 'Databases and SQL for Data Science with Python',
+      body: 'with honors, IBM',
+      year: 'JUL 2024',
+      link: 'https://www.coursera.org/account/accomplishments/certificate/SN6JCJCMASDN',
+    },
+    {
+      name: 'Exam P',
+      body: 'Society of Actuaries',
+      year: 'Jul 2020',
+      link: '',
     },    
   ],
   educations: [
