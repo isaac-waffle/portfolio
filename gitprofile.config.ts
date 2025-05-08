@@ -42,7 +42,7 @@ const CONFIG = {
         {
           title: 'Data Science Blog',
           description:
-            'Machine Learning, Explainable AI(XAI)',
+            'Machine Learning, Explainable AI (XAI)',
           imageUrl:
             'https://img.freepik.com/free-vector/illustration-gallery-icon_53876-27002.jpg',
           link: 'https://isaac-waffle.github.io/',
@@ -76,7 +76,7 @@ const CONFIG = {
   certifications: [
     {
       name: 'SAS Certified Specialist',
-      body: 'Base Programming Using SAS 9.4 ',
+      body: 'Base Programming Using SAS 9.4',
       year: 'Aug 2024',
       link: '',
     },
