@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="assets/css/style.css?v=12">
+<link rel="stylesheet" href="assets/css/style.css?v=13">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
 </head>
@@ -77,7 +77,6 @@
     </div>
   </section>
 
-  <div class="tape" aria-label="Live forecast ticker"><div class="tape-track" id="tape"></div></div>
 
   <!-- ============ FORECAST LAB ============ -->
   <section class="block lab" id="lab">
@@ -99,35 +98,11 @@
         </div>
       </div>
 
-      <div class="lab-grid">
-        <div class="cards reveal" id="cards" aria-live="polite"></div>
-        <aside class="side reveal">
-          <div class="panel">
-            <h3>Model scorecard</h3>
-            <div id="scorecard"></div>
-            <div class="legend"><span><i style="background:var(--accent)"></i>Model hit rate</span><span><i style="background:var(--ink-2)"></i>Always-up baseline</span><span><i style="background:var(--ink-4)"></i>Coin flip</span></div>
-            <p class="note">Walk-forward: retrained on a rolling window and scored only on bars it never saw. z = distance from 50% in standard errors (|z| &gt; 2 ≈ significant).</p>
-          </div>
-          <div class="panel">
-            <h3>Out-of-sample hit rate by day</h3>
-            <div class="minichart" id="dailyChart"></div>
-            <p class="note" id="dailyNote">5-minute horizon, last 20 trading days.</p>
-          </div>
-          <div class="panel">
-            <h3>Forward test</h3>
-            <div id="forward"></div>
-            <div class="recent" id="recent" aria-label="Most recent scored forecasts"></div>
-          </div>
-        </aside>
-      </div>
+      <div class="cards reveal" id="cards" aria-live="polite"></div>
+      <div class="more-wrap"><button class="btn" type="button" id="moreBtn">Show all 16 stocks</button></div>
 
-      <div class="method">
-        <div class="step reveal"><div class="n">01 / Data</div><h4>Fresh bars, no peeking</h4><p>5-minute, hourly and daily bars for 16 stocks plus SPY and QQQ. The bar that is still forming is dropped, so the model only sees what a trader could have seen.</p></div>
-        <div class="step reveal"><div class="n">02 / Features</div><h4>Volatility-scaled signals</h4><p>Returns scaled by each stock's own volatility; momentum, mean reversion, range, volume shocks, market moves, a cross-stock peer average and time of day.</p></div>
-        <div class="step reveal"><div class="n">03 / Models</div><h4>Pooled, regularised ensemble</h4><p>Ridge regression and L2 logistic regression trained jointly on all 16 stocks. Outputs P(up) and a ±1σ range from rolling volatility.</p></div>
-        <div class="step reveal"><div class="n">04 / Accountability</div><h4>Walk-forward + forward test</h4><p>Rolling retrains score every horizon out of sample. Each published forecast is logged and scored once its bar closes, and the scorecard updates itself.</p></div>
-      </div>
-      <p class="disclaimer">Research demo, not investment advice. Directional edges at these horizons are small and usually smaller than trading costs. That finding is the point of the lab, and it matches the 15-year study below.</p>
+      <div class="scores reveal" id="scorecard" aria-label="Model scorecard"></div>
+      <p class="disclaimer">Hit rates are walk-forward: the model is retrained on a rolling window and scored only on bars it never saw. Research demo, not investment advice.</p>
     </div>
   </section>
 
@@ -257,7 +232,7 @@
 <dialog class="case tm" id="tickerDlg" aria-label="Stock forecast detail"></dialog>
 
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})});</script>
-<script src="assets/js/main.js?v=12"></script>
-<script src="assets/js/lab.js?v=10"></script>
+<script src="assets/js/main.js?v=13"></script>
+<script src="assets/js/lab.js?v=13"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@
   var POLL_MS = 60000;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
-  var S = { d: null, h: "5m", snapshot: false, featured: null };
+  var S = { d: null, h: "5m", snapshot: false, featured: null, all: false };
   var HZ = { "5m": "Next 5 min", "1h": "Next hour", "1d": "Next session" };
 
   var fmtPx = function (v) { return v == null ? "—" : "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
@@ -75,31 +75,30 @@
     var st = S.snapshot ? "Snapshot · " + new Date(d.updated_utc).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
       : (m.status || "") + ' <span class="sep">·</span> updated ' + ago(d.updated_utc);
     $("#labStatus").innerHTML = '<span class="dot' + (live ? "" : " off") + '"></span>' + st;
-    renderCards(); renderScore(); renderDaily(); renderForward(); renderHero(live); renderTape();
+    renderCards(); renderScore(); renderHero(live);
   }
   function renderCards() {
-    $("#cards").innerHTML = rowsSorted().map(function (r) {
+    var rs = rowsSorted(); if (!S.all) rs = rs.slice(0, 6);
+    $("#moreBtn").textContent = S.all ? "Show fewer" : "Show all " + rowsSorted().length + " stocks";
+    $("#cards").innerHTML = rs.map(function (r) {
       var f = r.f[S.h]; if (!f) return "";
       var L = lean(f.p), tgt = f.px * (f.last ? r.px / f.last : 1);
       return '<button type="button" class="tcard" data-t="' + r.t + '" aria-label="' + esc(r.t + " forecast details") + '">' +
         '<div class="top"><span class="sym">' + r.t + '</span><span class="chg ' + cls(r.chg) + '">' + fmtPct(r.chg) + "</span></div>" +
         '<div class="nm">' + esc(r.name) + '</div><div class="px">' + fmtPx(r.px) + "</div>" +
         '<svg viewBox="0 0 240 64" preserveAspectRatio="none" aria-hidden="true">' + sparkSVG(r, f, 240, 64) + "</svg>" +
-        '<div class="prob"><span>P(up)<span class="hzl"> · ' + HZ[S.h].toLowerCase() + '</span></span><b class="' + L[1] + '">' + pctTxt(f.p) + "</b></div>" + pbar(f.p) +
-        '<div class="tgt"><span>' + L[0] + "</span><span>" + fmtPx(tgt) + " ±" + (f.sigma * 100).toFixed(2) + "%</span></div></button>";
+        '<div class="prob"><span>Chance of rising</span><b>' + pctTxt(f.p) + "</b></div></button>";
     }).join("");
   }
   function renderScore() {
-    var H = S.d.horizons, o = "";
+    var H = S.d.horizons, L = S.d.live || {}, o = "";
     ["5m", "1h", "1d"].forEach(function (h) {
       var b = (H[h] || {}).backtest || {}; if (b.hit == null) return;
-      var lo = 0.46, hi = 0.56, pos = function (v) { return Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100)); };
-      var sig = Math.abs(b.z) >= 2 ? (b.z > 0 ? "significant edge" : "significantly worse") : "not significant";
-      o += '<div class="score-row"><span class="h">' + HZ[h] + '</span><span class="v ' + (b.hit > 0.5 ? "up" : "flat") + '">' + (b.hit * 100).toFixed(1) + "%</span>" +
-        '<span class="s">z ' + (b.z > 0 ? "+" : "") + b.z.toFixed(1) + " · " + sig + " · n=" + b.n.toLocaleString("en-US") + "</span>" +
-        '<div class="bar"><i style="width:' + pos(b.hit) + '%"></i><span class="mk half" style="left:' + pos(0.5) + '%"></span><span class="mk" style="left:' + pos(b.always_up) + '%" title="Always-up baseline ' + (b.always_up * 100).toFixed(1) + '%"></span></div></div>';
+      var x = L[h] || {}, sig = Math.abs(b.z) >= 2 && b.z > 0 ? "Statistically significant" : "Not significant";
+      o += '<div class="score"><span class="h">' + HZ[h] + '</span><b>' + (b.hit * 100).toFixed(1) + '%</b><span class="s">' + sig + "</span>" +
+        '<span class="s2">' + (x.n ? "Live: " + (x.hit * 100).toFixed(1) + "% of " + x.n.toLocaleString("en-US") + " scored" : "Live scoring in progress") + "</span></div>";
     });
-    $("#scorecard").innerHTML = o;
+    $("#scorecard").innerHTML = '<div class="score-hd">Hit rate on unseen data</div><div class="score-grid">' + o + "</div>";
   }
   function renderDaily() {
     var b = ((S.d.horizons["5m"] || {}).backtest || {}), D = (b.daily || []).slice(-20);
@@ -166,6 +165,7 @@
     dlg.showModal();
   }
   $("#cards").addEventListener("click", function (e) { var b = e.target.closest("[data-t]"); if (b) openTicker(b.getAttribute("data-t")); });
+  $("#moreBtn").addEventListener("click", function () { S.all = !S.all; if (S.d) renderCards(); });
   $("#hzSeg").addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b || !S.d) return;
     S.h = b.getAttribute("data-h");

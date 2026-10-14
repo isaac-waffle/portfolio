@@ -60,12 +60,7 @@
   /* ---------- seeded helpers for project art ---------- */
   function rng(s) { return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
   var C = { ink: "#1d1d1f", ink2: "#424245", ink3: "#86868b", ink4: "#d2d2d7", line: "#f0f0f3", line2: "#e3e3e8", acc: "#1d1d1f", up: "#34c759", dn: "#ff3b30", blue: "#1d1d1f", bg: "#f5f5f7", panel: "#ffffff" };
-  function grid(w, h, step) {
-    var s = "";
-    for (var x = step; x < w; x += step) s += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + h + '" stroke="' + C.line + '" stroke-width="1"/>';
-    for (var y = step; y < h; y += step) s += '<line x1="0" y1="' + y + '" x2="' + w + '" y2="' + y + '" stroke="' + C.line + '" stroke-width="1"/>';
-    return s;
-  }
+  function grid() { return ""; }
   function walk(r, n, y0, vol) { var y = y0, out = []; for (var i = 0; i < n; i++) { y += (r() - 0.5) * vol; out.push(y); } return out; }
   function poly(xs, ys) { return xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(""); }
 
@@ -325,7 +320,6 @@
     return '<button type="button" class="proj reveal ' + (p.size || "") + '" data-p="' + p.id + '" aria-haspopup="dialog">' +
       '<div class="vis"><span class="chip' + (p.live ? " live" : "") + '">' + (p.live ? '<span class="dot"></span>' : "") + esc(p.chip) + "</span>" + ART[p.art]() + "</div>" +
       '<div class="body"><div class="meta">' + esc(p.meta) + "</div><h3>" + esc(p.title) + "</h3><p>" + esc(p.blurb) + "</p>" +
-      '<div class="tags">' + p.tags.map(function (t) { return "<span>" + esc(t) + "</span>"; }).join("") + "</div>" +
       '<span class="more">Read case study ' + arrow + "</span></div></button>";
   }).join("");
 
