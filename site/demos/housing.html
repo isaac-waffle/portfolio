@@ -1,0 +1,350 @@
+<!doctype html><html lang="en"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Woning Scout · Safe Housing Search NL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=DM+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,700&display=swap">
+<style>
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#14233a; --mute:#5d6b7e; --line:#d5dce5;
+  --accent:#e5570f; --accent-ink:#ffffff; --good:#137a4b; --good-bg:#e2f3ea;
+  --warn:#9a6700; --warn-bg:#fbf0d2; --bad:#b4232c; --bad-bg:#fbe3e4; --land:#dfe6ee; --sea:#f7f9fb;
+  --f-display:'Bricolage Grotesque','Inter',sans-serif; --f-body:'Inter',system-ui,sans-serif; --f-mono:'DM Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1724; --panel:#16233a; --ink:#e6edf6; --mute:#9aa9bd; --line:#2a3a55;
+  --accent:#ff7a3d; --accent-ink:#1a0d04; --good:#5fd39a; --good-bg:#12382a;
+  --warn:#f0c15a; --warn-bg:#3b2f10; --bad:#ff8088; --bad-bg:#431a1e; --land:#22324d; --sea:#101c2e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1724; --panel:#16233a; --ink:#e6edf6; --mute:#9aa9bd; --line:#2a3a55;
+  --accent:#ff7a3d; --accent-ink:#1a0d04; --good:#5fd39a; --good-bg:#12382a;
+  --warn:#f0c15a; --warn-bg:#3b2f10; --bad:#ff8088; --bad-bg:#431a1e; --land:#22324d; --sea:#101c2e; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding-inline:16px;padding-block:20px 48px}
+*{box-sizing:border-box}
+.wrap{max-width:1120px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:8px 16px}
+h1{font-family:var(--f-display);font-size:clamp(26px,5vw,38px);line-height:1.05;margin:0;letter-spacing:-.02em}
+header p{margin:0;color:var(--mute);max-width:46ch}
+.grid{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.col{display:grid;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;transition:box-shadow.2s ease}
+.card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin:0 0 12px;font-weight:700}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);padding:9px;font:inherit;font-weight:500;cursor:pointer;transition:all.15s ease}
+.seg button:active{transform:scale(.98)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.price{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:20px;margin-bottom:6px;flex-wrap:wrap;gap:4px}
+.price small{font-size:12px;color:var(--mute);align-self:end;font-family:var(--f-body)}
+.sliders{position:relative;height:30px}
+.sliders input{position:absolute;left:0;width:100%;top:4px;margin:0;pointer-events:none;background:none;-webkit-appearance:none;appearance:none;height:22px}
+.sliders input::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);border:3px solid var(--panel);box-shadow:0 0 0 1px var(--line);cursor:grab;transition:box-shadow.1s ease}
+.sliders input::-webkit-slider-thumb:active{box-shadow:0 0 0 4px var(--accent)}
+.sliders input::-moz-range-thumb{pointer-events:auto;width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid var(--panel);cursor:grab}
+.sliders input::-webkit-slider-runnable-track{background:transparent}
+.sliders input::-moz-range-track{background:transparent}
+.track{position:absolute;left:0;right:0;top:14px;height:4px;background:var(--line);border-radius:2px}
+.track i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 13px;font:inherit;cursor:pointer;transition:all.15s ease}
+.chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.chip:focus-visible,.seg button:focus-visible,.btn:focus-visible,a:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sub{font-size:12px;color:var(--mute);margin:12px 0 6px}
+.mapbox{background:var(--sea);border-radius:8px;border:1px solid var(--line);display:flex;justify-content:center}
+.mapbox svg{width:100%;max-width:260px;max-height:430px;height:auto}
+.land{fill:var(--land);stroke:var(--mute);stroke-width:.8;stroke-linejoin:round}
+.pin{cursor:pointer;transition:opacity.15s ease}
+.pin:hover circle{filter:brightness(1.1)}
+.pin circle{fill:var(--panel);stroke:var(--mute);stroke-width:1.5;transition:all.15s ease}
+.pin.on circle{fill:var(--accent);stroke:var(--accent)}
+.pin text{font:500 9px var(--f-body);fill:var(--ink);paint-order:stroke;stroke:var(--sea);stroke-width:3px}
+.sources{display:grid;gap:12px}
+.city h3{margin:0 0 6px;font-family:var(--f-display);font-size:20px}
+.city h3 span{font-family:var(--f-mono);font-size:12px;color:var(--mute);font-weight:400;margin-left:8px}
+.links{display:flex;flex-wrap:wrap;gap:6px}
+.links a{display:inline-flex;gap:6px;align-items:center;padding:6px 11px;border:1px solid var(--line);border-radius:6px;color:var(--ink);text-decoration:none;font-weight:500;transition:all.15s ease}
+.links a:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.links a b{font-size:10px;font-family:var(--f-mono);color:var(--good);background:var(--good-bg);padding:1px 5px;border-radius:4px}
+.empty{color:var(--mute);margin:0}
+textarea,input[type=text]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;transition:border-color.15s ease}
+textarea:focus,input[type=text]:focus{border-color:var(--accent);outline:none}
+textarea{min-height:110px;resize:vertical;margin-top:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.btn{background:var(--ink);color:var(--panel);border:0;border-radius:8px;padding:9px 16px;font:inherit;font-weight:700;cursor:pointer;transition:all.15s ease}
+.btn:hover{background:var(--accent);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.btn:active{transform:translateY(0)}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.alt:hover{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn[disabled]{opacity:.5;cursor:wait;transform:none}
+.verdict{margin-top:12px;border-radius:8px;padding:12px 14px;display:grid;gap:6px;animation:slideIn.3s ease}
+.verdict strong{font-size:16px}
+.verdict ul{margin:0;padding-left:18px}
+.v-pass{background:var(--good-bg);color:var(--good)}
+.v-warn{background:var(--warn-bg);color:var(--warn)}
+.v-bad{background:var(--bad-bg);color:var(--bad)}
+.verdict .body{color:var(--ink)}
+.lists{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.lists{grid-template-columns:1fr}}
+.host{font-family:var(--f-mono);font-size:13px;display:block;padding:2px 0}
+.ok{color:var(--good)} .no{color:var(--bad)}
+.note{font-size:13px;color:var(--mute);margin:10px 0 0}
+.theme{background:none;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer;transition:all.15s ease}
+.theme:hover{border-color:var(--accent);color:var(--accent)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Woning Scout</h1>
+      <p>Search trusted platforms only, and filter out listings that show scam signals.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="theme" href="../#work" style="text-decoration:none">← Isaac Kim · Portfolio</a><button class="theme" id="theme" type="button">Toggle theme</button></div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card">
+        <h2>Listing type</h2>
+        <div class="seg" role="group" aria-label="Listing type">
+          <button type="button" id="m-rent" aria-pressed="true">Rent (Huur)</button>
+          <button type="button" id="m-buy" aria-pressed="false">Buy (Koop)</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 id="price-h">Monthly rent</h2>
+        <div class="price"><span id="pmin"></span><span id="pmax"></span></div>
+        <div class="sliders">
+          <div class="track"><i id="fill"></i></div>
+          <input type="range" id="rmin" aria-label="Minimum price">
+          <input type="range" id="rmax" aria-label="Maximum price">
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Cities</h2>
+        <div class="chips" id="chips"></div>
+        <p class="sub">You can also tap a city on the map.</p>
+        <div class="mapbox"><svg id="map" viewBox="0 0 260 500" role="img" aria-label="Map of the Netherlands"></svg></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <h2>Search links <span id="count" style="font-family:var(--f-mono)"></span></h2>
+        <div class="sources" id="sources"></div>
+        <p class="note">Each link opens that platform's search with your price and city pre-filled. Some sites ignore part of the filter, so double-check on the page that opens.</p>
+      </section>
+
+      <section class="card">
+        <h2>Scam check</h2>
+        <label for="url" style="font-weight:500">Listing URL</label>
+        <input type="text" id="url" placeholder="https://www.pararius.com/..." autocomplete="off">
+        <label for="txt" style="font-weight:500;display:block;margin-top:10px">Listing text or landlord message (optional)</label>
+        <textarea id="txt" placeholder="Paste the landlord's message or the listing description."></textarea>
+        <div class="row">
+          <button class="btn" id="check" type="button">Run check</button>
+        </div>
+        <div id="result"></div>
+      </section>
+
+      <section class="card">
+        <h2>Rules (updated 2026-10-05)</h2>
+        <div class="lists">
+          <div><div class="sub" style="margin-top:0">Allowed (strict mode)</div><div id="wl"></div></div>
+          <div><div class="sub" style="margin-top:0">Always excluded</div><div id="bl"></div></div>
+        </div>
+        <p class="note">Any site not on the allow-list is excluded. Even on trusted sites, a request to pay a deposit upfront, a landlord who is “abroad”, or an offer to mail the keys without a viewing are scam signals. To verify a domain, look it up on <a href="https://www.fraudehelpdesk.nl" target="_blank" rel="noopener">Fraudehelpdesk</a>, <a href="https://www.scamadviser.com" target="_blank" rel="noopener">ScamAdviser</a>, <a href="https://transparencyreport.google.com/safe-browsing/search" target="_blank" rel="noopener">Google Safe Browsing</a></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var CITIES=[
+    {id:'amsterdam',n:'Amsterdam',en:'Amsterdam',lon:4.90,lat:52.37,main:1},
+    {id:'rotterdam',n:'Rotterdam',en:'Rotterdam',lon:4.48,lat:51.92,main:1},
+    {id:'utrecht',n:'Utrecht',en:'Utrecht',lon:5.12,lat:52.09,main:1},
+    {id:'den-haag',n:'The Hague',en:'Den Haag',lon:4.30,lat:52.08,main:1},
+    {id:'zaandam',n:'Zaandam',en:'Zaandam',lon:4.83,lat:52.44,main:1},
+    {id:'haarlem',n:'Haarlem',en:'Haarlem',lon:4.63,lat:52.38},
+    {id:'leiden',n:'Leiden',en:'Leiden',lon:4.49,lat:52.16},
+    {id:'delft',n:'Delft',en:'Delft',lon:4.36,lat:52.01},
+    {id:'amstelveen',n:'Amstelveen',en:'Amstelveen',lon:4.86,lat:52.30},
+    {id:'almere',n:'Almere',en:'Almere',lon:5.22,lat:52.37},
+    {id:'eindhoven',n:'Eindhoven',en:'Eindhoven',lon:5.47,lat:51.44},
+    {id:'breda',n:'Breda',en:'Breda',lon:4.78,lat:51.59},
+    {id:'arnhem',n:'Arnhem',en:'Arnhem',lon:5.90,lat:51.98},
+    {id:'groningen',n:'Groningen',en:'Groningen',lon:6.57,lat:53.22}
+  ];
+  var OUT=[[4.75,52.96],[5.05,53.05],[5.42,53.18],[5.9,53.3],[6.2,53.42],[6.85,53.35],[7.2,53.25],[7.2,53.0],[7.05,52.65],[7.07,52.25],[6.85,51.97],[6.4,51.85],[6.05,51.85],[6.2,51.4],[6.05,51.15],[5.85,50.8],[5.7,50.75],[5.75,51.2],[5.5,51.3],[5.0,51.45],[4.5,51.4],[4.25,51.37],[3.6,51.3],[3.4,51.4],[3.65,51.6],[4.0,51.85],[4.1,51.98],[4.27,52.1],[4.6,52.46],[4.65,52.8]];
+  function px(lon){return (lon-3.2)*61.6}
+  function py(lat){return (53.7-lat)*100}
+
+  var WHITE=['funda.nl','pararius.com','pararius.nl','kamernet.nl','huurwoningen.nl','huurportaal.nl','jaap.nl'];
+  var BLACK=['marktplaats.nl','facebook.com','olx.com','craigslist.org','telegram.org','t.me','wa.me'];
+  var RANGE={rent:{min:400,max:4000,step:50,def:[700,1800],h:'Monthly rent'},buy:{min:100000,max:1500000,step:10000,def:[250000,600000],h:'Purchase price'}};
+
+  var st={mode:'rent',cities:['amsterdam','rotterdam'],lo:700,hi:1800};
+  var $=function(id){return document.getElementById(id)};
+  var fmt=function(v){return '€ '+v.toLocaleString('nl-NL')};
+  var rmin=$('rmin'),rmax=$('rmax');
+
+  function setRange(){
+    var r=RANGE[st.mode];
+    [rmin,rmax].forEach(function(e){e.min=r.min;e.max=r.max;e.step=r.step});
+    rmin.value=st.lo;rmax.value=st.hi;
+    $('price-h').textContent=r.h;
+    drawPrice();
+  }
+  function drawPrice(){
+    var r=RANGE[st.mode];
+    $('pmin').textContent=fmt(st.lo);
+    $('pmax').textContent=fmt(st.hi)+(st.hi>=r.max?'+':'');
+    var a=(st.lo-r.min)/(r.max-r.min)*100,b=(st.hi-r.min)/(r.max-r.min)*100;
+    $('fill').style.left=a+'%';$('fill').style.right=(100-b)+'%';
+  }
+  rmin.addEventListener('input',function(){st.lo=Math.min(+rmin.value,st.hi-RANGE[st.mode].step);rmin.value=st.lo;drawPrice();renderResults()});
+  rmax.addEventListener('input',function(){st.hi=Math.max(+rmax.value,st.lo+RANGE[st.mode].step);rmax.value=st.hi;drawPrice();renderResults()});
+
+  function setMode(m){
+    st.mode=m;st.lo=RANGE[m].def[0];st.hi=RANGE[m].def[1];
+    $('m-rent').setAttribute('aria-pressed',m==='rent');
+    $('m-buy').setAttribute('aria-pressed',m==='buy');
+    setRange();renderResults();
+  }
+  $('m-rent').onclick=function(){setMode('rent')};
+  $('m-buy').onclick=function(){setMode('buy')};
+
+  function toggleCity(id){
+    var i=st.cities.indexOf(id);
+    if(i>-1)st.cities.splice(i,1);else st.cities.push(id);
+    renderCities();renderResults();
+  }
+  function renderCities(){
+    var box=$('chips');box.innerHTML='';
+    CITIES.forEach(function(c){
+      var b=document.createElement('button');b.type='button';b.className='chip';b.textContent=c.n;
+      b.setAttribute('aria-pressed',st.cities.indexOf(c.id)>-1);
+      b.onclick=function(){toggleCity(c.id)};box.appendChild(b);
+    });
+    var svg=$('map'),NS='http://www.w3.org/2000/svg';svg.innerHTML='';
+    var p=document.createElementNS(NS,'polygon');
+    p.setAttribute('class','land');
+    p.setAttribute('points',OUT.map(function(q){return px(q[0]).toFixed(1)+','+py(q[1]).toFixed(1)}).join(' '));
+    svg.appendChild(p);
+    CITIES.forEach(function(c){
+      var g=document.createElementNS(NS,'g');
+      g.setAttribute('class','pin'+(st.cities.indexOf(c.id)>-1?' on':''));
+      g.setAttribute('tabindex','0');g.setAttribute('role','button');
+      g.setAttribute('aria-label',c.n);
+      var ci=document.createElementNS(NS,'circle');
+      ci.setAttribute('cx',px(c.lon));ci.setAttribute('cy',py(c.lat));ci.setAttribute('r',c.main?6:4.5);
+      var t=document.createElementNS(NS,'text');
+      var right=c.lon<4.7;
+      t.setAttribute('x',px(c.lon)+(right?-9:9));t.setAttribute('y',py(c.lat)+3);
+      t.setAttribute('text-anchor',right?'end':'start');t.textContent=c.en;
+      g.appendChild(ci);g.appendChild(t);
+      g.onclick=function(){toggleCity(c.id)};
+      g.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleCity(c.id)}};
+      svg.appendChild(g);
+    });
+  }
+
+  function links(c){
+    var lo=st.lo,hi=st.hi,out=[];
+    var f=function(o){return encodeURIComponent(JSON.stringify(o))};
+    if(st.mode==='rent'){
+      out.push(['Pararius','https://www.pararius.com/apartments/'+c.id+'/'+lo+'-'+hi]);
+      out.push(['Funda','https://www.funda.nl/zoeken/huur?selected_area='+f([c.id])+'&price='+f(lo+'-'+hi)]);
+      out.push(['Huurwoningen','https://www.huurwoningen.nl/in/'+c.id+'/?price='+lo+'-'+hi]);
+      out.push(['Kamernet','https://kamernet.nl/en/for-rent/properties-'+c.id]);
+    }else{
+      out.push(['Funda','https://www.funda.nl/zoeken/koop?selected_area='+f([c.id])+'&price='+f(lo+'-'+hi)]);
+      out.push(['Jaap','https://www.jaap.nl/koophuizen/'+c.id]);
+    }
+    return out;
+  }
+  function renderResults(){
+    var box=$('sources');box.innerHTML='';
+    var sel=CITIES.filter(function(c){return st.cities.indexOf(c.id)>-1});
+    $('count').textContent=sel.length?'· '+sel.length+' cities':'';
+    if(!sel.length){box.innerHTML='<p class="empty">Select at least one city.</p>';return}
+    sel.forEach(function(c){
+      var d=document.createElement('div');d.className='city';
+      var h=document.createElement('h3');h.textContent=c.n;
+      var s=document.createElement('span');s.textContent=fmt(st.lo)+' – '+fmt(st.hi);h.appendChild(s);
+      d.appendChild(h);
+      var l=document.createElement('div');l.className='links';
+      links(c).forEach(function(x){
+        var a=document.createElement('a');a.href=x[1];a.target='_blank';a.rel='noopener noreferrer';
+        a.textContent=x[0]+' ';var b=document.createElement('b');b.textContent='trusted';a.appendChild(b);l.appendChild(a);
+      });
+      d.appendChild(l);box.appendChild(d);
+    });
+  }
+
+  function renderLists(){
+    $('wl').innerHTML=WHITE.map(function(h){return '<span class="host ok">✓ '+h+'</span>'}).join('');
+    $('bl').innerHTML=BLACK.map(function(h){return '<span class="host no">✕ '+h+'</span>'}).join('')+'<span class="host no">✕ every other domain</span>';
+  }
+
+  function hostOf(u){
+    try{ if(!/^https?:\/\//i.test(u))u='https://'+u; return new URL(u).hostname.replace(/^www\./,'').toLowerCase() }catch(e){return ''}
+  }
+  function match(h,list){return list.some(function(d){return h===d||h.endsWith('.'+d)})}
+
+  var FLAGS=[
+    [/western ?union|moneygram|bitcoin|crypto|gift ?card|paysafe|wire transfer/i,3,'Asks for an untraceable payment method (Western Union, crypto, gift cards).'],
+    [/(deposit|waarborg|borg|advance|voorschot|vooruit|first month).{0,60}(before|voor|prior|upfront|first)|(before|voor|prior).{0,60}(viewing|bezichtiging|contract|sleutel|key)/i,3,'Asks you to send money before a viewing or contract.'],
+    [/(abroad|buitenland|overseas|missionary|out of (the )?(country|netherlands)|not in (the )?netherlands|living in (uk|usa|spain|london|dubai))/i,2,'Says the landlord is abroad.'],
+    [/(no viewing|geen bezichtiging|cannot show|can't show|keys? (will be )?(sent|mailed|shipped|couriered)|sleutel.{0,30}(opsturen|post|versturen))/i,3,'Offers to mail the keys instead of showing the home.'],
+    [/whatsapp|telegram|signal|wechat/i,1,'Tries to move the conversation to an off-platform messenger.'],
+    [/(urgent|act now|first to pay|many (people|applicants) (are )?interested|snel beslissen|direct betalen)/i,1,'Pressures you to decide quickly.'],
+    [/@(gmail|yahoo|hotmail|outlook|proton|protonmail)\./i,1,'Uses a free personal e-mail address; real agencies use their own domain.'],
+    [/(dm|stuur|send).{0,30}(passport|paspoort|id card|bsn)/i,2,'Asks for a passport or BSN copy before a contract.']
+  ];
+
+  function local(){
+    var u=$('url').value.trim(),t=$('txt').value,h=u?hostOf(u):'';
+    var reasons=[],score=0,excluded=false;
+    if(u){
+      if(!h){reasons.push('The link format could not be read.');excluded=true}
+      else if(match(h,BLACK)){reasons.push(h+' is classified as high-risk for scams and was excluded.');excluded=true}
+      else if(!match(h,WHITE)){reasons.push(h+' is not on the allow-list, so strict mode excludes it.');excluded=true}
+      if(/xn--/.test(h))reasons.push('The domain uses punycode and may be a look-alike fake address.');
+    }
+    FLAGS.forEach(function(f){ if(f[0].test(t)){score+=f[1];reasons.push(f[2])} });
+    return {host:h,excluded:excluded,score:score,reasons:reasons,hasInput:!!(u||t.trim())};
+  }
+  function verdict(r,extra){
+    var cls,title;
+    if(r.excluded||r.score>=3){cls='v-bad';title='Excluded: high scam risk'}
+    else if(r.score>=1||r.reasons.length){cls='v-warn';title='Caution: needs more checking'}
+    else{cls='v-pass';title='No obvious scam signals'}
+    var h='<div class="verdict '+cls+'"><strong>'+title+'</strong>';
+    if(r.reasons.length){h+='<ul class="body">'+r.reasons.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>'}
+    else{h+='<span class="body">No signals does not mean safe. Visit in person before signing, and only pay a deposit after you have the contract, to the Dutch bank account named in it.</span>'}
+    if(extra)h+=extra;
+    return h+'</div>';
+  }
+  function esc(s){var d=document.createElement('div');d.textContent=String(s);return d.innerHTML}
+
+  $('check').onclick=function(){
+    var r=local();
+    $('result').innerHTML=r.hasInput?verdict(r):'<div class="verdict v-warn"><strong>Enter a link or a description</strong></div>';
+  };
+
+  $('theme').onclick=function(){
+    var r=document.documentElement,cur=r.getAttribute('data-theme');
+    var dark=cur?cur==='dark':matchMedia('(prefers-color-scheme:dark)').matches;
+    r.setAttribute('data-theme',dark?'light':'dark');
+  };
+
+  renderCities();renderLists();setRange();renderResults();
+})();
+</script>
+
+</body></html>
