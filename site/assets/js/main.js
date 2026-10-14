@@ -314,6 +314,7 @@
       links: [] }
   ];
 
+  var pc = document.getElementById("projCount"); if (pc) pc.textContent = P.length;
   var arrow = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
   var grid_ = $("#workGrid");
   grid_.innerHTML = P.map(function (p) {
