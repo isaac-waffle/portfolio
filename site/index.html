@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Isaac Kim — Data Scientist</title>
 <meta name="description" content="Isaac Kim is a data scientist and econometrician in Amsterdam building forecasting models, data pipelines and analytics tools. Includes a live stock forecast lab that grades itself in public.">
-<meta name="theme-color" content="#08090b">
+<meta name="theme-color" content="#ffffff">
 <meta property="og:title" content="Isaac Kim — Data Scientist">
 <meta property="og:description" content="Forecasting, econometrics and data engineering. Live stock forecast lab, case studies and experience.">
 <meta property="og:type" content="website">
@@ -16,8 +16,8 @@
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="assets/css/style.css?v=4">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="assets/css/style.css?v=11">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
 </head>
@@ -25,17 +25,16 @@
 
 <header class="nav" id="nav">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="Isaac Kim, home"><span class="mark">I</span>Isaac Kim</a>
+    <a class="brand" href="#top" aria-label="Isaac Kim, home">Isaac Kim</a>
     <nav aria-label="Primary">
       <ul id="menu">
         <li><a href="#lab">Forecast Lab</a></li>
         <li><a href="#work">Work</a></li>
         <li><a href="#experience">Experience</a></li>
         <li><a href="#about">About</a></li>
-        <li><a href="#contact">Contact</a></li>
-      </ul>
+              </ul>
     </nav>
-    <a class="cta" href="mailto:eunho203@gmail.com">Get in touch</a>
+    <a class="cta" href="#contact">Contact</a>
     <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="menu">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5h14M2 13h14"/></svg>
     </button>
@@ -45,37 +44,36 @@
 <main id="top">
   <!-- ============ HERO ============ -->
   <section class="hero">
-    <canvas id="field" aria-hidden="true"></canvas>
-    <div class="wrap">
-      <div>
-        <span class="eyebrow rise" style="--d:90ms"><span class="dot" id="heroDot"></span>Isaac Kim · Data Scientist · Amsterdam</span>
-        <h1 class="display rise" style="--d:180ms">Data science,<br><em>tested</em> against<br><span class="thin">reality.</span></h1>
-        <p class="lede rise" style="--d:270ms">I'm an econometrician who builds forecasting models, data pipelines and analytics tools, and I validate them as if real money depended on them. Currently <b>Data &amp; Reporting Analyst at Verisure</b>, previously <b>Infineon Technologies</b>. BSc Econometrics &amp; Data Science, <b>University of Amsterdam, cum laude</b>.</p>
-        <div class="actions rise" style="--d:360ms">
-          <a class="btn primary" href="#lab">See the live forecast
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
-          <a class="btn" href="#work">Selected work</a>
-        </div>
-        <div class="stats rise" style="--d:450ms">
-          <div><b>8.38</b><span>GPA, cum laude<br>(UvA)</span></div>
-          <div><b>300+</b><span>KPIs automated<br>at Verisure</span></div>
-          <div><b>100M+</b><span>data points per<br>product, Infineon</span></div>
-          <div><b>16</b><span>stocks forecast<br>live, every 15 min</span></div>
-        </div>
+    <div class="wrap hero-in">
+      <p class="eyebrow rise" style="--d:40ms"><span class="dot off" id="heroDot"></span>Isaac Kim · Data Scientist · Amsterdam</p>
+      <h1 class="display rise" style="--d:110ms">Data science.<br><span class="grad">Tested against reality.</span></h1>
+      <p class="lede rise" style="--d:180ms">I build forecasting models, data pipelines and analytics tools, and I validate them as if real money depended on them.</p>
+      <div class="actions rise" style="--d:250ms">
+        <a class="btn primary" href="#lab">See the live forecast</a>
+        <a class="link" href="#work">Selected work <span aria-hidden="true">›</span></a>
       </div>
-      <aside class="idcard rise" style="--d:540ms" aria-label="Profile">
-        <div class="photo">
-          <img src="assets/img/isaac.jpg" alt="Portrait of Isaac Kim" width="558" height="640">
-          <div class="tag"><b>Isaac Kim</b><span>Econometrics · ML · Data Engineering</span></div>
-        </div>
-        <div class="livebox" id="heroLive">
-          <div class="hd"><span><span class="dot off" id="liveDot"></span><span id="liveLbl">Forecast Lab</span></span><span id="liveAge">loading…</span></div>
-          <div class="row"><span class="tk" id="hlTk">—</span><span class="px" id="hlPx"></span></div>
-          <svg id="hlSpark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg>
-          <div class="call" id="hlCall">Next-bar forecasts for 16 stocks, scored in public.</div>
-          <a href="#lab">Open the lab <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
-        </div>
-      </aside>
+    </div>
+    <div class="wrap hero-media rise" style="--d:340ms">
+      <figure class="tile photo-tile">
+        <img src="assets/img/isaac.jpg" alt="Portrait of Isaac Kim" width="558" height="640">
+        <figcaption><b>Isaac Kim</b><span>Data &amp; Reporting Analyst at Verisure. Previously Infineon Technologies. BSc Econometrics &amp; Data Science, University of Amsterdam, cum laude.</span></figcaption>
+      </figure>
+      <div class="tile dark livebox" id="heroLive">
+        <div class="hd"><span><span class="dot off" id="liveDot"></span><span id="liveLbl">Forecast Lab</span></span><span id="liveAge">loading…</span></div>
+        <div class="row"><span class="tk" id="hlTk">—</span><span class="px" id="hlPx"></span></div>
+        <svg id="hlSpark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="call" id="hlCall">Next-bar forecasts for 16 stocks, scored in public.</div>
+        <a href="#lab">Open the lab <span aria-hidden="true">›</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="numbers">
+    <div class="wrap stats">
+      <div class="reveal"><b>8.38</b><span>GPA, cum laude, University of Amsterdam</span></div>
+      <div class="reveal"><b>300+</b><span>KPIs automated at Verisure</span></div>
+      <div class="reveal"><b>100M+</b><span>data points per product at Infineon</span></div>
+      <div class="reveal"><b>16</b><span>stocks forecast live, every 15 minutes</span></div>
     </div>
   </section>
 
@@ -86,8 +84,8 @@
     <div class="wrap">
       <div class="sec-head">
         <div class="reveal">
-          <div class="kicker">01 · Live system</div>
-          <h2 class="title">Forecast Lab <em>— grading itself in public</em></h2>
+          <div class="kicker">Live system</div>
+          <h2 class="title">Forecast Lab. <em>Grading itself in public.</em></h2>
         </div>
         <p class="reveal">Every 15 minutes during US market hours, a scheduled cloud job pulls fresh bars for 16 large-cap stocks, retrains, and publishes the probability that each one moves up over the next 5 minutes, the next hour and the next session. Every forecast is logged and scored once its bar closes. No cherry-picking.</p>
       </div>
@@ -138,8 +136,8 @@
     <div class="wrap">
       <div class="sec-head">
         <div class="reveal">
-          <div class="kicker">02 · Selected work</div>
-          <h2 class="title">Projects <em>&amp; case studies</em></h2>
+          <div class="kicker">Projects</div>
+          <h2 class="title">Selected work. <em>Built end to end.</em></h2>
         </div>
         <p class="reveal">From quantitative research to tools I built to solve real problems in my own life in the Netherlands. Open any project for the approach, results and stack. Several of them run right here in your browser.</p>
       </div>
@@ -152,8 +150,8 @@
     <div class="wrap">
       <div class="sec-head">
         <div class="reveal">
-          <div class="kicker">03 · Experience</div>
-          <h2 class="title">Where I've <em>worked</em></h2>
+          <div class="kicker">Career</div>
+          <h2 class="title">Experience. <em>Analytics at scale.</em></h2>
         </div>
         <p class="reveal">Industry analytics at scale: retention forecasting and BI for a European security leader, and semiconductor yield and failure analysis for one of the world's largest chipmakers.</p>
       </div>
@@ -194,8 +192,8 @@
     <div class="wrap">
       <div class="sec-head">
         <div class="reveal">
-          <div class="kicker">04 · About</div>
-          <h2 class="title">Rigour first, <em>then speed</em></h2>
+          <div class="kicker">About</div>
+          <h2 class="title">Rigour first. <em>Then speed.</em></h2>
         </div>
       </div>
       <div class="about">
@@ -234,8 +232,8 @@
   <!-- ============ CONTACT ============ -->
   <section class="contact" id="contact">
     <div class="wrap">
-      <div class="kicker reveal" style="justify-content:center">05 · Contact</div>
-      <h2 class="reveal">Let's build something<br><em>measurable.</em></h2>
+      <div class="kicker reveal" style="justify-content:center">Contact</div>
+      <h2 class="reveal">Let's build something<br><span class="grad">measurable.</span></h2>
       <p class="reveal">Open to data science, analytics and quantitative roles in the Netherlands. I hold an orientation-year residence permit, so the reduced highly-skilled-migrant salary threshold applies.</p>
       <p class="reveal" style="margin-bottom:28px"><a class="mail" href="mailto:eunho203@gmail.com">eunho203@gmail.com</a></p>
       <div class="actions reveal">
@@ -259,7 +257,7 @@
 <dialog class="case tm" id="tickerDlg" aria-label="Stock forecast detail"></dialog>
 
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})});</script>
-<script src="assets/js/main.js?v=3"></script>
-<script src="assets/js/lab.js?v=3"></script>
+<script src="assets/js/main.js?v=10"></script>
+<script src="assets/js/lab.js?v=10"></script>
 </body>
 </html>

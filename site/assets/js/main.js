@@ -59,7 +59,7 @@
 
   /* ---------- seeded helpers for project art ---------- */
   function rng(s) { return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
-  var C = { ink: "#eceef1", ink2: "#b3b8c0", ink3: "#7c838d", ink4: "#3a4048", line: "#1f242b", line2: "#2a3038", acc: "#c6f36b", up: "#46d68c", dn: "#ff6e6e", blue: "#7fa8ff", bg: "#0d0f12", panel: "#111418" };
+  var C = { ink: "#1d1d1f", ink2: "#424245", ink3: "#86868b", ink4: "#d2d2d7", line: "#f0f0f3", line2: "#e3e3e8", acc: "#0071e3", up: "#34c759", dn: "#ff3b30", blue: "#0071e3", bg: "#f5f5f7", panel: "#ffffff" };
   function grid(w, h, step) {
     var s = "";
     for (var x = step; x < w; x += step) s += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + h + '" stroke="' + C.line + '" stroke-width="1"/>';
@@ -81,28 +81,28 @@
       });
       s += '<line x1="' + lx + '" y1="' + ly + '" x2="' + (lx + 290) + '" y2="' + (ly - 22) + '" stroke="' + C.acc + '" stroke-width="2" stroke-dasharray="6 6"/>';
       s += '<circle cx="' + lx + '" cy="' + ly + '" r="6" fill="' + C.acc + '"/><circle cx="' + lx + '" cy="' + ly + '" r="14" fill="none" stroke="' + C.acc + '" opacity=".4"/>';
-      ["5 MIN", "1 HOUR", "SESSION"].forEach(function (t, i) { var x = lx + [90, 180, 290][i]; s += '<text x="' + x + '" y="' + (h - 24) + '" fill="' + C.ink3 + '" font-family="JetBrains Mono" font-size="12" text-anchor="middle">' + t + '</text><line x1="' + x + '" x2="' + x + '" y1="40" y2="' + (h - 44) + '" stroke="' + C.line2 + '" stroke-dasharray="3 5"/>'; });
-      s += '<g font-family="JetBrains Mono" font-size="13"><text x="' + (lx + 18) + '" y="' + (ly - 64) + '" fill="' + C.acc + '">P(up) 0.531</text><text x="' + (lx + 18) + '" y="' + (ly - 44) + '" fill="' + C.ink3 + '">±1σ range</text></g>';
+      ["5 MIN", "1 HOUR", "SESSION"].forEach(function (t, i) { var x = lx + [90, 180, 290][i]; s += '<text x="' + x + '" y="' + (h - 24) + '" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="12" text-anchor="middle">' + t + '</text><line x1="' + x + '" x2="' + x + '" y1="40" y2="' + (h - 44) + '" stroke="' + C.line2 + '" stroke-dasharray="3 5"/>'; });
+      s += '<g font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="13"><text x="' + (lx + 18) + '" y="' + (ly - 64) + '" fill="' + C.acc + '">P(up) 0.531</text><text x="' + (lx + 18) + '" y="' + (ly - 44) + '" fill="' + C.ink3 + '">±1σ range</text></g>';
       return s + "</svg>";
     },
     study: function () {
       var w = 640, h = 360, s = '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid slice">' + grid(w, h, 40);
       var hz = [["1m", 51.5, 49.6], ["5m", 51.2, 49.4], ["30m", 52.4, 49.5], ["1h", 49.5, 50.7], ["1d", 52.2, 48.9]];
       var y = function (v) { return 300 - (v - 46) * 30; };
-      s += '<line x1="40" x2="600" y1="' + y(50) + '" y2="' + y(50) + '" stroke="' + C.ink3 + '" stroke-dasharray="4 5"/><text x="604" y="' + (y(50) + 4) + '" fill="' + C.ink3 + '" font-family="JetBrains Mono" font-size="11">50%</text>';
+      s += '<line x1="40" x2="600" y1="' + y(50) + '" y2="' + y(50) + '" stroke="' + C.ink3 + '" stroke-dasharray="4 5"/><text x="604" y="' + (y(50) + 4) + '" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11">50%</text>';
       hz.forEach(function (d, i) {
         var x = 80 + i * 105;
         s += '<rect x="' + x + '" y="' + y(d[1]) + '" width="30" height="' + (300 - y(d[1])) + '" rx="3" fill="' + C.acc + '"/>';
         s += '<rect x="' + (x + 36) + '" y="' + y(d[2]) + '" width="30" height="' + (300 - y(d[2])) + '" rx="3" fill="' + C.ink4 + '"/>';
-        s += '<text x="' + (x + 33) + '" y="326" fill="' + C.ink2 + '" font-family="JetBrains Mono" font-size="12" text-anchor="middle">' + d[0] + "</text>";
+        s += '<text x="' + (x + 33) + '" y="326" fill="' + C.ink2 + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="12" text-anchor="middle">' + d[0] + "</text>";
       });
-      s += '<g font-family="JetBrains Mono" font-size="11"><rect x="420" y="40" width="10" height="10" fill="' + C.acc + '"/><text x="436" y="49" fill="' + C.ink2 + '">MACHINE</text><rect x="500" y="40" width="10" height="10" fill="' + C.ink4 + '"/><text x="516" y="49" fill="' + C.ink2 + '">HUMAN RULE</text></g>';
+      s += '<g font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11"><rect x="420" y="40" width="10" height="10" fill="' + C.acc + '"/><text x="436" y="49" fill="' + C.ink2 + '">MACHINE</text><rect x="500" y="40" width="10" height="10" fill="' + C.ink4 + '"/><text x="516" y="49" fill="' + C.ink2 + '">HUMAN RULE</text></g>';
       return s + "</svg>";
     },
     desk: function () {
       var w = 640, h = 360, r = rng(19), s = '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid slice"><rect width="' + w + '" height="' + h + '" fill="' + C.bg + '"/>';
       var cols = ["1m", "5m", "30m", "1h", "1d"], tks = ["NVDA", "AMD", "TSLA", "META", "MU", "ORCL", "GOOGL"];
-      s += '<g font-family="JetBrains Mono" font-size="11">';
+      s += '<g font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11">';
       cols.forEach(function (c, j) { s += '<text x="' + (190 + j * 88) + '" y="52" fill="' + C.ink3 + '" text-anchor="middle">' + c + "</text>"; });
       tks.forEach(function (t, i) {
         var yy = 84 + i * 38;
@@ -122,19 +122,19 @@
         var y = 54 + i * 66, col = j[2] >= 75 ? C.up : j[2] >= 60 ? C.acc : "#f0b060", circ = 2 * Math.PI * 20;
         s += '<rect x="60" y="' + y + '" width="430" height="54" rx="10" fill="' + C.panel + '" stroke="' + (i ? C.line : C.acc) + '"/>';
         s += '<circle cx="92" cy="' + (y + 27) + '" r="20" fill="none" stroke="' + C.line2 + '" stroke-width="4"/><circle cx="92" cy="' + (y + 27) + '" r="20" fill="none" stroke="' + col + '" stroke-width="4" stroke-dasharray="' + (circ * j[2] / 100).toFixed(1) + " " + circ.toFixed(1) + '" transform="rotate(-90 92 ' + (y + 27) + ')"/>';
-        s += '<text x="92" y="' + (y + 31) + '" fill="' + C.ink + '" font-family="JetBrains Mono" font-size="12" text-anchor="middle">' + j[2] + "</text>";
-        s += '<text x="126" y="' + (y + 23) + '" fill="' + C.ink + '" font-family="Inter" font-size="14" font-weight="600">' + j[0] + '</text><text x="126" y="' + (y + 41) + '" fill="' + C.ink3 + '" font-family="Inter" font-size="12">' + j[1] + "</text>";
-        s += '<rect x="390" y="' + (y + 17) + '" width="84" height="20" rx="10" fill="' + C.up + '" opacity=".14"/><text x="432" y="' + (y + 31) + '" fill="' + C.up + '" font-family="JetBrains Mono" font-size="10" text-anchor="middle">IND SPONSOR</text>';
+        s += '<text x="92" y="' + (y + 31) + '" fill="' + C.ink + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="12" text-anchor="middle">' + j[2] + "</text>";
+        s += '<text x="126" y="' + (y + 23) + '" fill="' + C.ink + '" font-family="-apple-system,Inter,sans-serif" font-size="14" font-weight="600">' + j[0] + '</text><text x="126" y="' + (y + 41) + '" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-size="12">' + j[1] + "</text>";
+        s += '<rect x="390" y="' + (y + 17) + '" width="84" height="20" rx="10" fill="' + C.up + '" opacity=".14"/><text x="432" y="' + (y + 31) + '" fill="' + C.up + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="10" text-anchor="middle">IND SPONSOR</text>';
       });
       s += '<rect x="540" y="54" width="450" height="318" rx="12" fill="' + C.panel + '" stroke="' + C.line + '"/>';
-      s += '<text x="566" y="88" fill="' + C.acc + '" font-family="JetBrains Mono" font-size="11" letter-spacing="1.5">TAILORED MOTIVATION LETTER</text>';
+      s += '<text x="566" y="88" fill="' + C.acc + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11" letter-spacing="1.5">TAILORED MOTIVATION LETTER</text>';
       [0.92, 0.86, 0.95, 0.6, 0, 0.9, 0.82, 0.94, 0.88, 0.5, 0, 0.93, 0.7].forEach(function (f, i) { if (f) s += '<rect x="566" y="' + (110 + i * 18) + '" width="' + (398 * f) + '" height="7" rx="3.5" fill="' + C.ink4 + '"/>'; });
-      s += '<rect x="566" y="338" width="110" height="22" rx="11" fill="' + C.acc + '"/><text x="621" y="353" fill="#0b0c0e" font-family="Inter" font-size="11" font-weight="600" text-anchor="middle">Save as PDF</text>';
+      s += '<rect x="566" y="338" width="110" height="22" rx="11" fill="' + C.acc + '"/><text x="621" y="353" fill="#ffffff" font-family="-apple-system,Inter,sans-serif" font-size="11" font-weight="600" text-anchor="middle">Save as PDF</text>';
       return s + "</svg>";
     },
     pnl: function () {
       var w = 640, h = 360, r = rng(42), s = '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid slice"><rect width="' + w + '" height="' + h + '" fill="' + C.bg + '"/>';
-      s += '<text x="60" y="64" fill="' + C.ink3 + '" font-family="Inter" font-size="12">Realised P&amp;L</text><text x="60" y="104" fill="' + C.up + '" font-family="Inter" font-size="38" font-weight="700" letter-spacing="-1">+€2,418</text>';
+      s += '<text x="60" y="64" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-size="12">Realised P&amp;L</text><text x="60" y="104" fill="' + C.up + '" font-family="-apple-system,Inter,sans-serif" font-size="38" font-weight="700" letter-spacing="-1">+€2,418</text>';
       for (var k = 0; k < 5; k++) for (var d = 0; d < 7; d++) {
         var x = 300 + d * 40, y = 44 + k * 40, v = r(), on = d < 5 && r() > 0.35, up = r() > 0.42;
         s += '<rect x="' + x + '" y="' + y + '" width="34" height="34" rx="7" fill="' + (on ? (up ? C.up : C.dn) : C.panel) + '" opacity="' + (on ? (0.25 + v * 0.6).toFixed(2) : 1) + '"/>';
@@ -153,7 +153,7 @@
       });
       s += '<g transform="translate(372 70)"><rect width="220" height="220" rx="14" fill="' + C.panel + '" stroke="' + C.line2 + '"/>';
       s += '<path d="M110 34 L160 54 V100 C160 132 138 154 110 166 C82 154 60 132 60 100 V54 Z" fill="none" stroke="' + C.acc + '" stroke-width="2.5"/><path d="M90 100 l14 14 l26 -28" fill="none" stroke="' + C.acc + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
-      s += '<text x="110" y="196" fill="' + C.ink2 + '" font-family="JetBrains Mono" font-size="11" text-anchor="middle">SCAM SIGNALS: 0</text></g>';
+      s += '<text x="110" y="196" fill="' + C.ink2 + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11" text-anchor="middle">SCAM SIGNALS: 0</text></g>';
       return s + "</svg>";
     },
     thesis: function () {
@@ -163,7 +163,7 @@
       s += '<path d="' + poly(xs, lin) + '" fill="none" stroke="' + C.ink3 + '" stroke-width="2" stroke-dasharray="7 6"/>';
       s += '<path d="' + poly(xs, ale) + '" fill="none" stroke="' + C.acc + '" stroke-width="3"/>';
       for (var j = 0; j < 40; j++) { var xx = 70 + j * 13, yy = 300 + ((j * 37) % 11); s += '<line x1="' + xx + '" x2="' + xx + '" y1="' + yy + '" y2="' + (yy + 8) + '" stroke="' + C.ink4 + '"/>'; }
-      s += '<g font-family="JetBrains Mono" font-size="11"><line x1="70" x2="96" y1="52" y2="52" stroke="' + C.acc + '" stroke-width="3"/><text x="104" y="56" fill="' + C.ink2 + '">ALE (black-box model)</text><line x1="300" x2="326" y1="52" y2="52" stroke="' + C.ink3 + '" stroke-width="2" stroke-dasharray="6 5"/><text x="334" y="56" fill="' + C.ink2 + '">Econometric partial effect</text></g>';
+      s += '<g font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11"><line x1="70" x2="96" y1="52" y2="52" stroke="' + C.acc + '" stroke-width="3"/><text x="104" y="56" fill="' + C.ink2 + '">ALE (black-box model)</text><line x1="300" x2="326" y1="52" y2="52" stroke="' + C.ink3 + '" stroke-width="2" stroke-dasharray="6 5"/><text x="334" y="56" fill="' + C.ink2 + '">Econometric partial effect</text></g>';
       return s + "</svg>";
     },
     waze: function () {
@@ -175,7 +175,7 @@
         return o;
       }
       s += tree(150, 90, 1, C.dn) + tree(320, 70, 1.15, C.acc) + tree(490, 90, 1, C.dn);
-      s += '<text x="320" y="320" fill="' + C.ink3 + '" font-family="JetBrains Mono" font-size="11" text-anchor="middle">DECISION TREE · RANDOM FOREST · XGBOOST</text>';
+      s += '<text x="320" y="320" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11" text-anchor="middle">DECISION TREE · RANDOM FOREST · XGBOOST</text>';
       return s + "</svg>";
     }
   };
