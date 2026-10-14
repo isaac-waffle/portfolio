@@ -59,7 +59,7 @@
 
   /* ---------- seeded helpers for project art ---------- */
   function rng(s) { return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
-  var C = { ink: "#1d1d1f", ink2: "#424245", ink3: "#86868b", ink4: "#d2d2d7", line: "#f0f0f3", line2: "#e3e3e8", acc: "#0071e3", up: "#34c759", dn: "#ff3b30", blue: "#0071e3", bg: "#f5f5f7", panel: "#ffffff" };
+  var C = { ink: "#1d1d1f", ink2: "#424245", ink3: "#86868b", ink4: "#d2d2d7", line: "#f0f0f3", line2: "#e3e3e8", acc: "#1d1d1f", up: "#34c759", dn: "#ff3b30", blue: "#1d1d1f", bg: "#f5f5f7", panel: "#ffffff" };
   function grid(w, h, step) {
     var s = "";
     for (var x = step; x < w; x += step) s += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + h + '" stroke="' + C.line + '" stroke-width="1"/>';
