@@ -65,11 +65,11 @@ h1.display{font-family:var(--f-display);font-weight:700;font-size:clamp(44px,8vw
 @media (max-width:820px){.hero-media{grid-template-columns:1fr;margin-top:48px}}
 .tile{border-radius:var(--r-lg);overflow:hidden;background:var(--bg-2);position:relative;min-width:0}
 .photo-tile{margin:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;min-height:380px}
-.photo-tile img{width:100%;height:100%;object-fit:cover;object-position:50% 18%;grid-row:1;grid-column:2;align-self:stretch;min-height:380px}
+.photo-tile img{width:100%;height:100%;object-fit:cover;object-position:50% 22%;grid-row:1;grid-column:2;align-self:stretch;min-height:380px}
 .photo-tile figcaption{grid-row:1;grid-column:1;padding:34px 30px;display:flex;flex-direction:column;gap:10px;align-self:end}
 .photo-tile b{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
 .photo-tile span{font-size:15px;color:var(--ink-3);line-height:1.45}
-@media (max-width:560px){.photo-tile{grid-template-columns:1fr;min-height:0}.photo-tile img{grid-column:1;grid-row:1;aspect-ratio:1/1;min-height:0}.photo-tile figcaption{grid-row:2;padding:22px 24px 26px}}
+@media (max-width:560px){.photo-tile{grid-template-columns:1fr;min-height:0}.photo-tile img{grid-column:1;grid-row:1;aspect-ratio:1/1;min-height:0;object-position:50% 8%}.photo-tile figcaption{grid-row:2;padding:22px 24px 26px}}
 .tile.dark{background:var(--bg-2);color:var(--ink)}
 .livebox{padding:30px;display:flex;flex-direction:column}
 .livebox .hd{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--ink-3)}
