@@ -361,7 +361,7 @@ footer a:hover{text-decoration:underline}
 #work .proj p{font-size:14px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #work .proj .meta{font-size:12px}
 #work .proj .more{display:none}
-@media (max-width:900px){#work .work-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){#work .work-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#work .work-grid > .proj:last-child:nth-child(odd){grid-column:1 / -1}}
 @media (max-width:560px){#work .work-grid{grid-template-columns:1fr}}
 .xp{display:flex;flex-direction:column}
 .xp-row{display:grid;grid-template-columns:130px minmax(0,1fr) minmax(0,1.6fr);gap:8px 28px;padding:18px 0;border-bottom:1px solid var(--line);align-items:baseline}
