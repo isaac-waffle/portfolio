@@ -26,7 +26,7 @@ WATCHLIST = [
     "CRWV", "NBIS",
 ]
 CAL_DAYS = 14          # calendar window
-DETAIL_DAYS, DETAIL_MIN_CAP = 10, 5e10  # non-watchlist names reporting this soon and this big also get a detail page
+DETAIL_DAYS, DETAIL_MIN_CAP = CAL_DAYS, 5e10  # non-watchlist names reporting this soon and this big also get a detail page
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 Chrome/126 Safari/537.36"}
 
 
