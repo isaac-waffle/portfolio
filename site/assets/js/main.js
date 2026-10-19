@@ -127,6 +127,18 @@
       s += '<rect x="566" y="338" width="110" height="22" rx="11" fill="' + C.acc + '"/><text x="621" y="353" fill="#ffffff" font-family="-apple-system,Inter,sans-serif" font-size="11" font-weight="600" text-anchor="middle">Save as PDF</text>';
       return s + "</svg>";
     },
+    earn: function () {
+      var w = 640, h = 360, r = rng(7), s = '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid slice"><rect width="' + w + '" height="' + h + '" fill="' + C.bg + '"/>';
+      var days = ["MON", "TUE", "WED", "THU", "FRI"];
+      for (var d = 0; d < 5; d++) {
+        var x = 60 + d * 108;
+        s += '<text x="' + x + '" y="58" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11">' + days[d] + "</text>";
+        for (var k = 0; k < 4; k++) { var on = r() > 0.3; s += '<rect x="' + x + '" y="' + (72 + k * 30) + '" width="' + (52 + r() * 40).toFixed(0) + '" height="20" rx="5" fill="' + (on && d === 2 && k === 0 ? C.acc : C.panel) + '" stroke="' + C.line2 + '"/>'; }
+      }
+      for (var i = 0; i < 20; i++) { var v = (r() - 0.45) * 70, bx = 60 + i * 26; s += '<rect x="' + bx + '" y="' + (v > 0 ? 300 - v : 300) + '" width="16" height="' + Math.abs(v).toFixed(1) + '" rx="3" fill="' + (v > 0 ? C.up : C.dn) + '"/>'; }
+      s += '<line x1="56" x2="590" y1="300" y2="300" stroke="' + C.line2 + '"/>';
+      return s + "</svg>";
+    },
     pnl: function () {
       var w = 640, h = 360, r = rng(42), s = '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid slice"><rect width="' + w + '" height="' + h + '" fill="' + C.bg + '"/>';
       s += '<text x="60" y="64" fill="' + C.ink3 + '" font-family="-apple-system,Inter,sans-serif" font-size="12">Realised P&amp;L</text><text x="60" y="104" fill="' + C.up + '" font-family="-apple-system,Inter,sans-serif" font-size="38" font-weight="700" letter-spacing="-1">+€2,418</text>';
@@ -254,6 +266,24 @@
         ["Note", ["Contains personal documents, so there is no public demo. Happy to walk through it live."]]
       ],
       links: [] },
+
+    { id: "earnings", size: "wide", art: "earn", chip: "Live demo", live: true, meta: "2026 · Equity research · Scheduled data API",
+      title: "Earnings Desk",
+      blurb: "Every upcoming US earnings report for a 50-stock watchlist and the whole market, with a full pre-earnings brief per company in English or Korean.",
+      tags: ["Python", "yfinance", "Options data", "GitHub Actions", "SVG charts", "i18n"],
+      sum: "Before an earnings report I want the same eight answers every time: what the company does, where the stock stands, how it reacted before, and how big a move the market expects. This puts them on one page.",
+      kpis: [["1,000+", "reports on the calendar"], ["50", "watchlist names"], ["8", "sections per company"], ["2", "languages"]],
+      cols: [
+        ["Pipeline", ["<b>Calendar:</b> the Nasdaq earnings calendar for the next two weeks, every US listing, with timing, consensus EPS and market cap.",
+          "<b>Detail files:</b> every watchlist name plus each $50B+ company reporting within 10 days gets its own JSON brief.",
+          "<b>Serverless:</b> a GitHub Actions job rebuilds the feed every three hours and force-pushes it to a data branch; a ticker that fails keeps its last good file."]],
+        ["Analysis", ["<b>Past reactions:</b> gap, reaction-day and 5-day moves for up to 20 reports, timed correctly for pre-market vs after-close releases.",
+          "<b>Expected move:</b> the at-the-money straddle on the first expiry after the report, shown as a ±1σ/±2σ price range next to the stock's own history.",
+          "<b>Context:</b> trend vs 50/200-day averages, RSI, 52-week position, valuation, balance sheet, short interest, analyst targets and news."]],
+        ["Experience", ["Double-click any calendar row to open the brief; English by default with a one-click Korean version, including hand-written Korean company profiles.",
+          "Hand-rolled SVG charts that redraw to the screen width, in light and dark mode."]]
+      ],
+      links: [["Try the live demo", "demos/earnings.html", true], ["View the code", "https://github.com/isaac-waffle/portfolio/tree/main/earnings"]] },
 
     { id: "pnl", art: "pnl", chip: "Live demo", live: true, meta: "2026 · Finance tooling · Client-side",
       title: "DEGIRO P&L Analyzer",
