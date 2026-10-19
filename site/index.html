@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="assets/css/style.css?v=16">
+<link rel="stylesheet" href="assets/css/style.css?v=21">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
 </head>
@@ -25,14 +25,14 @@
 
 <header class="nav" id="nav">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="Isaac Kim, home">Isaac Kim</a>
+    <a class="brand" href="#top">Isaac Kim</a>
     <nav aria-label="Primary">
       <ul id="menu">
-        <li><a href="#lab">Forecast Lab</a></li>
         <li><a href="#work">Work</a></li>
         <li><a href="#experience">Experience</a></li>
         <li><a href="#about">About</a></li>
-              </ul>
+        <li><a href="lab.html">Forecast Lab</a></li>
+      </ul>
     </nav>
     <a class="cta" href="#contact">Contact</a>
     <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="menu">
@@ -42,181 +42,111 @@
 </header>
 
 <main id="top">
-  <!-- ============ HERO ============ -->
-  <section class="hero">
-    <div class="wrap hero-in">
-      <p class="eyebrow rise" style="--d:40ms"><span class="dot off" id="heroDot"></span>Isaac Kim · Data Scientist · Amsterdam</p>
-      <h1 class="display rise" style="--d:110ms">Data science.<br><span class="grad">Tested against reality.</span></h1>
-      <p class="lede rise" style="--d:180ms">I build forecasting models, data pipelines and analytics tools, and I validate them as if real money depended on them.</p>
-      <div class="actions rise" style="--d:250ms">
-        <a class="btn primary" href="#lab">See the live forecast</a>
-        <a class="link" href="#work">Selected work <span aria-hidden="true">›</span></a>
+  <section class="intro">
+    <div class="wrap intro-grid">
+      <div class="intro-text rise" style="--d:40ms">
+        <p class="eyebrow">Data Scientist · Amsterdam</p>
+        <h1 class="name">Isaac Kim</h1>
+        <p class="pitch">I build forecasting models, data pipelines and analytics tools, and test them against reality.</p>
+        <ul class="facts">
+          <li><span>Now</span>Data &amp; Reporting Analyst, Verisure</li>
+          <li><span>Before</span>Data Science Intern, Infineon Technologies</li>
+          <li><span>Education</span>BSc Econometrics &amp; Data Science, UvA (cum laude)</li>
+        </ul>
+        <div class="actions">
+          <a class="btn primary" href="#work">View my work</a>
+          <a class="btn" href="mailto:eunho203@gmail.com">Email me</a>
+          <a class="icon-btn" href="https://www.linkedin.com/in/eunho-kim" target="_blank" rel="noopener" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.6 8.65 21 11.2 21 14.5V21h-4v-5.8c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.5-2.25 3.1V21H9z"/></svg></a>
+          <a class="icon-btn" href="https://github.com/isaac-waffle" target="_blank" rel="noopener" aria-label="GitHub"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg></a>
+        </div>
       </div>
-    </div>
-    <div class="wrap hero-media rise" style="--d:340ms">
-      <figure class="tile photo-tile">
+      <figure class="portrait rise" style="--d:140ms">
         <img src="assets/img/isaac.jpg?v=2" alt="Portrait of Isaac Kim" width="960" height="1200">
-        <figcaption><b>Isaac Kim</b><span>Data &amp; Reporting Analyst at Verisure. Previously Infineon Technologies. BSc Econometrics &amp; Data Science, University of Amsterdam, cum laude.</span></figcaption>
       </figure>
-      <div class="tile livebox" id="heroLive">
-        <div class="hd"><span><span class="dot off" id="liveDot"></span><span id="liveLbl">Forecast Lab</span></span><span id="liveAge">loading…</span></div>
-        <div class="row"><span class="tk" id="hlTk">—</span><span class="px" id="hlPx"></span></div>
-        <svg id="hlSpark" viewBox="0 0 300 56" preserveAspectRatio="none" aria-hidden="true"></svg>
-        <div class="call" id="hlCall">Next-bar forecasts for 16 stocks, scored in public.</div>
-        <a href="#lab">Open the lab <span aria-hidden="true">›</span></a>
-      </div>
     </div>
-  </section>
-
-  <section class="numbers">
-    <div class="wrap stats">
-      <div class="reveal"><b>8.38</b><span>GPA, cum laude, University of Amsterdam</span></div>
-      <div class="reveal"><b>300+</b><span>KPIs automated at Verisure</span></div>
-      <div class="reveal"><b>100M+</b><span>data points per product at Infineon</span></div>
-      <div class="reveal"><b id="projCount">8</b><span>projects built end to end</span></div>
-      <div class="reveal"><b>16</b><span>stocks forecast live, every 15 minutes</span></div>
-    </div>
-  </section>
-
-
-  <!-- ============ FORECAST LAB ============ -->
-  <section class="block lab" id="lab">
     <div class="wrap">
-      <div class="sec-head">
-        <div class="reveal">
-          <div class="kicker">Live system</div>
-          <h2 class="title">Forecast Lab. <em>Grading itself in public.</em></h2>
-        </div>
-        <p class="reveal">Every 15 minutes during US market hours, a scheduled cloud job pulls fresh bars for 16 large-cap stocks, retrains, and publishes the probability that each one moves up over the next 5 minutes, the next hour and the next session. Every forecast is logged and scored once its bar closes. No cherry-picking.</p>
+      <div class="kpi-row rise" style="--d:220ms">
+        <div><b>8.38</b><span>GPA, cum laude</span></div>
+        <div><b id="projCount">8</b><span>projects built</span></div>
+        <div><b>300+</b><span>KPIs automated</span></div>
+        <div><b>100M+</b><span>data points / product</span></div>
+        <div><b>16</b><span>stocks forecast live</span></div>
       </div>
-
-      <div class="lab-bar reveal">
-        <span class="status" id="labStatus"><span class="dot off"></span>Loading live data…</span>
-        <div class="seg" role="group" aria-label="Forecast horizon" id="hzSeg">
-          <button type="button" data-h="5m" aria-pressed="true">Next 5 min</button>
-          <button type="button" data-h="1h" aria-pressed="false">Next hour</button>
-          <button type="button" data-h="1d" aria-pressed="false">Next session</button>
-        </div>
-      </div>
-
-      <div class="cards reveal" id="cards" aria-live="polite"></div>
-      <div class="more-wrap"><button class="btn" type="button" id="moreBtn">Show all 16 stocks</button></div>
-
-      <div class="scores reveal" id="scorecard" aria-label="Model scorecard"></div>
-      <p class="disclaimer">Hit rates are walk-forward: the model is retrained on a rolling window and scored only on bars it never saw. Research demo, not investment advice.</p>
     </div>
   </section>
 
-  <!-- ============ WORK ============ -->
-  <section class="block" id="work">
+  <section class="sec" id="work">
     <div class="wrap">
-      <div class="sec-head">
-        <div class="reveal">
-          <div class="kicker">Projects</div>
-          <h2 class="title">Selected work. <em>Built end to end.</em></h2>
-        </div>
-        <p class="reveal">From quantitative research to tools I built to solve real problems in my own life in the Netherlands. Open any project for the approach, results and stack. Several of them run right here in your browser.</p>
+      <div class="sec-row reveal">
+        <h2>Selected work</h2>
+        <p>Tap a project for the full case study.</p>
       </div>
       <div class="work-grid" id="workGrid"></div>
     </div>
   </section>
 
-  <!-- ============ EXPERIENCE ============ -->
-  <section class="block" id="experience">
+  <section class="sec" id="experience">
     <div class="wrap">
-      <div class="sec-head">
-        <div class="reveal">
-          <div class="kicker">Career</div>
-          <h2 class="title">Experience. <em>Analytics at scale.</em></h2>
+      <div class="sec-row reveal"><h2>Experience</h2></div>
+      <div class="xp">
+        <div class="xp-row reveal">
+          <span class="when">2025 — now</span>
+          <div><b>Data &amp; Reporting Analyst</b><span class="org">Verisure · Amsterdam</span></div>
+          <p>Prophet model to flag likely cancellations early; PySpark pipelines on Snowflake and Lakehouse; 300+ KPIs and 30+ automated reports.</p>
         </div>
-        <p class="reveal">Industry analytics at scale: retention forecasting and BI for a European security leader, and semiconductor yield and failure analysis for one of the world's largest chipmakers.</p>
-      </div>
-      <div class="timeline">
-        <article class="job reveal">
-          <div class="when">Jun 2025 — Present<br><span class="now"><span class="dot"></span>Current role</span></div>
-          <div><h3>Data &amp; Reporting Analyst</h3><div class="org">Verisure <span>· Amsterdam, NL</span></div></div>
-          <ul>
-            <li>Developed a <b>time-series predictive model (Prophet, Python)</b> to identify likely cancellations early and enable proactive retention.</li>
-            <li>Engineered and optimised <b>end-to-end data pipelines and SQL workflows in PySpark</b> across Snowflake and Lakehouse environments, cutting refresh times.</li>
-            <li>Built and automated BI reporting: <b>300+ KPIs and 30+ operational reports</b> for cross-functional teams.</li>
-          </ul>
-        </article>
-        <article class="job reveal">
-          <div class="when">Nov 2024 — Apr 2025</div>
-          <div><h3>Data Science Intern</h3><div class="org">Infineon Technologies <span>· Nijmegen, NL</span></div></div>
-          <ul>
-            <li><b>Predictive modelling</b> for semiconductor failure analysis: ARIMA for chip yield, DBSCAN for outlier detection, and neural networks.</li>
-            <li><b>Big data:</b> handled 100M+ data points per product across 70+ products monthly, covering 200+ tests per wafer and chip, end to end.</li>
-            <li><b>Automation:</b> automated reporting to 500+ reports per month; developed and published an internal R package.</li>
-            <li>Co-led a data science workshop on chip analysis for <b>60+ global R&amp;D engineers</b>, with a presentation and live demo.</li>
-          </ul>
-        </article>
-        <article class="job reveal">
-          <div class="when">Sep 2020 — Jun 2022</div>
-          <div><h3>Sergeant</h3><div class="org">Republic of Korea Air Force <span>· Seoul, KR</span></div></div>
-          <ul>
-            <li>Rebuilt military reporting in Excel, <b>improving efficiency by 30%</b>, and received a commendation from the Commanding General.</li>
-            <li>Led a <b>20-member team</b>, strengthening communication and teamwork.</li>
-          </ul>
-        </article>
+        <div class="xp-row reveal">
+          <span class="when">2024 — 2025</span>
+          <div><b>Data Science Intern</b><span class="org">Infineon Technologies · Nijmegen</span></div>
+          <p>ARIMA yield forecasting, DBSCAN outlier detection and neural nets on 100M+ data points per product; 500+ automated reports a month; internal R package; workshop for 60+ R&amp;D engineers.</p>
+        </div>
+        <div class="xp-row reveal">
+          <span class="when">2020 — 2022</span>
+          <div><b>Sergeant</b><span class="org">Republic of Korea Air Force</span></div>
+          <p>Led a 20-person team; rebuilt reporting for a 30% efficiency gain; commended by the Commanding General.</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ ABOUT ============ -->
-  <section class="block" id="about">
+  <section class="sec" id="about">
     <div class="wrap">
-      <div class="sec-head">
-        <div class="reveal">
-          <div class="kicker">About</div>
-          <h2 class="title">Rigour first. <em>Then speed.</em></h2>
+      <div class="sec-row reveal"><h2>About</h2></div>
+      <div class="about-grid">
+        <div class="box reveal">
+          <h3>Education</h3>
+          <p><b>BSc Econometrics &amp; Data Science</b><br>University of Amsterdam, 2019–2024<br><span class="pill">Cum laude</span> <span class="pill">GPA 8.38</span></p>
+          <p><b>BSc Industrial Engineering</b><br>Ajou University, Korea, 2019</p>
+          <p><b>Thesis</b><br><a class="ul" href="https://scripties.uba.uva.nl/search?id=c11249314" target="_blank" rel="noopener">Explainable AI vs. econometric partial effects ↗</a></p>
         </div>
-      </div>
-      <div class="about">
-        <div class="reveal">
-          <p class="big">I care about the gap between a model that <em>looks</em> good and one that <em>is</em> good.</p>
-          <p>My training in econometrics taught me to ask the uncomfortable questions: is the effect causal, is the sample biased, does the edge survive costs, would it have worked without hindsight? I bring that discipline to fast, practical data work: pipelines that refresh on time, dashboards people actually use, and models whose limits are stated upfront.</p>
-          <p>Outside work I build tools for my own problems: a job radar for visa-sponsored roles, a P&amp;L analyser for my brokerage account, a scam filter for the Amsterdam rental market. They are small products, and I build each one end to end.</p>
-          <div class="sub-h">Languages</div>
-          <div class="tags"><span>English · C1</span><span>Korean · Native</span><span>Dutch · A2</span></div>
+        <div class="box reveal">
+          <h3>Certifications</h3>
+          <ul class="clean">
+            <li>Google Advanced Data Analytics <span>2025</span></li>
+            <li>SAS Certified Specialist (Base, 9.4) <span>2024</span></li>
+            <li><a class="ul" href="https://www.coursera.org/account/accomplishments/certificate/SLLYQ0B54LX5" target="_blank" rel="noopener">Tableau, Duke University</a> <span>2024</span></li>
+            <li><a class="ul" href="https://www.coursera.org/account/accomplishments/certificate/SN6JCJCMASDN" target="_blank" rel="noopener">SQL for Data Science, IBM</a> <span>2024</span></li>
+            <li>Exam P, Society of Actuaries <span>2020</span></li>
+          </ul>
         </div>
-        <div class="reveal">
-          <div class="sub-h">Education</div>
-          <div class="cred">
-            <div class="item"><b>BSc Econometrics &amp; Data Science</b><span class="yr">2019 — 2024</span><span>University of Amsterdam</span>
-              <div class="badge"><em>Cum laude</em><em>GPA 8.38</em></div></div>
-            <div class="item"><b>BSc Industrial Engineering</b><span class="yr">2019</span><span>Ajou University, Korea</span></div>
-          </div>
-          <div class="sub-h">Certifications</div>
-          <div class="cred">
-            <div class="item"><b>Google Advanced Data Analytics</b><span class="yr">2025</span><span>Google</span></div>
-            <div class="item"><b>SAS Certified Specialist: Base Programming (SAS 9.4)</b><span class="yr">2024</span><span>SAS</span></div>
-            <a class="item" href="https://www.coursera.org/account/accomplishments/certificate/SLLYQ0B54LX5" target="_blank" rel="noopener"><b>Data Visualization &amp; Communication with Tableau ↗</b><span class="yr">2024</span><span>Duke University</span></a>
-            <a class="item" href="https://www.coursera.org/account/accomplishments/certificate/SN6JCJCMASDN" target="_blank" rel="noopener"><b>Databases &amp; SQL for Data Science with Python ↗</b><span class="yr">2024</span><span>IBM · with honors</span></a>
-            <div class="item"><b>Exam P (Probability)</b><span class="yr">2020</span><span>Society of Actuaries</span></div>
-          </div>
+        <div class="box reveal">
+          <h3>Skills</h3>
+          <div class="tags"><span>Python</span><span>SQL</span><span>R</span><span>PySpark</span><span>Snowflake</span><span>Power BI</span><span>Tableau</span><span>SAS</span><span>Time series</span><span>Econometrics</span><span>Machine learning</span><span>Explainable AI</span></div>
+          <h3 style="margin-top:22px">Languages</h3>
+          <p>English (C1) · Korean (native) · Dutch (A2)</p>
         </div>
-      </div>
-      <div class="skills">
-        <div class="skill reveal"><h4>Modelling &amp; statistics</h4><div class="tags"><span>Time series (ARIMA, GARCH, Prophet)</span><span>Econometrics</span><span>Gradient boosting</span><span>Neural networks / LSTM</span><span>Explainable AI (ALE)</span><span>Bootstrap</span><span>Walk-forward validation</span><span>Reinforcement learning</span></div></div>
-        <div class="skill reveal"><h4>Data engineering</h4><div class="tags"><span>Python</span><span>PySpark</span><span>SQL</span><span>Snowflake</span><span>Lakehouse</span><span>Data pipelines</span><span>GitHub Actions</span><span>R (package author)</span></div></div>
-        <div class="skill reveal"><h4>Analytics &amp; BI</h4><div class="tags"><span>Power BI · DAX</span><span>Dataflows</span><span>Tableau</span><span>SAS</span><span>Excel modelling</span><span>KPI design</span><span>Report automation</span></div></div>
       </div>
     </div>
   </section>
 
-  <!-- ============ CONTACT ============ -->
-  <section class="contact" id="contact">
-    <div class="wrap">
-      <div class="kicker reveal" style="justify-content:center">Contact</div>
-      <h2 class="reveal">Let's build something<br><span class="grad">measurable.</span></h2>
-      <p class="reveal">Open to data science, analytics and quantitative roles in the Netherlands. I hold an orientation-year residence permit, so the reduced highly-skilled-migrant salary threshold applies.</p>
-      <p class="reveal" style="margin-bottom:28px"><a class="mail" href="mailto:eunho203@gmail.com">eunho203@gmail.com</a></p>
-      <div class="actions reveal">
-        <a class="btn primary" href="mailto:eunho203@gmail.com">Email me</a>
+  <section class="sec contact-band" id="contact">
+    <div class="wrap contact-grid reveal">
+      <div>
+        <h2>Let's talk.</h2>
+        <p>Open to data science and analytics roles in the Netherlands. Orientation-year permit, so the reduced skilled-migrant salary threshold applies.</p>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="mailto:eunho203@gmail.com">eunho203@gmail.com</a>
         <a class="btn" href="https://www.linkedin.com/in/eunho-kim" target="_blank" rel="noopener">LinkedIn ↗</a>
-        <a class="btn" href="https://github.com/isaac-waffle" target="_blank" rel="noopener">GitHub ↗</a>
-        <a class="btn" href="https://isaac-waffle.github.io/" target="_blank" rel="noopener">Blog ↗</a>
       </div>
     </div>
   </section>
@@ -225,15 +155,13 @@
 <footer>
   <div class="wrap">
     <span>© <span id="yr">2026</span> Isaac Kim · Amsterdam</span>
-    <span>Hand-built. Forecasts refresh on a schedule via GitHub Actions. <a href="https://github.com/isaac-waffle/portfolio" target="_blank" rel="noopener">Source ↗</a></span>
+    <span><a href="lab.html">Forecast Lab</a> · <a href="https://github.com/isaac-waffle/portfolio" target="_blank" rel="noopener">Source</a></span>
   </div>
 </footer>
 
 <dialog class="case" id="caseDlg" aria-labelledby="caseTitle"></dialog>
-<dialog class="case tm" id="tickerDlg" aria-label="Stock forecast detail"></dialog>
 
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})});</script>
-<script src="assets/js/main.js?v=14"></script>
-<script src="assets/js/lab.js?v=13"></script>
+<script src="assets/js/main.js?v=20"></script>
 </body>
 </html>

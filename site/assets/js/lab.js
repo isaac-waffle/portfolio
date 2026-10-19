@@ -126,6 +126,7 @@
     $("#recent").innerHTML = R.length ? R.slice(0, 40).map(function (e) { return '<i class="' + (e.ok ? "ok" : "no") + '" title="' + esc(e.t + " " + e.h + " · " + (e.ok ? "correct" : "wrong")) + '"></i>'; }).join("") : "";
   }
   function renderHero(live) {
+    if (!$("#hlTk")) return;
     var rs = rowsSorted(); if (!rs.length) return;
     var r = S.featured ? rs.filter(function (x) { return x.t === S.featured; })[0] || rs[0] : rs[0];
     S.featured = r.t;

@@ -177,7 +177,7 @@
 
   /* ---------- project content ---------- */
   var P = [
-    { id: "lab", size: "wide", art: "lab", chip: "Live", live: true, meta: "2026 · Forecasting · MLOps",
+    { id: "lab", art: "lab", chip: "Live", live: true, meta: "2026 · Forecasting · MLOps",
       title: "Live Stock Forecast Lab",
       blurb: "A scheduled cloud pipeline that publishes next-5-minute, next-hour and next-session forecasts for 16 stocks, then grades every forecast against what the market actually did.",
       tags: ["Python", "scikit-learn", "Walk-forward", "GitHub Actions", "Static JSON API"],
@@ -195,7 +195,7 @@
         ["Results", ["<span data-lab-summary>The 5-minute horizon shows a small but statistically significant directional edge; hourly and daily horizons are indistinguishable from a coin flip.</span>",
           "That pattern matches weak-form market efficiency, and the edge is smaller than realistic trading costs. The lab reports it honestly instead of hiding it."]]
       ],
-      links: [["Open the live lab", "#lab", true], ["View the code", "https://github.com/isaac-waffle/portfolio/tree/main/forecast"]] },
+      links: [["Open the live lab", "lab.html", true], ["View the code", "https://github.com/isaac-waffle/portfolio/tree/main/forecast"]] },
 
     { id: "study", art: "study", chip: "Research", meta: "2026 · Quant research · 15-year backtest",
       title: "Machine vs. Human: Can ML Out-Forecast Trading Rules?",
@@ -237,7 +237,7 @@
       ],
       links: [] },
 
-    { id: "radar", size: "wide", art: "radar", chip: "AI tool", meta: "2026 · LLM orchestration · Two iterations",
+    { id: "radar", art: "radar", chip: "AI tool", meta: "2026 · LLM orchestration · Two iterations",
       title: "NL Data Job Radar",
       blurb: "An AI-assisted job-search pipeline for the Dutch market: it finds data roles, filters them against visa-sponsorship and salary rules, scores the fit, and drafts a tailored CV and motivation letter for each match.",
       tags: ["JavaScript", "LLM (Claude)", "LaTeX", "PDF engine", "Scheduled agents", "Document DB"],

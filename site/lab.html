@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Forecast Lab — Isaac Kim</title>
+<meta name="description" content="Isaac Kim is a data scientist and econometrician in Amsterdam building forecasting models, data pipelines and analytics tools. Includes a live stock forecast lab that grades itself in public.">
+<meta name="theme-color" content="#ffffff">
+<meta property="og:title" content="Isaac Kim — Data Scientist">
+<meta property="og:description" content="Forecasting, econometrics and data engineering. Live stock forecast lab, case studies and experience.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://isaac-waffle.github.io/portfolio/">
+<meta property="og:image" content="https://isaac-waffle.github.io/portfolio/assets/img/isaac.jpg?v=2">
+<link rel="icon" href="assets/img/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32x32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="assets/css/style.css?v=21">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
+</head>
+<body>
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="./">Isaac Kim</a>
+    <a class="cta" href="./#work">‹ Back to portfolio</a>
+  </div>
+</header>
+<main style="padding-top:52px">
+  <section class="block lab" id="lab">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Live system</div>
+          <h2 class="title">Forecast Lab. <em>Grading itself in public.</em></h2>
+        </div>
+        <p class="reveal">Every 15 minutes during US market hours, a scheduled cloud job pulls fresh bars for 16 large-cap stocks, retrains, and publishes the probability that each one moves up over the next 5 minutes, the next hour and the next session. Every forecast is logged and scored once its bar closes. No cherry-picking.</p>
+      </div>
+
+      <div class="lab-bar reveal">
+        <span class="status" id="labStatus"><span class="dot off"></span>Loading live data…</span>
+        <div class="seg" role="group" aria-label="Forecast horizon" id="hzSeg">
+          <button type="button" data-h="5m" aria-pressed="true">Next 5 min</button>
+          <button type="button" data-h="1h" aria-pressed="false">Next hour</button>
+          <button type="button" data-h="1d" aria-pressed="false">Next session</button>
+        </div>
+      </div>
+
+      <div class="cards reveal" id="cards" aria-live="polite"></div>
+      <div class="more-wrap"><button class="btn" type="button" id="moreBtn">Show all 16 stocks</button></div>
+
+      <div class="scores reveal" id="scorecard" aria-label="Model scorecard"></div>
+      <p class="disclaimer">Hit rates are walk-forward: the model is retrained on a rolling window and scored only on bars it never saw. Research demo, not investment advice.</p>
+    </div>
+  </section>
+</main>
+<footer><div class="wrap"><span>© 2026 Isaac Kim</span><a href="./">Portfolio</a></div></footer>
+<dialog class="case tm" id="tickerDlg" aria-label="Stock forecast detail"></dialog>
+<script>
+document.querySelectorAll(".reveal").forEach(function(e){e.classList.add("in")});
+document.querySelectorAll("dialog.case").forEach(function(d){d.addEventListener("click",function(e){if(e.target===d||e.target.closest("[data-close]"))d.close()})});
+</script>
+<script src="assets/js/lab.js?v=20"></script>
+</body>
+</html>
