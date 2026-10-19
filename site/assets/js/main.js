@@ -275,7 +275,7 @@
       kpis: [["1,000+", "reports on the calendar"], ["50", "watchlist names"], ["8", "sections per company"], ["2", "languages"]],
       cols: [
         ["Pipeline", ["<b>Calendar:</b> the Nasdaq earnings calendar for the next two weeks, every US listing, with timing, consensus EPS and market cap.",
-          "<b>Detail files:</b> every watchlist name plus each $50B+ company reporting within 10 days gets its own JSON brief.",
+          "<b>Detail files:</b> every watchlist name plus each $50B+ company on the two-week calendar gets its own JSON brief.",
           "<b>Serverless:</b> a GitHub Actions job rebuilds the feed every three hours and force-pushes it to a data branch; a ticker that fails keeps its last good file."]],
         ["Analysis", ["<b>Past reactions:</b> gap, reaction-day and 5-day moves for up to 20 reports, timed correctly for pre-market vs after-close releases.",
           "<b>Expected move:</b> the at-the-money straddle on the first expiry after the report, shown as a ±1σ/±2σ price range next to the stock's own history.",
