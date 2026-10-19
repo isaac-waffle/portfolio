@@ -110,6 +110,11 @@ tr.off td{color:var(--muted)}
 .secnav a:hover{color:var(--ink)}
 .chart{width:100%;min-width:0;position:relative}
 .chart svg{display:block;width:100%}
+.tip{position:absolute;left:0;top:0;pointer-events:none;z-index:3;background:var(--surface);color:var(--ink);border-radius:9px;padding:8px 10px;font-size:12px;line-height:1.5;white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:0 0 0 1px var(--line),0 8px 24px rgba(15,20,25,.14);min-width:170px}
+.tip .h{font-weight:600;margin-bottom:3px}
+.tip .row{display:flex;justify-content:space-between;gap:16px}
+.tip .row span:first-child{color:var(--ink2)}
+.tip .sec{margin-top:6px;padding-top:5px;border-top:1px solid var(--line);font-weight:600}
 .readout{font-size:12px;color:var(--ink2);min-height:18px;font-variant-numeric:tabular-nums}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink2)}
 .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
@@ -161,7 +166,7 @@ tr.off td{color:var(--muted)}
     en: {
       home: "← Portfolio", back: "← Calendar", loading: "Loading the latest data…",
       foot: "All times are Amsterdam time (CET/CEST). Data: Yahoo Finance, Nasdaq earnings calendar and Google News, refreshed every few hours by a scheduled GitHub Actions job. Analysis only, not investment advice.",
-      before: "before", after: "after", ams: "Amsterdam", estimated: "date estimated",
+      before: "before", after: "after", earnRep: "Earnings report", odds: "Odds and size of the reaction-day move", downProb: "Down probability", avgRise: "Avg rise when up", avgDrop: "Avg drop when down", weighted: "Probability-weighted move", weightedNote: "P(up) × avg rise + P(down) × avg drop", allRep: "All reports", oddsNote: "Based on this stock's own reaction days on record; a small sample, not a forecast.", qoq: "Revenue vs prior quarter", yoy: "Revenue vs a year ago", qEnd: "Quarter ending", vsStart: "vs 5 sessions ago", vsDay: "vs day's first bar", beatW: "Beat", missW: "Miss", ams: "Amsterdam", estimated: "date estimated",
       updated: "Updated", loadFail: "Could not load the data feed. Try again in a minute.",
       watch: "My watchlist", allus: "All US", soon14: "Reporting in 14 days", thisweek: "This week", nextup: "Next up",
       hint: "Double-click a row (tap on a phone) to open the full analysis.",
@@ -202,7 +207,7 @@ tr.off td{color:var(--muted)}
     },
     ko: {
       home: "← 포트폴리오", back: "← 캘린더", loading: "최신 데이터를 불러오는 중…",
-      before: "이전", after: "이후", ams: "암스테르담", estimated: "예상 날짜",
+      before: "이전", after: "이후", earnRep: "어닝 발표", odds: "반응일 상승·하락 확률과 폭", downProb: "하락 확률", avgRise: "상승 시 평균 상승폭", avgDrop: "하락 시 평균 하락폭", weighted: "확률 가중 평균 변동", weightedNote: "상승 확률 × 평균 상승폭 + 하락 확률 × 평균 하락폭", allRep: "전체 어닝", oddsNote: "이 종목의 과거 반응일 기록만으로 계산한 값이며, 표본이 작아 예측이 아닙니다.", qoq: "매출 전분기 대비", yoy: "매출 전년 동기 대비", qEnd: "분기 마감", vsStart: "5거래일 전 대비", vsDay: "당일 첫 봉 대비", beatW: "상회", missW: "하회", ams: "암스테르담", estimated: "예상 날짜",
       foot: "모든 시간은 암스테르담 시간(CET/CEST)입니다. 데이터: Yahoo Finance, 나스닥 어닝 캘린더, Google 뉴스. GitHub Actions 예약 작업이 몇 시간마다 갱신합니다. 분석 자료이며 투자 권유가 아닙니다.",
       updated: "갱신", loadFail: "데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
       watch: "내 관심종목", allus: "미국 전체", soon14: "2주 내 어닝", thisweek: "이번 주", nextup: "가장 가까운 어닝",
@@ -396,6 +401,37 @@ tr.off td{color:var(--muted)}
     step *= err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1;
     var out = []; for (var v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10)); return out;
   }
+  /* hover details: one floating card per chart, follows the pointer, flips at the right edge */
+  function tipHtml(title, rows) {
+    return '<div class="h">' + esc(title) + "</div>" + rows.filter(Boolean).map(function (r) {
+      return r[0] === "§" ? '<div class="sec">' + esc(r[1]) + "</div>" : '<div class="row"><span>' + esc(r[0]) + '</span><span class="' + (r[2] || "") + '">' + r[1] + "</span></div>";
+    }).join("");
+  }
+  function hover(el, o) {
+    var svg = el.querySelector("svg"), tip = document.createElement("div"), cur = -1;
+    tip.className = "tip"; tip.hidden = true; el.appendChild(tip); svg.style.touchAction = "pan-y";
+    var hide = function () { cur = -1; tip.hidden = true; if (o.unmark) o.unmark(); };
+    var at = function (e) {
+      var b = svg.getBoundingClientRect(), px = e.clientX - b.left, py = e.clientY - b.top, i = o.idx(px);
+      if (!(i >= 0 && i < o.n)) { hide(); return; }
+      if (i !== cur) { cur = i; tip.innerHTML = o.html(i); if (o.mark) o.mark(i); }
+      tip.hidden = false;
+      var tw = tip.offsetWidth, th = tip.offsetHeight, ax = o.ax ? o.ax(i) : px, x = ax + 14;
+      if (x + tw > b.width) x = ax - tw - 14;
+      x = Math.max(0, Math.min(x, b.width - tw));
+      tip.style.transform = "translate(" + x + "px," + Math.max(0, Math.min(py - th / 2, b.height - th)) + "px)";
+    };
+    svg.addEventListener("pointermove", at); svg.addEventListener("pointerdown", at); svg.addEventListener("pointerleave", hide);
+  }
+  var fmtLong = function (s) {
+    var d = parseD(s);
+    return lang === "ko" ? d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() + " (" + "일월화수목금토"[d.getDay()] + ")" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  };
+  var reacRows = function (r) {
+    return [[t("timing"), timingName(r.timing)], [t("est"), num(r.est)], [t("actual"), num(r.act)],
+      [t("surprise"), pct(r.sur) + (isNum(r.sur) ? " · " + (r.sur > 0 ? t("beatW") : t("missW")) : ""), cls(r.sur)],
+      [t("gap"), pct(r.gap), cls(r.gap)], [t("reacDay"), "<b>" + pct(r.day) + "</b>", cls(r.day)], [t("w5"), pct(r.w5), cls(r.w5)]];
+  };
   function priceChart(el, d) {
     var rows = d.ohlc.slice(-S.range), W = Math.max(300, el.clientWidth), PH = W < 560 ? 220 : 300, VH = 54, RH = 70, gap = 14, H = PH + VH + RH + gap * 2 + 22;
     var L = 8, R = 58, n = rows.length, x = function (i) { return L + (i + 0.5) * (W - L - R) / n; }, bw = Math.max(1, (W - L - R) / n * 0.7);
@@ -425,48 +461,73 @@ tr.off td{color:var(--muted)}
     s += '<text x="' + (W - R + 6) + '" y="' + (ry0 + RH / 2 + 4) + '" font-size="11" fill="' + mut + '">RSI</text>';
     var lab = Math.max(1, Math.floor(n / (W < 560 ? 3 : 6)));
     for (var i = 0; i < n; i += lab) s += '<text x="' + x(i) + '" y="' + (H - 4) + '" font-size="11" fill="' + mut + '" text-anchor="middle">' + rows[i][0].slice(2, 7).replace("-", ".") + "</text>";
-    s += '<line id="xh" x1="0" x2="0" y1="0" y2="' + (H - 18) + '" stroke="' + ax + '" visibility="hidden"/>';
-    s += '<rect x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + (H - 18) + '" fill="transparent" id="hit"/></svg>';
+    s += '<line id="xh" x1="0" x2="0" y1="0" y2="' + (H - 18) + '" stroke="' + ax + '" visibility="hidden"/><circle id="xd" r="4" fill="' + css("--ink") + '" stroke="' + css("--surface") + '" stroke-width="2" visibility="hidden"/></svg>';
     el.innerHTML = s;
-    var ro = el.previousElementSibling, xh = el.querySelector("#xh");
-    var show = function (i) { var r = rows[i]; ro.innerHTML = esc(r[0]) + " · O " + num(r[1]) + " H " + num(r[2]) + " L " + num(r[3]) + " C <b>" + num(r[4]) + "</b> · " + t("volume") + " " + num(r[5] / 1e6, 1) + "M · RSI " + (isNum(r[8]) ? r[8].toFixed(0) : "–"); xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i)); xh.setAttribute("visibility", "visible"); };
-    var hit = el.querySelector("#hit");
-    hit.addEventListener("pointermove", function (e) { var b = el.getBoundingClientRect(), i = Math.floor((e.clientX - b.left - L) / ((W - L - R) / n)); if (i >= 0 && i < n) show(i); });
-    hit.addEventListener("pointerleave", function () { xh.setAttribute("visibility", "hidden"); show(n - 1); xh.setAttribute("visibility", "hidden"); });
-    show(n - 1); xh.setAttribute("visibility", "hidden");
+    var ro = el.previousElementSibling, xh = el.querySelector("#xh"), xd = el.querySelector("#xd"), off = d.ohlc.length - n, emap = {};
+    (d.reactions || []).forEach(function (r) { emap[r.date] = r; });
+    var readout = function (i) { var r = rows[i]; ro.innerHTML = esc(r[0]) + " · O " + num(r[1]) + " H " + num(r[2]) + " L " + num(r[3]) + " C <b>" + num(r[4]) + "</b> · " + t("volume") + " " + num(r[5] / 1e6, 1) + "M · RSI " + (isNum(r[8]) ? r[8].toFixed(0) : "–"); };
+    readout(n - 1);
+    hover(el, {
+      n: n, ax: x, idx: function (px) { return Math.floor((px - L) / ((W - L - R) / n)); },
+      html: function (i) {
+        var r = rows[i], prev = d.ohlc[off + i - 1], chg = prev ? r[4] / prev[4] - 1 : null, e = emap[r[0]];
+        return tipHtml(fmtLong(r[0]), [[t("open"), num(r[1])], [t("hi"), num(r[2])], [t("lo"), num(r[3])], [t("close"), "<b>" + num(r[4]) + "</b>"],
+          [t("chg"), pct(chg, 2), cls(chg)], [t("volume"), num(r[5] / 1e6, 1) + "M"], [t("ma50"), num(r[6]) + (isNum(r[6]) ? " (" + pct(r[4] / r[6] - 1) + ")" : "")],
+          [t("ma200"), num(r[7]) + (isNum(r[7]) ? " (" + pct(r[4] / r[7] - 1) + ")" : "")], ["RSI (14)", isNum(r[8]) ? r[8].toFixed(0) : "–"]]
+          .concat(e ? [["§", t("earnRep")]].concat(reacRows(e)) : []));
+      },
+      mark: function (i) { readout(i); xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i)); xh.setAttribute("visibility", "visible"); xd.setAttribute("cx", x(i)); xd.setAttribute("cy", y(rows[i][4])); xd.setAttribute("visibility", "visible"); },
+      unmark: function () { readout(n - 1); xh.setAttribute("visibility", "hidden"); xd.setAttribute("visibility", "hidden"); }
+    });
   }
   function barChart(el, items, opts) {
     var W = Math.max(300, el.clientWidth), H = opts.h || 220, L = 8, R = 46, T = 22, B = 24, n = items.length;
     var vals = items.map(function (it) { return it.v; }).filter(isNum), lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
     var pad = (hi - lo) * 0.12 || 0.01; lo -= lo < 0 ? pad : 0; hi += pad;
     var y = function (v) { return T + (hi - v) / (hi - lo) * (H - T - B); }, bw = (W - L - R) / n, mut = css("--muted"), line = css("--line");
-    var s = svgOpen(W, H, opts.label);
+    var s = svgOpen(W, H, opts.label) + '<rect id="hl" y="' + (T - 14) + '" width="' + bw + '" height="' + (H - T - B + 14) + '" rx="6" fill="' + css("--hover") + '" visibility="hidden"/>';
     ticks(lo, hi, 4).forEach(function (v) { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="' + line + '"/><text x="' + (W - R + 6) + '" y="' + (y(v) + 4) + '" font-size="11" fill="' + mut + '">' + opts.fmt(v) + "</text>"; });
     items.forEach(function (it, i) {
       if (!isNum(it.v)) return;
       var x0 = L + i * bw + bw * 0.15, w = bw * 0.7, y0 = y(Math.max(0, it.v)), hh = Math.max(1, Math.abs(y(it.v) - y(0)));
-      s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + hh + '" rx="3" fill="' + (it.c || (it.v >= 0 ? css("--gain") : css("--loss"))) + '"><title>' + esc(it.tip || "") + "</title></rect>";
+      s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + hh + '" rx="3" fill="' + (it.c || (it.v >= 0 ? css("--gain") : css("--loss"))) + '"/>';
       if (opts.labels && bw > 26) s += '<text x="' + (x0 + w / 2) + '" y="' + (it.v >= 0 ? y0 - 5 : y0 + hh + 12) + '" font-size="10.5" fill="' + css("--ink2") + '" text-anchor="middle">' + opts.fmt(it.v) + "</text>";
       var every = Math.ceil(n / (W / 70));
       if (i % every === 0) s += '<text x="' + (x0 + w / 2) + '" y="' + (H - 6) + '" font-size="11" fill="' + mut + '" text-anchor="middle">' + esc(it.x) + "</text>";
     });
     el.innerHTML = s + '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="' + css("--axis") + '"/></svg>';
+    var hl = el.querySelector("#hl");
+    if (opts.html) hover(el, {
+      n: n, ax: function (i) { return L + (i + 0.5) * bw; }, idx: function (px) { return Math.floor((px - L) / bw); }, html: opts.html,
+      mark: function (i) { hl.setAttribute("x", L + i * bw); hl.setAttribute("visibility", "visible"); }, unmark: function () { hl.setAttribute("visibility", "hidden"); }
+    });
   }
   function groupBars(el, q) {
     var W = Math.max(300, el.clientWidth), H = 220, L = 8, R = 56, T = 12, B = 24, n = q.length;
     var vals = []; q.forEach(function (r) { if (isNum(r[1])) vals.push(r[1]); if (isNum(r[2])) vals.push(r[2]); });
     var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max.apply(null, vals) * 1.08, y = function (v) { return T + (hi - v) / (hi - lo) * (H - T - B); };
-    var bw = (W - L - R) / n, mut = css("--muted"), s = svgOpen(W, H, t("quarterly"));
+    var bw = (W - L - R) / n, mut = css("--muted"), s = svgOpen(W, H, t("quarterly")) + '<rect id="hl" y="0" width="' + bw + '" height="' + (H - B) + '" rx="6" fill="' + css("--hover") + '" visibility="hidden"/>';
     ticks(lo, hi, 4).forEach(function (v) { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="' + css("--line") + '"/><text x="' + (W - R + 6) + '" y="' + (y(v) + 4) + '" font-size="11" fill="' + mut + '">' + big(v) + "</text>"; });
     q.forEach(function (r, i) {
       [[1, css("--blue")], [2, css("--gain")]].forEach(function (m, j) {
         var v = r[m[0]]; if (!isNum(v)) return;
         var x0 = L + i * bw + bw * (0.12 + j * 0.38), w = bw * 0.36, y0 = y(Math.max(0, v));
-        s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + Math.max(1, Math.abs(y(v) - y(0))) + '" rx="3" fill="' + (v < 0 ? css("--loss") : m[1]) + '"><title>' + esc(r[0] + " · " + (j ? t("netIncome") : t("revenue")) + " " + big(v)) + "</title></rect>";
+        s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + Math.max(1, Math.abs(y(v) - y(0))) + '" rx="3" fill="' + (v < 0 ? css("--loss") : m[1]) + '"/>';
       });
       s += '<text x="' + (L + i * bw + bw / 2) + '" y="' + (H - 6) + '" font-size="11" fill="' + mut + '" text-anchor="middle">' + r[0].slice(2).replace("-", ".") + "</text>";
     });
     el.innerHTML = s + "</svg>";
+    var hl = el.querySelector("#hl");
+    hover(el, {
+      n: n, ax: function (i) { return L + (i + 0.5) * bw; }, idx: function (px) { return Math.floor((px - L) / bw); },
+      html: function (i) {
+        var r = q[i], pq = q[i - 1], py = q[i - 4], d0 = parseD(r[0] + "-01");
+        var qoq = pq && isNum(pq[1]) ? r[1] / pq[1] - 1 : null, yoy = py && isNum(py[1]) ? r[1] / py[1] - 1 : null, m = isNum(r[2]) && r[1] ? r[2] / r[1] : null;
+        var label = lang === "ko" ? d0.getFullYear() + "년 " + (d0.getMonth() + 1) + "월 " + t("qEnd") : t("qEnd") + " " + d0.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        return tipHtml(label, [[t("revenue"), big(r[1])], [t("netIncome"), big(r[2]), cls(r[2])], [t("pm"), pct(m, 1, true)], [t("qoq"), pct(qoq), cls(qoq)], yoy != null ? [t("yoy"), pct(yoy), cls(yoy)] : null]);
+      },
+      mark: function (i) { hl.setAttribute("x", L + i * bw); hl.setAttribute("visibility", "visible"); }, unmark: function () { hl.setAttribute("visibility", "hidden"); }
+    });
   }
   function areaChart(el, pts) {
     var W = Math.max(300, el.clientWidth), H = 200, L = 8, R = 58, T = 10, B = 22, n = pts.length;
@@ -478,8 +539,21 @@ tr.off td{color:var(--muted)}
     s += '<path d="' + path + "L" + x(n - 1) + " " + (H - B) + "L" + x(0) + " " + (H - B) + 'Z" fill="' + c + '" opacity=".12"/><path d="' + path + '" fill="none" stroke="' + c + '" stroke-width="1.6"/>';
     s += '<circle cx="' + x(n - 1) + '" cy="' + y(vs[n - 1]) + '" r="3.5" fill="' + c + '"/>';
     var lastDay = "";
-    pts.forEach(function (p, i) { var dday = p[0].slice(0, 10); if (dday !== lastDay) { lastDay = dday; if (i) s += '<line x1="' + x(i) + '" x2="' + x(i) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="' + css("--line") + '"/>'; s += '<text x="' + (x(i) + 4) + '" y="' + (H - 6) + '" font-size="11" fill="' + mut + '">' + fmtDate(dday, false).replace(/, \d{4}/, "") + "</text>"; } });
+    var dayFirst = [], first = 0;
+    pts.forEach(function (p, i) { var dday = p[0].slice(0, 10); if (dday !== lastDay) { lastDay = dday; first = i; if (i) s += '<line x1="' + x(i) + '" x2="' + x(i) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="' + css("--line") + '"/>'; s += '<text x="' + (x(i) + 4) + '" y="' + (H - 6) + '" font-size="11" fill="' + mut + '">' + fmtDate(dday, false).replace(/, \d{4}/, "") + "</text>"; } dayFirst.push(first); });
+    s += '<line id="xh" y1="' + T + '" y2="' + (H - B) + '" stroke="' + css("--axis") + '" visibility="hidden"/><circle id="xd" r="4" fill="' + c + '" stroke="' + css("--surface") + '" stroke-width="2" visibility="hidden"/>';
     el.innerHTML = s + "</svg>";
+    var xh = el.querySelector("#xh"), xd = el.querySelector("#xd");
+    hover(el, {
+      n: n, ax: x, idx: function (px) { return Math.round((px - L) / (W - L - R) * (n - 1)); },
+      html: function (i) {
+        var p = pts[i], hm = p[0].slice(11).split(":"), at = nyToUtc(p[0].slice(0, 10), +hm[0], +hm[1]);
+        var a = p[1] / pts[0][1] - 1, b = p[1] / pts[dayFirst[i]][1] - 1;
+        return tipHtml(amsDateTime(at, { weekday: "short" }) + " · " + t("ams"), [[t("price"), "<b>" + num(p[1]) + "</b>"], [t("vsDay"), pct(b, 2), cls(b)], [t("vsStart"), pct(a, 2), cls(a)]]);
+      },
+      mark: function (i) { xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i)); xh.setAttribute("visibility", "visible"); xd.setAttribute("cx", x(i)); xd.setAttribute("cy", y(vs[i])); xd.setAttribute("visibility", "visible"); },
+      unmark: function () { xh.setAttribute("visibility", "hidden"); xd.setAttribute("visibility", "hidden"); }
+    });
   }
   function rangeChart(el, price, move) {
     var W = Math.max(300, el.clientWidth), H = 96, L = 30, R = 30, lo = price * (1 - 2.4 * move), hi = price * (1 + 2.4 * move);
@@ -579,9 +653,27 @@ tr.off td{color:var(--muted)}
         (ratio != null ? tile(t("ratio"), ratio.toFixed(2) + "×", ratio < 1 ? t("ratioLo") : t("ratioHi")) : "") + "</div>";
       if (isNum(move) && move > 0) o += "<h3>" + t("rangeTitle") + '</h3><div class="chart" id="c-range"></div><p class="sub">' + t("rangeNote") + "</p>";
       if (re.length) {
+        var all = re.filter(function (r) { return isNum(r.day); }).map(function (r) { return r.day; });
         var b = re.filter(function (r) { return isNum(r.sur) && r.sur > 0 && isNum(r.day); }).map(function (r) { return r.day; }), m = re.filter(function (r) { return isNum(r.sur) && r.sur <= 0 && isNum(r.day); }).map(function (r) { return r.day; });
-        var row = function (name, a) { var avg = a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; return "<tr><td>" + name + '</td><td class="n">' + a.length + '</td><td class="n ' + cls(avg) + '">' + pct(avg) + '</td><td class="n">' + (a.length ? Math.round(a.filter(function (v) { return v > 0; }).length / a.length * 100) + "%" : "–") + "</td></tr>"; };
-        o += "<h3>" + t("scen") + '</h3><div class="tbl-wrap"><table><thead><tr><th></th><th class="n">' + t("count") + '</th><th class="n">' + t("avgReac") + '</th><th class="n">' + t("upProb") + "</th></tr></thead><tbody>" + row(t("beat"), b) + row(t("miss"), m) + '</tbody></table></div><p class="sub">' + t("scenNote") + "</p>";
+        /* odds and size of each direction: P(up), mean move on up days, P(down), mean move on down days */
+        var split = function (a) {
+          var avg = function (x) { return x.length ? x.reduce(function (p, q) { return p + q; }, 0) / x.length : null; };
+          var u = a.filter(function (v) { return v > 0; }), dn = a.filter(function (v) { return v <= 0; });
+          return { n: a.length, avg: avg(a), pu: a.length ? u.length / a.length : null, mu: avg(u), pd: a.length ? dn.length / a.length : null, md: avg(dn) };
+        };
+        var A = split(all), pp = function (x) { return x == null ? "–" : Math.round(x * 100) + "%"; };
+        o += "<h3>" + t("odds") + '</h3><div class="tiles">' +
+          tile(t("upProb"), pp(A.pu), t("avgRise") + " " + pct(A.mu) + (isNum(A.mu) ? " → " + usd(d.price * (1 + A.mu)) : ""), "g") +
+          tile(t("downProb"), pp(A.pd), t("avgDrop") + " " + pct(A.md) + (isNum(A.md) ? " → " + usd(d.price * (1 + A.md)) : ""), "r") +
+          tile(t("weighted"), pct(A.avg), t("weightedNote"), cls(A.avg)) + "</div>";
+        var row = function (name, a) {
+          var x = split(a);
+          return "<tr><td>" + name + '</td><td class="n">' + x.n + '</td><td class="n ' + cls(x.avg) + '">' + pct(x.avg) + '</td><td class="n">' + pp(x.pu) + '</td><td class="n g">' + pct(x.mu) +
+            '</td><td class="n">' + pp(x.pd) + '</td><td class="n r">' + pct(x.md) + "</td></tr>";
+        };
+        o += "<h3>" + t("scen") + '</h3><div class="tbl-wrap"><table><thead><tr><th></th><th class="n">' + t("count") + '</th><th class="n">' + t("avgReac") + '</th><th class="n">' + t("upProb") +
+          '</th><th class="n">' + t("avgRise") + '</th><th class="n">' + t("downProb") + '</th><th class="n">' + t("avgDrop") + "</th></tr></thead><tbody>" +
+          row(t("allRep"), all) + row(t("beat"), b) + row(t("miss"), m) + '</tbody></table></div><p class="sub">' + t("scenNote") + " " + t("oddsNote") + "</p>";
       }
       if (isNum(nx.eps_avg) || isNum(nx.rev_avg)) o += "<h3>" + t("consensus") + '</h3><div class="tbl-wrap"><table><thead><tr><th></th><th class="n">' + t("avg") + '</th><th class="n">' + t("low") + '</th><th class="n">' + t("high") + "</th></tr></thead><tbody>" +
         "<tr><td>" + t("eps") + '</td><td class="n">' + num(nx.eps_avg) + '</td><td class="n">' + num(nx.eps_lo) + '</td><td class="n">' + num(nx.eps_hi) + "</td></tr><tr><td>" + t("revenue") + '</td><td class="n">' + big(nx.rev_avg) + '</td><td class="n">' + big(nx.rev_lo) + '</td><td class="n">' + big(nx.rev_hi) + "</td></tr></tbody></table></div>";
@@ -634,7 +726,12 @@ tr.off td{color:var(--muted)}
     if (!isNum(histMove) && ab.length) histMove = ab.reduce(function (x, y) { return x + y; }, 0) / ab.length;
     if ((el = $("#c-q"))) groupBars(el, d.quarterly.filter(function (r) { return isNum(r[1]); }));
     if ((el = $("#c-price"))) priceChart(el, d);
-    if ((el = $("#c-react"))) barChart(el, d.reactions.slice().reverse().map(function (r) { return { x: r.date.slice(2, 7).replace("-", "."), v: r.day, tip: r.date + " · " + pct(r.day) + " · EPS " + pct(r.sur) }; }), { label: t("reacDay"), labels: true, fmt: function (v) { return (v * 100).toFixed(Math.abs(v) < 0.1 ? 1 : 0) + "%"; } });
+    if ((el = $("#c-react"))) (function () {
+      var rr = d.reactions.slice().reverse();
+      barChart(el, rr.map(function (r) { return { x: r.date.slice(2, 7).replace("-", "."), v: r.day }; }), { label: t("reacDay"), labels: true,
+        fmt: function (v) { return (v * 100).toFixed(Math.abs(v) < 0.1 ? 1 : 0) + "%"; },
+        html: function (i) { return tipHtml(t("earnRep") + " · " + fmtLong(rr[i].date), reacRows(rr[i])); } });
+    })();
     if ((el = $("#c-range"))) rangeChart(el, d.price, d.implied ? d.implied.move : histMove);
     if ((el = $("#c-cap"))) capScale(el, d.mc);
     if ((el = $("#c-intra"))) areaChart(el, d.intraday);
