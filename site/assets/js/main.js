@@ -267,7 +267,7 @@
       ],
       links: [] },
 
-    { id: "earnings", size: "wide", art: "earn", chip: "Live demo", live: true, meta: "2026 · Equity research · Scheduled data API",
+    { id: "earnings", art: "earn", chip: "Live demo", live: true, meta: "2026 · Equity research · Scheduled data API",
       title: "Earnings Desk",
       blurb: "Every upcoming US earnings report for a 50-stock watchlist and the whole market, with a full pre-earnings brief per company in English or Korean.",
       tags: ["Python", "yfinance", "Options data", "GitHub Actions", "SVG charts", "i18n"],
