@@ -180,6 +180,13 @@ def detail(sym, ko, spy_1y, timing_hint):
 
     prior = close[close.index.year < close.index[-1].year]
     next_ed = (cal.get("Earnings Date") or [None])[0]
+    # exact report time when Yahoo has one for that same date (UTC); it also fills in a missing timing
+    ts, ets = None, info.get("earningsTimestampStart") or info.get("earningsTimestamp")
+    if next_ed and ets:
+        when = dt.datetime.fromtimestamp(ets, dt.timezone.utc)
+        if when.astimezone(NY).date() == next_ed:
+            ts = when.strftime("%Y-%m-%dT%H:%MZ")
+            timing_hint = timing_hint or ("bmo" if when.astimezone(NY).hour < 12 else "amc")
     mc = info.get("marketCap")
     if not mc:
         try:
@@ -208,7 +215,8 @@ def detail(sym, ko, spy_1y, timing_hint):
         "country": info.get("country"), "employees": info.get("fullTimeEmployees"), "website": info.get("website"),
         "exchange": info.get("fullExchangeName"), "summary": info.get("longBusinessSummary"), "ko": ko.get(sym),
         "price": price, "prev": prev, "mc": clean(mc, 0),
-        "next": {"date": str(next_ed) if next_ed else None, "timing": timing_hint,
+        "next": {"date": str(next_ed) if next_ed else None, "timing": timing_hint, "ts": ts,
+                 "estimated": bool(info.get("isEarningsDateEstimate")),
                  "eps_avg": clean(cal.get("Earnings Average")), "eps_lo": clean(cal.get("Earnings Low")),
                  "eps_hi": clean(cal.get("Earnings High")), "rev_avg": clean(cal.get("Revenue Average"), 0),
                  "rev_lo": clean(cal.get("Revenue Low"), 0), "rev_hi": clean(cal.get("Revenue High"), 0)},
@@ -284,7 +292,7 @@ def main():
         if d and sym in WATCHLIST:
             watch.append({"sym": sym, "name": d["name"], "price": d["price"],
                           "chg": clean(d["price"] / d["prev"] - 1) if d["price"] and d["prev"] else None,
-                          "mc": d["mc"], "next": d["next"]["date"], "timing": d["next"]["timing"],
+                          "mc": d["mc"], "next": d["next"]["date"], "timing": d["next"]["timing"], "ts": d["next"]["ts"],
                           "eps": d["next"]["eps_avg"]})
     # a ticker that failed this run keeps the file restored from the previous run
     ok = sorted(s for s in covered if os.path.exists(os.path.join(a.out, "t", f"{s}.json")))

@@ -146,7 +146,7 @@ tr.off td{color:var(--muted)}
     </div>
   </header>
   <main id="view"><div class="empty" data-i18n="loading">Loading the latest data…</div></main>
-  <p class="foot" data-i18n="foot">Data: Yahoo Finance, Nasdaq earnings calendar and Google News, refreshed every few hours by a scheduled GitHub Actions job. Analysis only, not investment advice.</p>
+  <p class="foot" data-i18n="foot">All times are Amsterdam time (CET/CEST). Data: Yahoo Finance, Nasdaq earnings calendar and Google News, refreshed every few hours by a scheduled GitHub Actions job. Analysis only, not investment advice.</p>
 </div>
 
 <script>
@@ -160,14 +160,15 @@ tr.off td{color:var(--muted)}
   var T = {
     en: {
       home: "← Portfolio", back: "← Calendar", loading: "Loading the latest data…",
-      foot: "Data: Yahoo Finance, Nasdaq earnings calendar and Google News, refreshed every few hours by a scheduled GitHub Actions job. Analysis only, not investment advice.",
+      foot: "All times are Amsterdam time (CET/CEST). Data: Yahoo Finance, Nasdaq earnings calendar and Google News, refreshed every few hours by a scheduled GitHub Actions job. Analysis only, not investment advice.",
+      before: "before", after: "after", ams: "Amsterdam", estimated: "date estimated",
       updated: "Updated", loadFail: "Could not load the data feed. Try again in a minute.",
       watch: "My watchlist", allus: "All US", soon14: "Reporting in 14 days", thisweek: "This week", nextup: "Next up",
       hint: "Double-click a row (tap on a phone) to open the full analysis.",
       hintAll: "Rows with a blue dot are on the watchlist. Large caps reporting in the next 10 days and every watchlist name have full analysis; double-click a row to open it.",
-      ticker: "Ticker", company: "Company", nextE: "Next earnings", dday: "D-day", timing: "Timing", epsEst: "EPS est.", price: "Price", day: "Day",
+      ticker: "Ticker", company: "Company", nextE: "Next earnings", dday: "D-day", timing: "Timing", timeAms: "Date & time (Amsterdam)", session: "Pre / after market", clockAms: "Time (Amsterdam)", epsEst: "EPS est.", price: "Price", day: "Day",
       mcap: "Market cap", size: "Size", lyEps: "EPS a year ago", nEst: "Estimates",
-      bmo: "Before open", amc: "After close", tba: "Time TBA", today: "Today", reported: "Reported", daysAgo: "d ago", noE: "No earnings",
+      bmo: "Pre-market", amc: "After close", tba: "Time TBA", today: "Today", reported: "Reported", daysAgo: "d ago", noE: "No earnings",
       period: "Days ahead", minCap: "Min. market cap", all: "All", search: "Search ticker or company", companies: "companies", noDetail: "No detail page for this ticker yet",
       secCompany: "Company", secPrice: "Price", secPast: "Past earnings", secOutlook: "Earnings outlook", secSize: "Size", secFund: "Fundamentals", secNews: "News", secRecent: "Recent moves",
       overview: "Business overview", segments: "Main businesses", keyFin: "Key financials", quarterly: "Quarterly revenue and net income", revenue: "Revenue", netIncome: "Net income",
@@ -201,14 +202,15 @@ tr.off td{color:var(--muted)}
     },
     ko: {
       home: "← 포트폴리오", back: "← 캘린더", loading: "최신 데이터를 불러오는 중…",
-      foot: "데이터: Yahoo Finance, 나스닥 어닝 캘린더, Google 뉴스. GitHub Actions 예약 작업이 몇 시간마다 갱신합니다. 분석 자료이며 투자 권유가 아닙니다.",
+      before: "이전", after: "이후", ams: "암스테르담", estimated: "예상 날짜",
+      foot: "모든 시간은 암스테르담 시간(CET/CEST)입니다. 데이터: Yahoo Finance, 나스닥 어닝 캘린더, Google 뉴스. GitHub Actions 예약 작업이 몇 시간마다 갱신합니다. 분석 자료이며 투자 권유가 아닙니다.",
       updated: "갱신", loadFail: "데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
       watch: "내 관심종목", allus: "미국 전체", soon14: "2주 내 어닝", thisweek: "이번 주", nextup: "가장 가까운 어닝",
       hint: "행을 더블클릭하면(휴대폰은 탭) 상세 분석이 열립니다.",
       hintAll: "파란 점은 관심종목입니다. 관심종목 전체와 10일 내 발표하는 대형주는 상세 분석이 있으며, 행을 더블클릭하면 열립니다.",
-      ticker: "티커", company: "회사", nextE: "다음 어닝", dday: "D-day", timing: "발표 시점", epsEst: "EPS 예상", price: "현재가", day: "일간",
+      ticker: "티커", company: "회사", nextE: "다음 어닝", dday: "D-day", timing: "발표 시점", timeAms: "발표 일시 (암스테르담)", session: "장전 / 장후", clockAms: "발표 시각 (암스테르담)", epsEst: "EPS 예상", price: "현재가", day: "일간",
       mcap: "시가총액", size: "규모", lyEps: "전년 EPS", nEst: "추정 수",
-      bmo: "장 시작 전", amc: "장 마감 후", tba: "시간 미정", today: "오늘", reported: "발표됨", daysAgo: "일 전", noE: "어닝 없음",
+      bmo: "장전", amc: "장후", tba: "시간 미정", today: "오늘", reported: "발표됨", daysAgo: "일 전", noE: "어닝 없음",
       period: "기간(일)", minCap: "최소 시가총액", all: "전체", search: "티커 또는 회사명 검색", companies: "개 기업", noDetail: "이 종목은 아직 상세 분석이 없습니다",
       secCompany: "회사 분석", secPrice: "주가 분석", secPast: "과거 어닝 반응", secOutlook: "어닝 후 예측", secSize: "규모", secFund: "투자 지표", secNews: "최근 뉴스", secRecent: "최근 주가 변동",
       overview: "사업 개요", segments: "주요 사업", keyFin: "핵심 재무", quarterly: "분기 매출 · 순이익", revenue: "매출", netIncome: "순이익",
@@ -264,6 +266,30 @@ tr.off td{color:var(--muted)}
     if (lang === "ko") return (d.getMonth() + 1) + "/" + d.getDate() + (withDow ? " (" + "일월화수목금토"[d.getDay()] + ")" : "");
     return d.toLocaleDateString("en-US", withDow ? { weekday: "short", month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
   };
+  /* every clock time is shown in Amsterdam time; US sessions are converted from New York wall time */
+  var TZ = "Europe/Amsterdam";
+  var amsClock = function (d) { return d.toLocaleTimeString("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }); };
+  var amsDateTime = function (d, opts) { return d.toLocaleString(lang === "ko" ? "ko-KR" : "en-US", Object.assign({ timeZone: TZ, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, opts || {})); };
+  var nyToUtc = function (ds, h, m) {
+    var p = ds.split("-"), g = Date.UTC(+p[0], +p[1] - 1, +p[2], h, m), at = new Date(g);
+    var off = new Date(at.toLocaleString("en-US", { timeZone: "America/New_York" })) - new Date(at.toLocaleString("en-US", { timeZone: "UTC" }));
+    return new Date(g - off);
+  };
+  var parseTs = function (ts) { return ts ? new Date(ts.replace("Z", ":00Z")) : null; };
+  var amsDay = function (d) { return d.toLocaleDateString("en-CA", { timeZone: TZ }); };
+  /* report clock time in Amsterdam: exact when Yahoo has it, otherwise the US session boundary ("before 15:30") */
+  var earnClock = function (timing, ds, ts) {
+    var at = parseTs(ts);
+    if (at) return amsClock(at);
+    if (!ds || (timing !== "bmo" && timing !== "amc")) return "";
+    var edge = amsClock(timing === "bmo" ? nyToUtc(ds, 9, 30) : nyToUtc(ds, 16, 0)), w = t(timing === "bmo" ? "before" : "after");
+    return lang === "ko" ? edge + " " + w : w + " " + edge;
+  };
+  /* "Tue, Oct 21 22:00": the report's date and time in Amsterdam */
+  var earnWhen = function (timing, ds, ts) {
+    var at = parseTs(ts), c = earnClock(timing, ds, ts);
+    return fmtDate(at ? amsDay(at) : ds, true) + (c ? " " + c : "");
+  };
   var ddLabel = function (n) { return n == null ? "–" : n < 0 ? t("reported") + " " + (-n) + t("daysAgo") : n === 0 ? t("today") : "D-" + n; };
   var css = function (v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
   function get(path) { return fetch(BASE + path, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
@@ -313,13 +339,13 @@ tr.off td{color:var(--muted)}
       var wk = rows.filter(function (r) { return r.dd != null && r.dd >= 0 && r.dd <= 6; });
       h += '<div class="tiles">' +
         tile(t("soon14"), soon.length) + tile(t("thisweek"), wk.length) +
-        tile(t("nextup"), soon.length ? soon[0].sym : "–", soon.length ? fmtDate(soon[0].next, true) + " · " + timingName(soon[0].timing) : "") + "</div>";
+        tile(t("nextup"), soon.length ? soon[0].sym : "–", soon.length ? earnWhen(soon[0].timing, soon[0].next, soon[0].ts) + " · " + timingName(soon[0].timing) : "") + "</div>";
       h += '<p class="sub">' + t("hint") + "</p>";
-      h += '<div class="tbl-wrap"><table><thead><tr><th>' + t("ticker") + "</th><th>" + t("company") + "</th><th>" + t("nextE") + "</th><th>" + t("dday") + "</th><th>" + t("timing") +
+      h += '<div class="tbl-wrap"><table><thead><tr><th>' + t("ticker") + "</th><th>" + t("company") + "</th><th>" + t("timeAms") + "</th><th>" + t("dday") + "</th><th>" + t("session") +
         '</th><th class="n">' + t("epsEst") + '</th><th class="n">' + t("price") + '</th><th class="n">' + t("day") + '</th><th class="n">' + t("mcap") + "</th><th>" + t("size") + "</th></tr></thead><tbody>";
       rows.forEach(function (r) {
         var hot = r.dd != null && r.dd >= 0 && r.dd <= 2;
-        h += '<tr class="go" tabindex="0" data-sym="' + esc(r.sym) + '"><td class="tk">' + esc(r.sym) + "</td><td>" + esc(trim(r.name, 30)) + "</td><td>" + (r.next ? fmtDate(r.next, true) : (r.sym.slice(-4) === "-USD" ? t("noE") : "–")) +
+        h += '<tr class="go" tabindex="0" data-sym="' + esc(r.sym) + '"><td class="tk">' + esc(r.sym) + "</td><td>" + esc(trim(r.name, 30)) + "</td><td>" + (r.next ? (r.dd >= 0 ? earnWhen(r.timing, r.next, r.ts) : fmtDate(r.next, true)) : (r.sym.slice(-4) === "-USD" ? t("noE") : "–")) +
           '</td><td><span class="dd' + (hot ? " hot" : "") + '">' + ddLabel(r.dd) + "</span></td><td>" + (r.next && r.dd >= 0 ? timingName(r.timing) : "") +
           '</td><td class="n">' + num(r.eps) + '</td><td class="n">' + usd(r.price) + '</td><td class="n ' + cls(r.chg) + '">' + pct(r.chg, 2) + '</td><td class="n">' + big(r.mc) + "</td><td>" + sizeName(r.mc) + "</td></tr>";
       });
@@ -340,12 +366,12 @@ tr.off td{color:var(--muted)}
       Object.keys(byDay).sort().forEach(function (d) {
         var g = byDay[d];
         h += '<div class="day-head"><h2>' + fmtDate(d, true) + '</h2><span class="sub">' + g.length + (lang === "ko" ? t("companies") : " " + t("companies")) + "</span></div>";
-        h += '<div class="tbl-wrap"><table><thead><tr><th>' + t("ticker") + "</th><th>" + t("company") + "</th><th>" + t("timing") + '</th><th class="n">' + t("mcap") + "</th><th>" + t("size") +
+        h += '<div class="tbl-wrap"><table><thead><tr><th>' + t("ticker") + "</th><th>" + t("company") + "</th><th>" + t("clockAms") + "</th><th>" + t("session") + '</th><th class="n">' + t("mcap") + "</th><th>" + t("size") +
           '</th><th class="n">' + t("epsEst") + '</th><th class="n">' + t("lyEps") + '</th><th class="n">' + t("nEst") + "</th></tr></thead><tbody>";
         g.forEach(function (r) {
           var ok = covered[r.sym];
           h += "<tr" + (ok ? ' class="go" tabindex="0" data-sym="' + esc(r.sym) + '"' : ' class="off" title="' + esc(t("noDetail")) + '"') + '><td class="tk">' + (watchSet[r.sym] ? '<span class="dot" aria-hidden="true"></span>' : "") + esc(r.sym) +
-            "</td><td>" + esc(trim(r.name, 36)) + "</td><td>" + timingName(r.timing) + '</td><td class="n">' + big(r.mc) + "</td><td>" + sizeName(r.mc) + '</td><td class="n">' + esc(r.eps || "–") +
+            "</td><td>" + esc(trim(r.name, 36)) + "</td><td>" + (earnClock(r.timing, r.date, null) || "–") + "</td><td>" + timingName(r.timing) + '</td><td class="n">' + big(r.mc) + "</td><td>" + sizeName(r.mc) + '</td><td class="n">' + esc(r.eps || "–") +
             '</td><td class="n">' + esc(r.ly || "–") + '</td><td class="n">' + esc(r.n || "–") + "</td></tr>";
         });
         h += "</tbody></table></div>";
@@ -491,7 +517,7 @@ tr.off td{color:var(--muted)}
     h += '<div class="dhead"><div style="min-width:0"><p class="sub">' + esc([d.sym, d.exchange, d.sector].filter(Boolean).join(" · ")) + '</p><h2 style="font-size:24px">' + esc(d.name) + '</h2></div><div style="text-align:right"><div class="price">' + usd(d.price) +
       '</div><div class="num ' + cls(chg) + '">' + pct(chg, 2) + "</div></div></div>";
     h += '<div class="tiles t5">' + tile(t("mcap"), big(d.mc)) + tile(t("size"), sizeName(d.mc)) +
-      tile(t("nextE"), nx.date ? fmtDate(nx.date, true) : d.crypto ? t("noE") : "–", nx.date ? ddLabel(ndd) + " · " + timingName(nx.timing) : "") +
+      tile(t("nextE"), nx.date ? earnWhen(nx.timing, nx.date, nx.ts) : d.crypto ? t("noE") : "–", nx.date ? ddLabel(ndd) + " · " + timingName(nx.timing) + " · " + t("ams") + (nx.estimated ? " · " + t("estimated") : "") : "") +
       tile(t("epsEst"), num(nx.eps_avg), isNum(nx.rev_avg) ? t("revenue") + " " + big(nx.rev_avg) : "") + tile(t("sector"), d.sector || "–", d.industry || "") + "</div>";
     var secs = [["company", t("secCompany")], ["price", t("secPrice")], ["past", t("secPast")], ["outlook", t("secOutlook")], ["size", t("secSize")], ["fund", t("secFund")], ["news", t("secNews")], ["recent", t("secRecent")]];
     h += '<nav class="secnav" aria-label="Sections">' + secs.map(function (s) { return '<a href="#' + d.sym + "/" + s[0] + '">' + esc(s[1]) + "</a>"; }).join("") + "</nav>";
@@ -547,7 +573,7 @@ tr.off td{color:var(--muted)}
     if (!nx.date) o += '<p class="sub">' + t("noNext") + "</p>";
     else {
       var ratio = im && isNum(histMove) ? histMove / im.move : null, move = im ? im.move : histMove;
-      o += '<div class="tiles">' + tile(t("nextE"), fmtDate(nx.date, true), ddLabel(ndd) + " · " + timingName(nx.timing)) +
+      o += '<div class="tiles">' + tile(t("nextE"), earnWhen(nx.timing, nx.date, nx.ts), ddLabel(ndd) + " · " + timingName(nx.timing) + " · " + t("ams")) +
         tile(t("implied"), im ? "±" + pct(im.move, 1, true) : "–", im ? t("expiry") + " " + fmtDate(im.expiry).replace(/, \d{4}/, "") + " · " + t("strike") + " " + num(im.strike, im.strike % 1 ? 1 : 0) : "") +
         tile(t("histMove"), isNum(histMove) ? "±" + pct(histMove, 1, true) : "–") +
         (ratio != null ? tile(t("ratio"), ratio.toFixed(2) + "×", ratio < 1 ? t("ratioLo") : t("ratioHi")) : "") + "</div>";
@@ -584,7 +610,7 @@ tr.off td{color:var(--muted)}
     /* 7 news */
     h += sec("news", t("secNews"), d.news && d.news.length ? '<div class="news">' + d.news.map(function (n) {
       var when = new Date(n.d.replace("Z", ":00Z"));
-      return '<a href="' + esc(n.u) + '" target="_blank" rel="noopener"><span class="t">' + esc(n.t) + '</span><span class="m">' + esc(n.s) + " · " + when.toLocaleString(lang === "ko" ? "ko-KR" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) + "</span></a>";
+      return '<a href="' + esc(n.u) + '" target="_blank" rel="noopener"><span class="t">' + esc(n.t) + '</span><span class="m">' + esc(n.s) + " · " + amsDateTime(when) + "</span></a>";
     }).join("") + "</div>" : '<p class="sub">' + t("noNews") + "</p>");
 
     /* 8 recent moves */
@@ -622,7 +648,7 @@ tr.off td{color:var(--muted)}
   }
   function render(part) {
     if (!S.cal) return;
-    $("#updated").textContent = t("updated") + " " + new Date(S.cal.generated.replace("Z", ":00Z")).toLocaleString(lang === "ko" ? "ko-KR" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    $("#updated").textContent = t("updated") + " " + amsDateTime(parseTs(S.cal.generated)) + " · " + t("ams");
     $("#back").hidden = !S.sym;
     $("#title").textContent = S.sym ? S.sym : "Earnings Desk";
     document.title = S.sym ? S.sym + " · Earnings Desk" : "Earnings Desk";
