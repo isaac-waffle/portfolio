@@ -1,0 +1,12 @@
+# 로컬 Streamlit 앱(트레이딩 데스크·어닝 대시보드) 공통 설정. 라이트·다크는 시스템 설정을 따름
+[theme.light]
+primaryColor = "#0071e3"
+
+[theme.dark]
+primaryColor = "#0a84ff"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

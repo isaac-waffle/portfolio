@@ -5,6 +5,8 @@
 | This is not AI 허브 (모든 앱·사이트·자동 업데이트·저장소 한눈에) | `hub.py` | 8500 |
 | 트레이딩 데스크 (단타 보조) | `trading_app.py` | 8501 |
 | 어닝 대시보드 | `earnings_app.py` | 8502 |
+| SI Forecast Desk (16개 종목 실시간 예측, `~/Desktop/stock-forecast-intraday`의 `start_live.sh`로 실행) | 별도 폴더 | 8765 |
+| 포트폴리오 사이트 미리보기 | `site/` | 8766 |
 
 시작: Spotlight·Launchpad에서 **This is not AI** 클릭 (Chrome 단독 창으로 열림). 또는 `apps/start.sh`, `Open Hub.command`.
 
