@@ -94,6 +94,54 @@ PHASES = [
 ]
 
 st.set_page_config(page_title="트레이딩 데스크", layout="wide")
+st.markdown("""<style>
+html, body, .stApp, button, input, textarea, select {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Helvetica Neue", sans-serif }
+[data-testid="stDecoration"] { display: none }
+.block-container { padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1440px }
+h1 { font-weight: 700 !important; letter-spacing: -.02em }
+h2, h3 { font-weight: 600 !important; letter-spacing: -.01em }
+.tiles { display: grid; gap: 10px; margin: 4px 0 18px }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important } }
+.tile, .card { background: rgba(128,128,128,.08); border-radius: 14px; padding: 12px 14px }
+.tile .l { font-size: 12px; opacity: .6 }
+.tile .v { font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tile .s { font-size: 12px; opacity: .7; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.x-up { color: #1f9d55 !important; opacity: 1 !important } .x-down { color: #e5484d !important; opacity: 1 !important }
+.x-warn { color: #d97706 !important; opacity: 1 !important }
+.vcard { background: rgba(128,128,128,.08); border-radius: 16px; padding: 16px 18px; min-height: 214px; border: 2px solid transparent }
+.vcard.active { border-color: #0071e3 }
+.vcard .p { font-size: 13px; opacity: .6; font-weight: 500 }
+.vcard .h { font-size: 22px; font-weight: 700; margin: 4px 0 10px; letter-spacing: -.01em }
+.vcard ul { margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6; opacity: .8 }
+.GO { color: #1f9d55 } .SELECT { color: #d97706 } .WAIT { color: #e5484d }
+.pill { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 980px; background: rgba(128,128,128,.13); margin: 0 6px 6px 0 }
+.score .big { font-size: 44px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1 }
+.score .big small { font-size: 16px; opacity: .5; font-weight: 500 }
+.bar { height: 6px; border-radius: 3px; background: rgba(128,128,128,.18); margin: 10px 0 12px; overflow: hidden }
+.bar i { display: block; height: 100%; border-radius: 3px }
+.kv { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-top: 1px solid rgba(128,128,128,.15) }
+.note { font-size: 12px; opacity: .65; margin-top: 10px; line-height: 1.6 }
+.side { font-size: 13px; line-height: 1.6 } .side b { font-size: 15px } .side span { opacity: .65 }
+</style>""", unsafe_allow_html=True)
+
+
+def tone(x) -> str:
+    return "x-up" if ok(x) and x > 0 else "x-down" if ok(x) and x < 0 else ""
+
+
+def tiles(items: list[tuple]):
+    """숫자 타일 한 줄: (라벨, 값, 보조문구, 색 클래스). 항목 수만큼 칸을 나눠 줄바꿈 없이."""
+    html = "".join(f"<div class='tile'><div class='l'>{l}</div><div class='v'>{v}</div>"
+                   f"<div class='s {c}'>{s or '&nbsp;'}</div></div>" for l, v, s, c in items)
+    n = min(len(items), 8)
+    st.markdown(f"<div class='tiles' style='grid-template-columns:repeat({n},minmax(0,1fr))'>{html}</div>".replace("$", "&#36;"),
+                unsafe_allow_html=True)  # $ 두 개면 수식으로 렌더되는 것 방지
+
+
+def pills(items: list[str]):
+    if items:
+        st.markdown("".join(f"<span class='pill'>{t}</span>" for t in items), unsafe_allow_html=True)
 
 
 # ───────────────────────── helpers ─────────────────────────
@@ -1057,10 +1105,10 @@ def judge(s: dict) -> str:
     if s["n"] < MIN_N:
         return f"표본 부족 ({s['n']}/{MIN_N})"
     if ok(s["ci"]) and s["exp"] - s["ci"] > 0:
-        return "✅ 엣지 확인 — 유지·확대"
+        return "엣지 확인 · 유지·확대"
     if s["exp"] > 0:
-        return "◐ 플러스지만 불확실 — 유지"
-    return "⛔ 마이너스 — 중단 검토"
+        return "플러스지만 불확실 · 유지"
+    return "마이너스 · 중단 검토"
 
 
 def group_stats(j: pd.DataFrame, col: str, label: str) -> pd.DataFrame:
@@ -1363,20 +1411,20 @@ def backtest(sym: str, or_min: int, mode: str, align: bool, cost_bps: float) -> 
 
 
 # ───────────────────────── UI pieces ─────────────────────────
-LVL_COLORS = {"GO": ("#dcfce7", "#166534"), "SELECT": ("#fef3c7", "#92400e"), "WAIT": ("#fee2e2", "#991b1b")}
-
-
 def verdict_card(pname: str, v: dict, active: bool):
-    bg, fg = LVL_COLORS[v["lvl"]]
-    icon = {"GO": "●", "SELECT": "◐", "WAIT": "○"}[v["lvl"]]
-    border = f"3px solid {fg}" if active else "1px solid #e5e7eb"
     items = "".join(f"<li>{w}</li>" for w in v["why"])
-    st.markdown(
-        f"<div style='background:{bg};border:{border};border-radius:12px;padding:14px 16px;min-height:230px'>"
-        f"<div style='font-size:13px;color:{fg};font-weight:600'>{pname}{' · 선택됨' if active else ''}</div>"
-        f"<div style='font-size:24px;font-weight:700;color:{fg};margin:4px 0 8px'>{icon} {v['head']}</div>"
-        f"<ul style='margin:0;padding-left:18px;font-size:13px;color:#1f2937;line-height:1.55'>{items}</ul></div>",
-        unsafe_allow_html=True)
+    st.markdown(f"<div class='vcard{' active' if active else ''}'><div class='p'>{pname}{' · 선택됨' if active else ''}</div>"
+                f"<div class='h {v['lvl']}'>{v['head']}</div><ul>{items}</ul></div>", unsafe_allow_html=True)
+
+
+def score_card(rg: dict):
+    col = "#1f9d55" if rg["score"] >= 60 else "#d97706" if rg["score"] > 35 else "#e5484d"
+    rows = "".join(f"<div class='kv'><span>{k}</span><span>{x:.1f} / {w}</span></div>" for k, (x, w) in rg["comp"].items())
+    notes = "<br>".join(rg["notes"])
+    st.markdown(f"<div class='card score'><div style='font-size:12px;opacity:.6'>시장 점수</div>"
+                f"<div class='big'>{rg['score']:.0f}<small> / 100 · {rg['bias']}</small></div>"
+                f"<div class='bar'><i style='width:{rg['score']:.0f}%;background:{col}'></i></div>{rows}"
+                f"<div class='note'>{notes}</div></div>", unsafe_allow_html=True)
 
 
 def setup_table(fit: list[dict], acct: float, risk_pct: float):
@@ -1393,45 +1441,33 @@ def setup_table(fit: list[dict], acct: float, risk_pct: float):
 
 
 def base_layout(fig, h):
-    fig.update_layout(height=h, margin=dict(l=10, r=10, t=30, b=10), hovermode="x unified",
-                      legend=dict(orientation="h", y=1.04, x=0))
+    fig.update_layout(height=h, margin=dict(l=10, r=10, t=36, b=10), hovermode="x unified",
+                      legend=dict(orientation="h", y=1.04, x=0), title_font=dict(size=14),
+                      font=dict(family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif"))
     return fig
 
 
 # ───────────────────────── sidebar ─────────────────────────
-PAGES_ORDER = ["시장 판단", "스캐너", "종목 분석", "매매 일지", "백테스트", "알림", "리스크 관리", "전략 가이드"]
-if pg := st.session_state.pop("_goto_page", None):
-    st.session_state["page"] = pg
-if goto := st.session_state.pop("_goto", None):
-    st.session_state.pop("scan_tbl", None)
-    st.session_state.pop("mov_tbl", None)
-    st.session_state["sym"] = goto if goto in WATCHLIST else st.session_state.get("sym", "NVDA")
-    st.session_state["custom"] = "" if goto in WATCHLIST else goto
-    st.session_state["page"] = "종목 분석"
 st.session_state.setdefault("sym", "NVDA")
-
 now = now_ny()
 state = market_state(now)
-st.sidebar.title("트레이딩 데스크")
-page = st.sidebar.radio("화면", list(PAGES_ORDER), key="page",
-                        label_visibility="collapsed")
-pname = st.sidebar.radio("전략 프로필", list(PROFILES), index=1, key="profile", horizontal=True)
-st.sidebar.caption(PROFILES[pname]["desc"])
-acct = st.sidebar.number_input("계좌 규모 (USD)", 1000, 10_000_000, 10_000, step=1000, key="acct")
-shorts = st.sidebar.toggle("공매도 가능 계좌", value=False, key="shorts",
-                           help="끄면 숏 셋업은 참고용으로만 보이고 점수·판단에서 빠집니다.")
-or_min = st.sidebar.select_slider("오프닝 레인지", [5, 15, 30], value=15, format_func=lambda x: f"{x}분", key="or_min")
-auto = st.sidebar.toggle("60초 자동 새로고침", value=False, key="auto")
-st.sidebar.markdown(f"**{state}**  \n뉴욕 {now:%H:%M} · 암스테르담 {now.astimezone(AMS):%H:%M}")
-if state != "정규장":
-    no = next_open(now)
-    left = no - now
-    st.sidebar.caption(f"다음 개장: {no.astimezone(AMS):%m/%d %H:%M} 암스테르담 · {left.days * 24 + left.seconds // 3600}시간 {left.seconds % 3600 // 60}분 후")
-if st.sidebar.button("데이터 새로고침"):
-    st.cache_data.clear()
-    st.rerun()
-alert_worker()
-st.sidebar.caption(f"데이터: {data_source()} · 알림 {sum(x.get('active', True) for x in load_alerts())}개 켜짐 · 투자 조언이 아닌 보조 도구입니다.")
+with st.sidebar:
+    st.markdown("### 트레이딩 데스크")
+    nxt = "" if state == "정규장" else f"<br><span>다음 개장 {next_open(now).astimezone(AMS):%m/%d %H:%M} 암스테르담</span>"
+    st.markdown(f"<div class='side'><b>{state}</b><br><span>뉴욕 {now:%H:%M} · 암스테르담 {now.astimezone(AMS):%H:%M}</span>{nxt}</div>",
+                unsafe_allow_html=True)
+    st.divider()
+    pname = st.segmented_control("전략 프로필", list(PROFILES), default="밸런스형", key="profile") or "밸런스형"
+    st.caption(PROFILES[pname]["desc"])
+    acct = st.number_input("계좌 규모 (USD)", 1000, 10_000_000, 10_000, step=1000, key="acct")
+    shorts = st.toggle("공매도 가능 계좌", value=False, key="shorts", help="끄면 숏 셋업은 참고용으로만 보이고 점수·판단에서 빠집니다.")
+    or_min = st.select_slider("오프닝 레인지", [5, 15, 30], value=15, format_func=lambda x: f"{x}분", key="or_min")
+    auto = st.toggle("60초마다 자동 새로고침", value=False, key="auto")
+    if st.button("데이터 새로고침", width="stretch"):
+        st.cache_data.clear()
+        st.rerun()
+    alert_worker()
+    st.caption(f"데이터 {data_source()} · 알림 {sum(x.get('active', True) for x in load_alerts())}개 켜짐  \n투자 조언이 아닌 보조 도구입니다.")
 
 
 # ───────────────────────── pages ─────────────────────────
@@ -1439,136 +1475,122 @@ def page_market():
     sc = scan(or_min)
     rg = regime(sc)
     now = now_ny()
-    st.title("지금 매매해도 될까?")
-    stale = ""
-    if state == "정규장" and sc["spy_t"] is not None and now - sc["spy_t"] > pd.Timedelta(minutes=20):
-        stale = " · ⚠️ 데이터가 20분 이상 지연 — 휴장일이거나 Yahoo 지연"
-    st.caption(f"{state} · 기준 {sc['fetched'].astimezone(AMS):%H:%M:%S} 암스테르담{stale}")
+    sn, vx = sc["snaps"], sc["vix"]
+    st.title("시장")
+    stale = " · 데이터가 20분 넘게 지연됨" if state == "정규장" and sc["spy_t"] is not None and now - sc["spy_t"] > pd.Timedelta(minutes=20) else ""
+    st.caption(f"{state} · {sc['fetched'].astimezone(AMS):%H:%M} 암스테르담 기준{stale}")
     ts = today_status(enrich(load_journal()), acct, pname)
     if ts["stop"]:
-        st.error(f"⛔ 오늘 매매 한도 도달 ({ts['n']}회 · \${ts['pnl']:+,.0f}, 손실 {ts['loss_pct']:.2f}% / 한도 {ts['limit']}%) — 시장이 좋아도 오늘은 종료")
+        st.error(f"오늘 매매 한도에 도달했습니다 ({ts['n']}회 · {usd(ts['pnl'])}, 손실 {ts['loss_pct']:.2f}% / 한도 {ts['limit']}%). 시장이 좋아도 오늘은 종료하세요.")
     elif ts["n"]:
-        st.caption(f"오늘 내 매매: {ts['n']}/{ts['max_trades']}회 · {ts['R']:+.1f}R · \${ts['pnl']:+,.0f}")
+        st.caption(f"오늘 내 매매 {ts['n']}/{ts['max_trades']}회 · {ts['R']:+.1f}R · {usd(ts['pnl'])}")
     cols = st.columns(3)
     for col, p in zip(cols, PROFILES):
         with col:
             verdict_card(p, verdict(p, rg, now, shorts, econ_week()), p == pname)
+    st.write("")
+    v, v9, v3 = (vx.get(k, {}) for k in VIXES)
+    items = [(k, num(sn[k]["last"]), pct(sn[k]["chg"]), tone(sn[k]["chg"])) for k in MARKET if k in sn]
+    items += [("VIX", num(v.get("v"), 1), pct(v.get("chg"), 1), tone(-(v.get("chg") or 0))),
+              ("VIX 9일 / 3개월", f"{num(v9.get('v'), 1)} / {num(v3.get('v'), 1)}",
+               "역전 (단기 스트레스)" if rg["back9"] or rg["back3"] else "정상", "x-down" if rg["back9"] or rg["back3"] else ""),
+              ("시장 폭", f"{rg['breadth'] * 100:.0f}%", "VWAP 위 비율", "")]
+    tiles(items)
 
-    st.subheader("시장 상태")
-    sn, vx = sc["snaps"], sc["vix"]
-    mc = st.columns(7)
-    for col, s in zip(mc, MARKET):
-        a = sn.get(s)
-        if a:
-            col.metric(s, num(a["last"]), pct(a["chg"]), help=f"VWAP {num(a['vwap'])} · RVOL {num(a['rvol'], 1)}x")
-    v = vx.get("^VIX", {})
-    mc[4].metric("VIX", num(v.get("v"), 1), pct(v.get("chg"), 1), delta_color="inverse")
-    mc[5].metric("VIX9D / VIX3M", f"{num(vx.get('^VIX9D', {}).get('v'), 1)} / {num(vx.get('^VIX3M', {}).get('v'), 1)}",
-                 "역전" if rg["back9"] or rg["back3"] else "정상(콘탱고)", delta_color="off")
-    mc[6].metric("시장 폭", f"{rg['breadth'] * 100:.0f}%", "VWAP 위 비율", delta_color="off")
-
-    l, r = st.columns([1, 2])
+    l, r = st.columns([1, 2], gap="large")
     with l:
-        fig = go.Figure(go.Indicator(mode="gauge+number", value=rg["score"], title={"text": f"시장 점수 · {rg['bias']}"},
-                                     gauge=dict(axis=dict(range=[0, 100]), bar=dict(color="#111827"),
-                                                steps=[dict(range=[0, 35], color="#fee2e2"), dict(range=[35, 60], color="#fef3c7"),
-                                                       dict(range=[60, 100], color="#dcfce7")])))
-        fig.update_layout(height=230, margin=dict(l=20, r=20, t=50, b=0))
-        st.plotly_chart(fig, width="stretch")
-        st.dataframe(pd.DataFrame([{"항목": k, "점수": f"{x:.1f} / {w}"} for k, (x, w) in rg["comp"].items()]),
-                     hide_index=True, width="stretch")
-        for n_ in rg["notes"]:
-            st.caption("· " + n_)
+        score_card(rg)
     with r:
         df = sc["spy_df"]
         if df is not None:
             m = mins(df.index)
             last_d = df.index[(m >= 570) & (m < 960)].date[-1]
             g = df[(np.array(df.index.date) == last_d) & (m >= 570) & (m < 960)]
-            rg_ = g
-            vw, sd = vwap_bands(rg_)
+            vw, sd = vwap_bands(g)
             x = g.index.tz_localize(None)
             fig = go.Figure()
             fig.add_candlestick(x=x, open=g["Open"], high=g["High"], low=g["Low"], close=g["Close"], name="SPY",
                                 increasing_line_color=UP, decreasing_line_color=DOWN)
-            fig.add_scatter(x=rg_.index.tz_localize(None), y=vw, name="VWAP", line=dict(color="#7c3aed", width=2))
+            fig.add_scatter(x=x, y=vw, name="VWAP", line=dict(color="#7c3aed", width=2))
             for kk, dash in ((1, "dot"), (2, "dash")):
                 for sgn in (1, -1):
-                    fig.add_scatter(x=rg_.index.tz_localize(None), y=vw + sgn * kk * sd, showlegend=False,
-                                    line=dict(color="#a78bfa", width=1, dash=dash), hoverinfo="skip")
-            fig.update_layout(title=f"SPY {last_d:%m/%d} 5분봉 · VWAP ±1σ/2σ", xaxis_rangeslider_visible=False)
+                    fig.add_scatter(x=x, y=vw + sgn * kk * sd, showlegend=False, line=dict(color="#a78bfa", width=1, dash=dash),
+                                    hoverinfo="skip")
+            fig.update_layout(title=f"SPY {last_d:%m/%d} · 5분봉 · VWAP ±1σ/2σ", xaxis_rangeslider_visible=False)
             st.plotly_chart(base_layout(fig, 400), width="stretch")
 
-    st.subheader("장중 시간표")
-    m_now = now.hour * 60 + now.minute
-    rows = [{"구간": n, "뉴욕": f"{hm(a)}–{hm(b)}", "암스테르담": f"{ams(a)}–{ams(b)}", "운용": t,
-             "지금": "◀ 지금" if a <= m_now < b and now.weekday() < 5 else ""} for a, b, n, t in PHASES]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-    gap_h = (dt.datetime.combine(now.date(), dt.time(12), AMS).utcoffset() - dt.datetime.combine(now.date(), dt.time(12), NY).utcoffset()).seconds // 3600
-    st.caption(f"오늘 뉴욕–암스테르담 시차 {gap_h}시간 (서머타임 전환 주간에는 5시간이 될 수 있습니다).")
-
-    l, r = st.columns(2)
-    with l:
-        st.subheader("이번 주 이벤트")
+    t_ev, t_in, t_cat, t_time = st.tabs(["이번 주 일정", "섹터 · 내부 지표", "카테고리 흐름", "장중 시간표"])
+    with t_ev:
         wk = [now.date() + dt.timedelta(days=i) for i in range(8)]
-        ev = [f"**FOMC 금리 결정** {d:%m/%d}({'월화수목금토일'[d.weekday()]}) 14:00 ET · {ams(840, d)} 암스테르담" for d in wk if d in FOMC]
+        day = lambda d: f"{d:%m/%d} ({'월화수목금토일'[d.weekday()]})"
+        ev = [dict(t=dt.datetime.combine(d, dt.time(14), NY), 날짜=day(d), 시각=ams(840, d), 이벤트="FOMC 금리 결정", 중요도="높음", 예상="", 이전="")
+              for d in wk if d in FOMC]
         for e in econ_week():
             if e["t"].date() >= now.date():
-                ev.append(f"{'🔴' if e['impact'] == 'High' else '🟠'} **{e['title']}** {e['t']:%m/%d}({'월화수목금토일'[e['t'].weekday()]}) "
-                          f"{e['t']:%H:%M} ET · {e['t'].astimezone(AMS):%H:%M} 암스테르담" + (f" · 예상 {e['fc']} / 이전 {e['prev']}" if e["fc"] else ""))
-        for s, (ed, tm) in sorted(sc["earn"].items(), key=lambda x: x[1][0]):
+                ev.append(dict(t=e["t"], 날짜=day(e["t"].date()), 시각=f"{e['t'].astimezone(AMS):%H:%M}", 이벤트=e["title"],
+                               중요도="높음" if e["impact"] == "High" else "중간", 예상=e["fc"], 이전=e["prev"]))
+        for s_, (ed, tm) in sc["earn"].items():
             try:
                 d = dt.date.fromisoformat(ed)
             except Exception:
                 continue
             if now.date() <= d <= wk[-1]:
-                ev.append(f"**{s}** 어닝 {d:%m/%d}({'월화수목금토일'[d.weekday()]}) {'장전' if tm == 'bmo' else '장후' if tm == 'amc' else ''}")
-        st.markdown("\n".join(f"- {e}" for e in ev) if ev else "주요 이벤트 없음")
-        st.caption("경제지표: ForexFactory 주간 피드 (미국 고·중영향). 🔴 고영향 지표 전후 30분은 밸런스·방어형 자동 관망.")
-    with r:
-        st.subheader("카테고리 흐름")
-        hm_rows = []
-        for c, ss in CATEGORIES.items():
-            xs = [sn[s] for s in ss if s in sn]
-            if xs:
-                hm_rows.append(dict(cat=c, chg=np.nanmean([a["chg"] for a in xs]),
-                                    rvol=np.nanmean([a["rvol"] for a in xs if ok(a["rvol"])] or [np.nan])))
-        h = pd.DataFrame(hm_rows).sort_values("chg")
-        fig = go.Figure(go.Bar(x=h["chg"] * 100, y=h["cat"], orientation="h",
-                               marker_color=[UP if v > 0 else DOWN for v in h["chg"]],
-                               customdata=h["rvol"], hovertemplate="%{y}<br>평균 등락 %{x:.2f}%<br>평균 RVOL %{customdata:.2f}x<extra></extra>"))
-        fig.update_layout(xaxis_title="평균 등락 (%)")
-        st.plotly_chart(base_layout(fig, 360), width="stretch")
-
-    st.subheader("시장 내부 지표")
-    st.caption("NYSE \\$TICK·\\$ADD는 무료 데이터에 없어서 대용 지표를 씁니다: 섹터 ETF 11개의 VWAP 위 비율, 동일가중(RSP)−시총가중(SPY), "
-               "관심종목+섹터 60여 개로 만든 합성 TICK.")
-    secs = [(SECTORS[k], sn[k]) for k in SECTORS if k in sn]
-    tk = sc.get("tick")
-    m_ = st.columns(4)
-    m_[0].metric("섹터 폭", f"{sum(above_ref(x) for _, x in secs)}/{len(secs)}", "VWAP 위 섹터", delta_color="off")
-    m_[1].metric("동일가중 − 시총가중", f"{rg['eq_gap'] * 100:+.2f}%p" if ok(rg["eq_gap"]) else "-",
-                 "고른 참여" if ok(rg["eq_gap"]) and rg["eq_gap"] > 0 else "대형주 쏠림", delta_color="off")
-    if tk is not None and len(tk):
-        m_[2].metric("합성 TICK (최근 봉)", f"{tk.iloc[-1]:+.0f}", f"최대 ±{len(WATCHLIST) - 1 + len(SECTORS)}", delta_color="off")
-        m_[3].metric("누적 TICK", f"{tk.sum():+.0f}", "양수 지속 = 매수 우위 장" if tk.sum() > 0 else "음수 지속 = 매도 우위 장", delta_color="off")
-    l, r = st.columns(2)
-    with l:
-        if secs:
-            secs.sort(key=lambda x: x[1]["chg"])
-            fig = go.Figure(go.Bar(x=[x["chg"] * 100 for _, x in secs], y=[f"{n} {'●' if above_ref(x) else '○'}" for n, x in secs],
-                                   orientation="h", marker_color=[UP if x["chg"] > 0 else DOWN for _, x in secs],
-                                   hovertemplate="%{y}<br>%{x:.2f}%<extra></extra>"))
-            fig.update_layout(title="섹터 등락 (● VWAP 위)", xaxis_title="%")
-            st.plotly_chart(base_layout(fig, 380), width="stretch")
-    with r:
+                ev.append(dict(t=dt.datetime.combine(d, dt.time(8 if tm == "bmo" else 16, 30), NY), 날짜=day(d),
+                               시각="장전" if tm == "bmo" else "장후" if tm == "amc" else "", 이벤트=f"{s_} 어닝", 중요도="관심종목", 예상="", 이전=""))
+        if ev:
+            st.dataframe(pd.DataFrame(sorted(ev, key=lambda e: e["t"])).drop(columns="t"), hide_index=True, width="stretch",
+                         height=min(36 * len(ev) + 40, 560))
+        else:
+            st.info("이번 주 주요 일정이 없습니다.")
+        st.caption("시각은 암스테르담 기준. 경제지표는 ForexFactory 주간 피드(미국 고·중요도). 중요도 '높음' 지표 전후 30분은 밸런스·방어형이 자동으로 관망합니다.")
+    with t_in:
+        secs = [(SECTORS[k], sn[k]) for k in SECTORS if k in sn]
+        tk = sc.get("tick")
+        items = [("섹터 폭", f"{sum(above_ref(x) for _, x in secs)}/{len(secs)}", "VWAP 위 섹터", ""),
+                 ("동일가중 − 시총가중", f"{rg['eq_gap'] * 100:+.2f}%p" if ok(rg["eq_gap"]) else "-",
+                  "고른 참여" if ok(rg["eq_gap"]) and rg["eq_gap"] > 0 else "대형주 쏠림", tone(rg["eq_gap"]))]
         if tk is not None and len(tk):
-            x = tk.index.tz_localize(None)
-            fig = make_subplots(specs=[[{"secondary_y": True}]])
-            fig.add_bar(x=x, y=tk.values, marker_color=[UP if v > 0 else DOWN for v in tk.values], name="TICK", opacity=0.6)
-            fig.add_scatter(x=x, y=tk.cumsum().values, name="누적", line=dict(color="#7c3aed", width=2), secondary_y=True)
-            fig.update_layout(title=f"합성 TICK ({tk.index[0]:%m/%d})")
-            st.plotly_chart(base_layout(fig, 380), width="stretch")
+            items += [("합성 TICK (최근 봉)", f"{tk.iloc[-1]:+.0f}", f"범위 ±{len(WATCHLIST) - 1 + len(SECTORS)}", tone(tk.iloc[-1])),
+                      ("누적 TICK", f"{tk.sum():+.0f}", "매수 우위" if tk.sum() > 0 else "매도 우위", tone(tk.sum()))]
+        tiles(items)
+        c1, c2 = st.columns(2)
+        with c1:
+            if secs:
+                secs.sort(key=lambda x: x[1]["chg"])
+                fig = go.Figure(go.Bar(x=[x["chg"] * 100 for _, x in secs], y=[n for n, _ in secs], orientation="h",
+                                       marker_color=[UP if x["chg"] > 0 else DOWN for _, x in secs],
+                                       marker_opacity=[1 if above_ref(x) else 0.45 for _, x in secs],
+                                       hovertemplate="%{y}<br>%{x:.2f}%<extra></extra>"))
+                fig.update_layout(title="섹터 등락 (진한 막대 = VWAP 위)", xaxis_title="%")
+                st.plotly_chart(base_layout(fig, 380), width="stretch")
+        with c2:
+            if tk is not None and len(tk):
+                x = tk.index.tz_localize(None)
+                fig = make_subplots(specs=[[{"secondary_y": True}]])
+                fig.add_bar(x=x, y=tk.values, marker_color=[UP if v > 0 else DOWN for v in tk.values], name="TICK", opacity=0.6)
+                fig.add_scatter(x=x, y=tk.cumsum().values, name="누적", line=dict(color="#7c3aed", width=2), secondary_y=True)
+                fig.update_layout(title=f"합성 TICK ({tk.index[0]:%m/%d})")
+                st.plotly_chart(base_layout(fig, 380), width="stretch")
+        st.caption("NYSE \\$TICK·\\$ADD는 무료 데이터에 없어 대용 지표를 씁니다: 섹터 ETF 11개, 동일가중(RSP)−시총가중(SPY), 관심종목+섹터 60여 개로 만든 합성 TICK.")
+    with t_cat:
+        rows = []
+        for c, ss in CATEGORIES.items():
+            xs = [sn[k] for k in ss if k in sn]
+            if xs:
+                rows.append(dict(cat=c, chg=np.nanmean([a["chg"] for a in xs]),
+                                 rvol=np.nanmean([a["rvol"] for a in xs if ok(a["rvol"])] or [np.nan])))
+        h = pd.DataFrame(rows).sort_values("chg")
+        fig = go.Figure(go.Bar(x=h["chg"] * 100, y=h["cat"], orientation="h", marker_color=[UP if v > 0 else DOWN for v in h["chg"]],
+                               customdata=h["rvol"], hovertemplate="%{y}<br>평균 등락 %{x:.2f}%<br>평균 RVOL %{customdata:.2f}x<extra></extra>"))
+        fig.update_layout(title="관심종목 카테고리별 평균 등락", xaxis_title="%")
+        st.plotly_chart(base_layout(fig, 420), width="stretch")
+    with t_time:
+        m_now = now.hour * 60 + now.minute
+        rows = [{"구간": n, "뉴욕": f"{hm(a)}–{hm(b)}", "암스테르담": f"{ams(a)}–{ams(b)}", "운용": t,
+                 "지금": "지금" if a <= m_now < b and now.weekday() < 5 else ""} for a, b, n, t in PHASES]
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        gap_h = (dt.datetime.combine(now.date(), dt.time(12), AMS).utcoffset() - dt.datetime.combine(now.date(), dt.time(12), NY).utcoffset()).seconds // 3600
+        st.caption(f"오늘 뉴욕–암스테르담 시차 {gap_h}시간.")
 
 
 def page_scanner():
@@ -1629,8 +1651,8 @@ def watch_tab(sc: dict, rg: dict):
                      "RVOL": a["rvol"], "VWAP σ": a["vwz"], "ATR%": a["atr_pct"] * 100 if ok(a["atr_pct"]) else None,
                      "ATR 소진%": a["atr_used"] * 100 if ok(a["atr_used"]) else None,
                      "RS vs SPY%": a["rs"] * 100 if ok(a["rs"]) else None, "RSI": a["rsi"],
-                     "바이어스": {"롱": "▲ 롱", "숏": "▼ 숏", "중립": "· 중립"}[a["bias"]],
-                     "셋업": " · ".join(("🟢 " if x["side"] == "롱" else "🔴 ") + x["name"] for x in fit),
+                     "바이어스": a["bias"],
+                     "셋업": " · ".join(f"{x['side']} {x['name']}" for x in fit),
                      "태그": " · ".join(a["tags"]), "거래대금(20일)": a["dvol"]})
     if not rows:
         st.info("조건에 맞는 종목이 없습니다.")
@@ -1687,17 +1709,15 @@ def page_ticker():
     st.title(f"{inf.get('shortName') or sym} ({sym})")
     st.caption(f"{CAT_OF.get(sym, '기타')} · {a['last_t']:%m/%d %H:%M} ET 기준 · {pname} 적합도 {score:.0f}/100 · 시장 {rg['bias']}")
 
-    m = st.columns(8)
-    m[0].metric("현재가", num(a["last"]), pct(a["chg"]))
-    m[1].metric("갭", pct(a["gap"]))
-    m[2].metric("RVOL", f"{num(a['rvol'], 2)}x")
-    m[3].metric("VWAP 거리", f"{num(a['vwz'], 1)}σ", num(a["vwap"]), delta_color="off")
-    m[4].metric("ATR(14일)", f"{num(a['atr_pct'] * 100 if ok(a['atr_pct']) else None, 1)}%", f"소진 {num(a['atr_used'] * 100 if ok(a['atr_used']) else None, 0)}%", delta_color="off")
-    m[5].metric("RS vs SPY", pct(a["rs"]), f"β {a['beta']:.2f}", delta_color="off")
-    m[6].metric("RSI(14)", num(a["rsi"], 0))
-    m[7].metric("바이어스", a["bias"], "거래량 델타 " + (f"{a['delta'] * 100:+.0f}%" if ok(a["delta"]) else "-"), delta_color="off")
-    if a["tags"]:
-        st.markdown(" ".join(f"`{t}`" for t in a["tags"]))
+    tiles([("현재가", num(a["last"]), pct(a["chg"]), tone(a["chg"])), ("갭", pct(a["gap"]), "전일 종가 대비", tone(a["gap"])),
+           ("RVOL", f"{num(a['rvol'], 2)}x", "같은 시각 평균 대비", "x-warn" if ok(a["rvol"]) and a["rvol"] >= 2 else ""),
+           ("VWAP 거리", f"{num(a['vwz'], 1)}σ", f"VWAP {num(a['vwap'])}", tone(a["vwz"])),
+           ("ATR (14일)", f"{num(a['atr_pct'] * 100 if ok(a['atr_pct']) else None, 1)}%",
+            f"오늘 {num(a['atr_used'] * 100 if ok(a['atr_used']) else None, 0)}% 사용", ""),
+           ("SPY 대비 강도", pct(a["rs"]), f"베타 {a['beta']:.2f}", tone(a["rs"])), ("RSI (14)", num(a["rsi"], 0), "", ""),
+           ("방향", a["bias"], "거래량 델타 " + (f"{a['delta'] * 100:+.0f}%" if ok(a["delta"]) else "-"),
+            "x-up" if a["bias"] == "롱" else "x-down" if a["bias"] == "숏" else "")])
+    pills(a["tags"])
 
     mdl = next_bar_model(sym)
     opt = options_view(sym, float(f"{a['last']:.3g}")) if sym != "BTC-USD" else None
@@ -1758,7 +1778,7 @@ def page_ticker():
         lv.update({"콜월": (opt.get("call_wall"), "#16a34a"), "풋월": (opt.get("put_wall"), "#dc2626"),
                    "감마플립": (opt.get("flip"), "#111827"), "맥스페인": (opt.get("max_pain"), "#9333ea")})
     default = ["PDH", "PDL", "PDC", "ORH", "ORL", "PMH", "PML", "POC"]
-    show = st.multiselect("레벨 표시", list(lv), default=[k for k in default if k in lv], key="levels")
+    show = st.multiselect("차트에 표시할 레벨", list(lv), default=[k for k in default if k in lv], key="levels")
     lo_, hi_ = float(g["Low"].min()), float(g["High"].max())
     pad = (hi_ - lo_) * 0.6
     for k in show:
@@ -1792,9 +1812,9 @@ def page_ticker():
     fig.update_yaxes(title_text="RSI", row=3, col=1, range=[0, 100])
     st.plotly_chart(base_layout(fig, 720), width="stretch")
 
-    l, mid, r = st.columns([1.1, 1.6, 1])
+    tabs = st.tabs(["트레이드 플랜", "다음 5분", "키 레벨", "옵션 · 감마", "거래량 프로필", "예측 모델", "종목 정보"])
+    mid, l, r = tabs[0], tabs[1], tabs[2]
     with l:
-        st.subheader("다음 5분")
         if not mdl:
             st.info("60일 5분봉 데이터가 부족해 모델을 만들 수 없습니다.")
         else:
@@ -1817,9 +1837,7 @@ def page_ticker():
                        f"({edge * 100:+.1f}%p) · 확신 구간(|p−50%|≥4%p) {mdl['conf_n']}개 바 적중률 {num(mdl['conf_acc'] * 100 if ok(mdl['conf_acc']) else None, 1)}%")
             st.caption("5분 방향 예측은 대형 퀀트도 51~53%면 잘하는 수준입니다. 방향보다 **범위**를 손절·목표 설정에 쓰세요.")
     with mid:
-        st.subheader(f"트레이드 플랜 · {pname}")
-        if state != "정규장":
-            st.caption(f"{state} — 아래는 {a['cur']:%m/%d} 정규장 마감 시점 기준입니다. 다음 세션 개장 후 다시 확인하세요.")
+        st.caption(f"{pname} 기준" + (f" · {state}: {a['cur']:%m/%d} 정규장 마감 시점 기준입니다. 다음 세션 개장 후 다시 확인하세요." if state != "정규장" else ""))
         if fit:
             setup_table(fit, acct, PROFILES[pname]["risk"])
         else:
@@ -1865,23 +1883,22 @@ def page_ticker():
                ("시장 방향 정렬", (a["bias"] == "롱") == (rg["bias"] == "롱 우위") or rg["bias"] == "혼조", f"종목 {a['bias']} / 시장 {rg['bias']}"),
                ("어닝 리스크", not (a["earn_d"] is not None and 0 <= a["earn_d"] <= 1), f"D-{a['earn_d']}" if a["earn_d"] is not None and a["earn_d"] >= 0 else "-")]
         st.caption("체크리스트")
-        st.markdown("\n".join(f"- {'✅' if okk else '⚠️'} {n} — {v}" for n, okk, v in chk))
+        tiles([(n, "통과" if okk else "주의", v, "x-up" if okk else "x-warn") for n, okk, v in chk])
     with r:
-        st.subheader("키 레벨")
         lvls = [(k, y) for k, (y, _) in lv.items() if ok(y)]
         if ok(a["vwap"]):
             lvls += [("VWAP", a["vwap"]), ("VWAP+2σ", a["vwap"] + 2 * a["vsd"]), ("VWAP−2σ", a["vwap"] - 2 * a["vsd"])]
         if ok(a["hod"]):
             lvls += [("HOD", a["hod"]), ("LOD", a["lod"])]
-        lvls.append(("▶ 현재가", a["last"]))
+        lvls.append(("현재가", a["last"]))
         L = pd.DataFrame(lvls, columns=["레벨", "가격"]).sort_values("가격", ascending=False)
         L["거리%"] = (L["가격"] / a["last"] - 1) * 100
         L["ATR 배수"] = (L["가격"] - a["last"]) / a["atr"] if ok(a["atr"]) else np.nan
         st.dataframe(L, hide_index=True, width="stretch", height=min(36 * len(L) + 40, 640), column_config={
             "가격": st.column_config.NumberColumn(format="%.2f"), "거리%": st.column_config.NumberColumn(format="%+.2f"),
             "ATR 배수": st.column_config.NumberColumn(format="%+.2f")})
-        with st.popover("🔔 알림 걸기", width="stretch"):
-            lv_pick = st.selectbox("레벨", [r for r in L["레벨"] if r != "▶ 현재가"], key="al_lvl")
+        with st.popover("이 종목에 알림 걸기"):
+            lv_pick = st.selectbox("레벨", [r for r in L["레벨"] if r != "현재가"], key="al_lvl")
             y = float(L.loc[L["레벨"] == lv_pick, "가격"].iloc[0])
             st.caption(f"{lv_pick} {y:,.2f} — 현재가 {'위' if y > a['last'] else '아래'}에 있어 '{'가격 이상' if y > a['last'] else '가격 이하'}'로 겁니다.")
             if st.button("이 레벨에 알림", key="al_add_lvl"):
@@ -1891,20 +1908,20 @@ def page_ticker():
                 add_alert(sym, "셋업 발생", note=pname)
                 st.toast(f"{sym} 셋업 알림 추가")
 
-    t1, t2, t3, t4 = st.tabs(["옵션 · 딜러 감마", "거래량 프로필", "예측 모델 상세", "종목 정보"])
+    t1, t2, t3, t4 = tabs[3:]
     with t1:
         if not opt:
             st.info("옵션 데이터 없음")
         else:
-            o = st.columns(6)
-            o[0].metric(f"내재 무브 ({opt['front']})", f"±{opt['move'] * 100:.1f}%", f"스트래들 ${opt['straddle']:.2f}", delta_color="off")
-            o[1].metric("ATM IV", f"{num(opt['atm_iv'] * 100 if ok(opt['atm_iv']) else None, 0)}%",
-                        f"일간 ±{opt['atm_iv'] / np.sqrt(252) * 100:.1f}%" if ok(opt["atm_iv"]) else None, delta_color="off")
-            o[2].metric("풋/콜 거래량", num(opt["pc_vol"]), f"OI {num(opt['pc_oi'])}", delta_color="off")
-            o[3].metric("맥스 페인", num(opt["max_pain"]))
+            items = [(f"내재 무브 ({opt['front'][5:]})", f"±{opt['move'] * 100:.1f}%", f"스트래들 ${opt['straddle']:.2f}", ""),
+                     ("ATM IV", f"{num(opt['atm_iv'] * 100 if ok(opt['atm_iv']) else None, 0)}%",
+                      f"일간 ±{opt['atm_iv'] / np.sqrt(252) * 100:.1f}%" if ok(opt["atm_iv"]) else "", ""),
+                     ("풋/콜 거래량", num(opt["pc_vol"]), f"미결제약정 {num(opt['pc_oi'])}", ""), ("맥스 페인", num(opt["max_pain"]), "", "")]
             if "net_gex" in opt:
-                o[4].metric("순 감마 (1% 당)", fmt_big(opt["net_gex"]), "플러스: 변동 억제" if opt["net_gex"] > 0 else "마이너스: 변동 증폭", delta_color="off")
-                o[5].metric("감마 플립", num(opt["flip"]), f"콜월 {num(opt['call_wall'], 0)} · 풋월 {num(opt['put_wall'], 0)}", delta_color="off")
+                items += [("순 감마 (1%당)", fmt_big(opt["net_gex"]), "변동 억제" if opt["net_gex"] > 0 else "변동 증폭", tone(opt["net_gex"])),
+                          ("감마 플립", num(opt["flip"]), f"콜월 {num(opt['call_wall'], 0)} · 풋월 {num(opt['put_wall'], 0)}", "")]
+            tiles(items)
+            if "net_gex" in opt:
                 by = opt["by_strike"]
                 fig = go.Figure(go.Bar(x=by.index, y=by.values, marker_color=[UP if v > 0 else DOWN for v in by.values],
                                        hovertemplate="행사가 %{x}<br>GEX %{y:$,.0f}<extra></extra>"))
@@ -1941,8 +1958,8 @@ def page_ticker():
             st.plotly_chart(base_layout(fig, 380), width="stretch")
             rc = mdl["recent"].copy()
             rc.index = rc.index.strftime("%m/%d %H:%M")
-            rc = rc.assign(예측=np.where(rc["p"] > 0.5, "▲", "▼"), 실제=np.where(rc["y"] == 1, "▲", "▼"),
-                           적중=np.where((rc["p"] > 0.5) == (rc["y"] == 1), "✓", "✗"),
+            rc = rc.assign(예측=np.where(rc["p"] > 0.5, "상승", "하락"), 실제=np.where(rc["y"] == 1, "상승", "하락"),
+                           적중=np.where((rc["p"] > 0.5) == (rc["y"] == 1), "적중", "빗나감"),
                            상승확률=rc["p"] * 100, 다음봉수익률=rc["ret"] * 100)
             st.caption("최근 표본 외 예측 기록")
             st.dataframe(rc[["상승확률", "예측", "실제", "적중", "다음봉수익률"]], width="stretch", column_config={
@@ -2090,7 +2107,7 @@ def page_journal():
     msg = (f"오늘 {ts['n']}/{ts['max_trades']}회 · {ts['R']:+.1f}R · \\${ts['pnl']:+,.0f} "
            f"(일 손실 한도 {ts['limit']}% = \\${acct * ts['limit'] / 100:,.0f})")
     if ts["stop"]:
-        st.error(f"⛔ 오늘 한도 도달 — 매매 종료. {msg}")
+        st.error(f"오늘 한도에 도달했습니다. 매매를 종료하세요. {msg}")
     elif ts["streak"]:
         st.warning(f"3연속 손실 — 쉬고 오세요. {msg}")
     else:
@@ -2466,16 +2483,27 @@ def page_backtest():
                "판정은 거래 20회 이상 + 95% 구간이 0 위일 때만 믿으세요.")
 
 
-PAGES = {"시장 판단": page_market, "스캐너": page_scanner, "종목 분석": page_ticker, "매매 일지": page_journal, "백테스트": page_backtest, "알림": page_alerts,
-         "리스크 관리": page_risk, "전략 가이드": page_guide}
+def _page(fn, live: bool):
+    def run():
+        if fn is page_ticker and (nxt := st.session_state.pop("_sym_next", None)):
+            st.session_state["sym"] = nxt if nxt in WATCHLIST else st.session_state.get("sym", "NVDA")
+            st.session_state["custom"] = "" if nxt in WATCHLIST else nxt
+        with st.spinner("불러오는 중…"):
+            (st.fragment(run_every=60)(fn) if live and auto else fn)()
+    run.__name__ = fn.__name__
+    return run
 
 
-def body():
-    with st.spinner("시장 데이터 불러오는 중…"):
-        PAGES[page]()
-
-
-if auto and page in ("시장 판단", "스캐너", "종목 분석"):
-    st.fragment(run_every=60)(body)()
-else:
-    body()
+PAGES = {t: st.Page(_page(f, live), title=t, url_path=u, default=u == "market") for t, u, f, live in [
+    ("시장", "market", page_market, True), ("스캐너", "scanner", page_scanner, True), ("종목 분석", "stock", page_ticker, True),
+    ("매매 일지", "journal", page_journal, False), ("백테스트", "backtest", page_backtest, False), ("알림", "alerts", page_alerts, False),
+    ("리스크", "risk", page_risk, False), ("가이드", "guide", page_guide, False)]}
+nav = st.navigation(list(PAGES.values()), position="top")
+if p := st.session_state.pop("_goto_page", None):
+    st.switch_page(PAGES[p])
+if goto := st.session_state.pop("_goto", None):
+    st.session_state.pop("scan_tbl", None)
+    st.session_state.pop("mov_tbl", None)
+    st.session_state["_sym_next"] = goto
+    st.switch_page(PAGES["종목 분석"])
+nav.run()
