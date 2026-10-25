@@ -1,7 +1,5 @@
 #!/bin/zsh
-# 내 앱 허브 실행: 필요하면 가상환경을 만들고, 브라우저에서 허브(localhost:8500)를 엽니다.
+# This is not AI 허브 실행 (표준 라이브러리만 사용) — 브라우저에서 localhost:8500 을 엽니다.
 cd "$(dirname "$0")/.."
-if [ ! -x .venv/bin/streamlit ]; then
-  python3 -m venv .venv && .venv/bin/pip install -q -r apps/requirements.txt
-fi
-exec .venv/bin/streamlit run apps/hub.py --server.port 8500 --browser.gatherUsageStats false
+PY=.venv/bin/python; [ -x "$PY" ] || PY=python3
+if nc -z 127.0.0.1 8500 2>/dev/null; then open http://localhost:8500; else exec "$PY" apps/hub.py --open; fi

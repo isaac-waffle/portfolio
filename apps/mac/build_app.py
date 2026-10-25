@@ -1,4 +1,4 @@
-"""'내 앱 허브'를 Mac 앱(.app)으로 만들어 /Applications에 설치 — Spotlight·Launchpad에서 눌러서 실행.
+"""This is not AI 허브를 Mac 앱(.app)으로 만들어 /Applications에 설치 — Spotlight·Launchpad에서 눌러서 실행.
 
 실행:  .venv/bin/python apps/mac/build_app.py        (Pillow 필요: .venv/bin/pip install pillow)
 
@@ -18,7 +18,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
-NAME = "내 앱 허브"
+NAME = "This is not AI"
+LEGACY = ["내 앱 허브", "Isaac_ARK"]  # 예전 이름으로 설치된 앱은 지움
 DEST = Path("/Applications") if os.access("/Applications", os.W_OK) else Path.home() / "Applications"
 APP = DEST / f"{NAME}.app"
 S = 4  # 슈퍼샘플링 배율
@@ -30,13 +31,10 @@ URL="http://localhost:$PORT"
 export PATH="__PATH__:$PATH"
 [ -f "$HOME/.trading_desk.env" ] && source "$HOME/.trading_desk.env"
 if ! nc -z 127.0.0.1 $PORT 2>/dev/null; then
-  mkdir -p "$ROOT/apps/.hub/logs"
-  if [ ! -x "$ROOT/.venv/bin/streamlit" ]; then
-    python3 -m venv "$ROOT/.venv" && "$ROOT/.venv/bin/pip" install -q -r "$ROOT/apps/requirements.txt"
-  fi
+  LOG="$HOME/Library/Logs/This is not AI.log"
+  PY="$ROOT/.venv/bin/python"; [ -x "$PY" ] || PY=python3
   cd "$ROOT"
-  nohup "$ROOT/.venv/bin/streamlit" run apps/hub.py --server.port $PORT --server.headless true \
-    --browser.gatherUsageStats false >> "$ROOT/apps/.hub/logs/hub.log" 2>&1 &!
+  nohup "$PY" apps/hub.py >> "$LOG" 2>&1 &!
   for i in {1..80}; do nc -z 127.0.0.1 $PORT 2>/dev/null && break; sleep 0.25; done
 fi
 if [ -d "/Applications/Google Chrome.app" ]; then
@@ -113,8 +111,9 @@ def icns(png: Path, out: Path):
 
 
 def build():
-    if APP.exists():
-        shutil.rmtree(APP)
+    for old in [APP] + [d / f"{n}.app" for n in LEGACY for d in (Path("/Applications"), Path.home() / "Applications")]:
+        if old.exists():
+            shutil.rmtree(old)
     (APP / "Contents" / "MacOS").mkdir(parents=True)
     (APP / "Contents" / "Resources").mkdir()
     png = ROOT / "apps" / "mac" / "AppIcon.png"
