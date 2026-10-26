@@ -24,6 +24,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+
+from notebook_st import apply as notebook_theme
 import yfinance as yf
 from plotly.subplots import make_subplots
 from scipy.stats import norm
@@ -96,6 +98,7 @@ PHASES = [
 ]
 
 st.set_page_config(page_title="트레이딩 데스크", layout="wide")
+notebook_theme()  # 공책 테마 (apps/notebook_st.py)
 st.markdown("""<style>
 html, body, .stApp, button, input, textarea, select {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Helvetica Neue", sans-serif }

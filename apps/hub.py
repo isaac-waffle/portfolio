@@ -30,15 +30,18 @@ PORT = 8500
 REPO = "isaac-waffle/portfolio"
 SITE = "https://isaac-waffle.github.io/portfolio/"
 STREAMLIT = str(ROOT / ".venv" / "bin" / "streamlit")
+PYTHON = str(ROOT / ".venv" / "bin" / "python")
 PHOTODIARY = ROOT / "PhotoDiary"
-FORECAST = Path.home() / "Desktop" / "stock-forecast-intraday"  # SI Forecast Desk (별도 폴더, 코드는 건드리지 않음)
+FORECAST = Path.home() / "Desktop" / "stock-forecast-intraday"  # SI Forecast Desk (별도 폴더 — 화면 live/index.html에 공책 테마만 입힘, 원본은 index.html.before-notebook)
 
 LOCAL = [
     dict(key="trading", name="트레이딩 데스크", port=8501, icon="chart", color="#ff9500",
          cmd=[STREAMLIT, "run", "apps/trading_app.py"]),
     dict(key="earnings", name="어닝 대시보드", port=8502, icon="calendar", color="#ff3b30",
          cmd=[STREAMLIT, "run", "apps/earnings_app.py"]),
-    dict(key="forecast", name="SI Forecast Desk", port=8765, icon="wave", color="#af52de",
+    dict(key="traders", name="가상 트레이더", port=8503, icon="traders", color="#34c759",
+         cmd=[PYTHON, "apps/traders.py"]),
+    dict(key="forecast", name="SI Forecast Desk", port=8765, icon="crystal", color="#af52de",
          cmd=["zsh", "start_live.sh"], stop=["zsh", "stop_live.sh"], cwd=FORECAST, wait=120),
     dict(key="site", name="포트폴리오 미리보기", port=8766, icon="globe", color="#007aff",
          cmd=["python3", "-m", "http.server", "8766", "--directory", "site"]),
@@ -205,13 +208,31 @@ def forecast_info() -> str:
         return "16개 종목 1분~1일 예측 · 실시간 시세 · 옵션 · 뉴스"
 
 
+def traders_info() -> str:
+    try:
+        st = json.loads((APPS / "journal" / "traders" / "state.json").read_text())["traders"]
+        names = {"agg": "아이작", "bal": "티모", "def": "차차", "swing": "돌격대장"}
+        return " · ".join(f"{names[k]} ${t['cash'] + sum(p['shares'] * p['entry'] for p in t['pos'].values()):,.0f}"
+                          for k, t in st.items() if k in names)
+    except Exception:
+        return "공격형·밸런스형·방어형 모의 단타 ($20,000씩)"
+
+
 def local() -> dict:
-    sub = {"trading": trading_info(), "earnings": _cache["earn"] or "미국 어닝 캘린더 · 종목별 분석",
+    sub = {"traders": traders_info(), "trading": trading_info(), "earnings": _cache["earn"] or "미국 어닝 캘린더 · 종목별 분석",
            "forecast": forecast_info(), "site": "site/ 폴더를 내 컴퓨터에서 미리 보기"}
     apps = [dict(key=a["key"], name=a["name"], port=a["port"], icon=a["icon"], color=a["color"],
                  up=is_up(a["port"]), sub=sub[a["key"]],
                  ok=a.get("cwd", ROOT).exists()) for a in LOCAL]
     return dict(apps=apps, photodiary=(PHOTODIARY / "PhotoDiary.xcodeproj").exists())
+
+
+def notebook(page: str) -> str:
+    """공책 테마(apps/notebook.css + 손글씨 글꼴)를 <head> 끝에 끼워 넣음 — 가상 트레이더 화면과 같은 파일."""
+    css = (APPS / "notebook.css").read_text() if (APPS / "notebook.css").exists() else ""
+    font = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            '<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">')
+    return page.replace("</head>", f"{font}<style>{css}</style></head>", 1)
 
 
 # ───────────────────────── 서버 ─────────────────────────
@@ -231,11 +252,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/":
-            self._send(200, PAGE.encode(), "text/html; charset=utf-8")
+            self._send(200, notebook(PAGE).encode(), "text/html; charset=utf-8")
         elif self.path == "/api/local":
             self._json(local())
         elif self.path.startswith("/api/remote"):
             self._json(remote(force="force=1" in self.path))
+        elif self.path.startswith("/icon/"):  # 볼펜 낙서 아이콘 (apps/mac/doodle.py hub 로 생성)
+            name = self.path[6:].removesuffix(".png")
+            f = APPS / "mac" / "hub_icons" / f"{name}.png"
+            if name.isalpha() and f.exists():
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Cache-Control", "max-age=86400")
+                self.end_headers()
+                self.wfile.write(f.read_bytes())
+            else:
+                self._send(404, b"not found", "text/plain")
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -285,15 +317,14 @@ h1{font:700 40px/1.05 -apple-system,BlinkMacSystemFont,"SF Pro Display",sans-ser
   box-shadow:var(--shadow);font-size:14px}
 .summary b{font-weight:600}
 .summary .muted{color:var(--sub)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
-@media (max-width:900px){.grid{grid-template-columns:1fr}.wrap{padding:28px 16px}}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}.wrap{padding:28px 16px}}
 section+section{margin-top:26px}
 h2{font-size:13px;font-weight:600;color:var(--sub);letter-spacing:.01em;margin:0 0 8px 16px}
 .group{background:var(--card);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .row{display:flex;align-items:center;gap:12px;padding:10px 14px 10px 14px;min-height:58px;position:relative}
-.row+.row:before{content:"";position:absolute;top:0;left:58px;right:0;border-top:1px solid var(--line)}
-.ic{width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center}
-.ic svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.row+.row:before{content:"";position:absolute;top:0;left:66px;right:0;border-top:1px solid var(--line)}
+.ic{width:40px;height:40px;border-radius:9px;flex:none;display:block;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.08)}
 .txt{flex:1;min-width:0}
 .t{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .s{color:var(--sub);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -309,6 +340,19 @@ h2{font-size:13px;font-weight:600;color:var(--sub);letter-spacing:.01em;margin:0
 .loading{color:var(--sub);font-size:13px;padding:18px 16px}
 .link{background:none;border:0;color:var(--accent);font:inherit;font-size:14px;cursor:pointer;padding:0}
 footer{color:var(--sub);font-size:12px;margin-top:28px;text-align:center}
+/* ── 공책 테마 (색·종이는 notebook.css) — 손글씨는 큰 제목만, 나머지는 읽기 쉬운 시스템 글꼴 ── */
+h1{font-size:clamp(40px,8vw,58px);line-height:1.1}
+@media (max-width:520px){.st{display:none}.row{gap:10px}}
+h2{font-family:var(--hand);font-size:24px;font-weight:700;color:var(--ink);margin:0 0 6px 10px;letter-spacing:0}
+.group,.summary{background:var(--card);border:2px solid var(--ink);border-radius:var(--sketch);box-shadow:var(--shadow)}
+section:nth-child(even) .group{border-radius:var(--sketch2)}
+.row+.row:before{border-top:1.5px dashed var(--line)}
+.ic{border-radius:6px;box-shadow:1px 2px 0 rgba(35,52,126,.18);transform:rotate(-2deg)}
+.row:nth-child(even) .ic{transform:rotate(1.6deg)}
+.btn{background:transparent;border:1.5px solid var(--ink);color:var(--ink);border-radius:var(--sketch);padding:4px 13px}
+.btn.primary{background:var(--ink);color:var(--card)}
+.btn.quiet{border-color:transparent;color:var(--sub);font-weight:500}
+.btn:hover{background:var(--pill);filter:none}
 </style>
 </head>
 <body>
@@ -332,18 +376,10 @@ footer{color:var(--sub);font-size:12px;margin-top:28px;text-align:center}
   <footer id="foot"></footer>
 </div>
 <script>
-const I = {
-  chart:'<path d="M4 16l5-6 4 3 7-8"/><path d="M15 5h5v5"/>',
-  calendar:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
-  globe:'<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/>',
-  book:'<path d="M6 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z"/><path d="M6 18a2 2 0 0 1 2-2h10"/>',
-  link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
-  cycle:'<path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3"/><path d="M18 3v4h-4M6 21v-4h4"/>',
-  wave:'<path d="M3 15l4-5 4 3 4-6"/><path d="M15 7l2.5 3.5L21 6" stroke-dasharray="2 2.5"/><path d="M3 20h18"/>',
-  branch:'<circle cx="7" cy="6" r="2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="8" r="2"/><path d="M7 8v8M17 10c0 4-10 2-10 6"/>'
-};
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const icon = (k, c) => `<div class="ic" style="background:${c}"><svg viewBox="0 0 24 24">${I[k]}</svg></div>`;
+const icon = k => `<img class="ic" src="/icon/${k}.png" alt="">`;
+const WEB_IC = {'포트폴리오': 'person', 'Forecast Lab': 'flask', 'Earnings Desk': 'calendar', 'DEGIRO P&L': 'moneybag', 'Woning Scout': 'house'};
+const PIPE_IC = {'사이트 배포': 'rocket'};
 const row = (ic, t, s, st, act) => `<div class="row">${ic}<div class="txt"><div class="t">${esc(t)}</div>` +
   `<div class="s">${esc(s)}</div></div>${st}<div class="act">${act}</div></div>`;
 const status = (cls, label) => `<div class="st"><span class="dot ${cls}"></span>${esc(label)}</div>`;
@@ -357,22 +393,22 @@ async function post(path, btn){
 }
 
 function drawLocal(){
-  document.getElementById('apps').innerHTML = L.apps.map(a => row(icon(a.icon, a.color), a.name, a.sub,
+  document.getElementById('apps').innerHTML = L.apps.map(a => row(icon(a.icon), a.name, a.sub,
     status(a.up ? 'ok' : '', a.up ? '실행 중' : '꺼짐'),
     a.up ? go(`http://localhost:${a.port}`) + `<button class="btn quiet" onclick="post('/api/stop/${a.key}',this)">끄기</button>`
          : a.ok ? `<button class="btn" onclick="post('/api/start/${a.key}',this)">켜기</button>` : '')).join('');
-  document.getElementById('ios').innerHTML = row(icon('book', '#34c759'), 'PhotoDiary', '사진 일기 · 공용 다이어리 (SwiftUI)',
+  document.getElementById('ios').innerHTML = row(icon('camera'), 'PhotoDiary', '사진 일기 · 공용 다이어리 (SwiftUI)',
     status('', '로컬'), L.photodiary ? `<button class="btn" onclick="post('/api/xcode')">Xcode</button>` +
     `<button class="btn quiet" onclick="post('/api/finder')">Finder</button>` : '');
   drawSummary();
 }
 
 function drawRemote(){
-  document.getElementById('web').innerHTML = R.web.map(w => row(icon('link', '#5856d6'), w.name, w.desc,
+  document.getElementById('web').innerHTML = R.web.map(w => row(icon(WEB_IC[w.name] || 'globe'), w.name, w.desc,
     status(w.ok ? 'ok' : 'bad', w.ok ? '정상' : (w.code ? `오류 ${w.code}` : '응답 없음')), go(w.url))).join('');
-  document.getElementById('pipes').innerHTML = R.pipes.map(p => row(icon('cycle', '#30b0c7'), p.name,
+  document.getElementById('pipes').innerHTML = R.pipes.map(p => row(icon(PIPE_IC[p.name] || 'cycle'), p.name,
     [p.when, p.ago].filter(Boolean).join(' · '), status(p.state, p.label), go(p.url, '기록'))).join('');
-  document.getElementById('repos').innerHTML = R.repos.map(r => row(icon('branch', '#8e8e93'), r.name,
+  document.getElementById('repos').innerHTML = R.repos.map(r => row(icon('branch'), r.name,
     `${r.branch} · ${r.ago}${r.msg ? ' · ' + r.msg : ''}`, status(r.dirty ? 'wait' : '', r.state),
     r.url ? go(r.url, 'GitHub') : '')).join('');
   const stale = R.repos.filter(r => r.stale).map(r => r.name);
