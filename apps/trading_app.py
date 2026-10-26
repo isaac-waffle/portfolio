@@ -127,6 +127,11 @@ h2, h3 { font-weight: 600 !important; letter-spacing: -.01em }
 .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-top: 1px solid rgba(128,128,128,.15) }
 .note { font-size: 12px; opacity: .65; margin-top: 10px; line-height: 1.6 }
 .side { font-size: 13px; line-height: 1.6 } .side b { font-size: 15px } .side span { opacity: .65 }
+.tile { position: relative }
+.tile.has-tip .l { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help }
+.tile .tip { display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: 260px; padding: 10px 12px;
+  border-radius: 10px; background: #1d1d1f; color: #f5f5f7; font-size: 12px; line-height: 1.55; box-shadow: 0 6px 24px rgba(0,0,0,.25) }
+.tile:hover .tip { display: block }
 </style>""", unsafe_allow_html=True)
 
 
@@ -136,11 +141,145 @@ def tone(x) -> str:
 
 def tiles(items: list[tuple]):
     """숫자 타일 한 줄: (라벨, 값, 보조문구, 색 클래스). 항목 수만큼 칸을 나눠 줄바꿈 없이."""
-    html = "".join(f"<div class='tile'><div class='l'>{l}</div><div class='v'>{v}</div>"
-                   f"<div class='s {c}'>{s or '&nbsp;'}</div></div>" for l, v, s, c in items)
+    def tip(label):
+        t = GLOSS.get(label) or GLOSS.get(label.split(" (")[0])
+        return t if t else ""
+    html = "".join(f"<div class='tile{' has-tip' if tip(l) else ''}'><div class='l'>{l}</div><div class='v'>{v}</div>"
+                   f"<div class='s {c}'>{s or '&nbsp;'}</div>{f'<div class=tip>{tip(l)}</div>' if tip(l) else ''}</div>"
+                   for l, v, s, c in items)
     n = min(len(items), 8)
     st.markdown(f"<div class='tw'><div class='tiles' style='--n:{n}'>{html}</div></div>".replace("\\$", "$").replace("$", "&#36;"),
                 unsafe_allow_html=True)  # $ 두 개면 수식으로 렌더되는 것 방지
+
+
+GLOSS = {  # 숫자 타일에 마우스를 올리면 보이는 설명, 가이드의 용어 사전
+    "현재가": "마지막 체결 가격. 장외 시간엔 프리마켓·애프터마켓 가격일 수 있어요.",
+    "갭": "어제 종가와 오늘 시가의 차이. ±3%를 넘으면 뉴스·실적 같은 이유가 있는 경우가 많고, 그날 크게 움직여요.",
+    "RVOL": "상대 거래량. 지금까지 거래량 ÷ 평소 같은 시각까지의 평균. 2배면 평소보다 두 배 활발. 단타는 1.5~2배 이상인 종목이 잘 움직여요.",
+    "VWAP 거리": "VWAP = 오늘 거래량으로 가중한 평균 가격(기관이 기준으로 쓰는 값). 0 근처면 평균가, +2σ 이상은 많이 올라 과열, −2σ 이하는 과매도.",
+    "ATR": "최근 14일 하루 평균 움직임 폭. 3%면 보통 하루에 3%쯤 오르내려요. '오늘 n% 사용'이 100%를 넘으면 이미 평소만큼 움직여 추가로 갈 여지가 줄어요.",
+    "SPY 대비 강도": "S&P500(SPY)보다 얼마나 더 오르거나 내렸나(시장 민감도 반영). +면 시장보다 강한 종목, −면 약한 종목.",
+    "RSI": "최근 오른 힘과 내린 힘의 비율(0~100). 70 이상 과열, 30 이하 과매도. 강한 추세에선 70 위에 오래 머물기도 해요.",
+    "방향": "가격이 VWAP 위이고 단기 평균선(9EMA)이 20EMA 위면 '롱'(상승 쪽), 반대면 '숏'. 시장 방향과 같은 쪽으로 매매할 때 성공률이 높아요.",
+    "SPY": "S&P500 ETF — 미국 시장 전체의 온도계.", "QQQ": "나스닥100 ETF — 대형 기술주 흐름.",
+    "IWM": "러셀2000 ETF — 중소형주. SPY와 같이 오르면 시장 전체가 건강하다는 신호.", "SMH": "반도체 ETF — 관심종목 상당수가 반도체라 중요해요.",
+    "VIX": "공포 지수. 15 이하 평온, 20 이상 불안, 30 이상 공포. 높을수록 크게 흔들려 손절이 쉽게 맞아요.",
+    "VIX 9일 / 3개월": "단기·장기 공포 지수. 단기가 장기보다 높으면(역전) 지금 당장 불안하다는 뜻이라 조심해야 해요.",
+    "시장 폭": "관심종목·섹터 중 VWAP 위에 있는 비율. 50%를 넘으면 오르는 종목이 더 많은 장이에요.",
+    "섹터 폭": "11개 업종 ETF 중 VWAP 위에 있는 수. 많을수록 상승이 고르게 퍼진 장.",
+    "동일가중 − 시총가중": "모든 종목을 같은 비중으로 본 S&P500과 시가총액 비중 S&P500의 차이. +면 많은 종목이 함께 오르고, −면 소수 대형주만 오르는 장.",
+    "합성 TICK": "직전 5분 동안 오른 종목 수 − 내린 종목 수(관심종목+섹터 60여 개). 크게 +면 매수세가 몰린 순간.",
+    "누적 TICK": "오늘 TICK을 모두 더한 값. 계속 +면 매수 우위인 날, 계속 −면 매도 우위인 날.",
+    "내재 무브": "옵션 가격으로 계산한, 다음 만기까지 시장이 예상하는 움직임 폭. 목표가가 이보다 훨씬 멀면 비현실적일 수 있어요.",
+    "ATM IV": "현재가 근처 옵션에 반영된 연간 기대 변동성. 아래 '일간 ±%'가 하루 기대 움직임이에요.",
+    "풋/콜 거래량": "풋(하락 대비) ÷ 콜(상승 베팅) 거래량. 1보다 크면 하락에 대비하는 사람이 많아요.",
+    "맥스 페인": "만기 때 옵션 매수자들이 가장 많이 잃는 가격. 만기일에 이쪽으로 끌리기도 해요.",
+    "순 감마": "옵션 딜러 헤지 방향 추정. +면 움직임을 눌러 되돌림이 잘 나오고, −면 움직임을 키워 한 방향으로 잘 달려요.",
+    "감마 플립": "순 감마가 +에서 −로 바뀌는 가격. 이 아래로 내려가면 변동이 커지기 쉬워요.",
+    "유동성": "하루 평균 거래 금액. 클수록 원하는 가격에 사고팔기 쉬워요.",
+    "변동성": "이 종목의 하루 움직임이 내 프로필이 감당할 만한 크기인지.",
+    "시장 방향 정렬": "종목의 방향이 시장 방향과 같은지. 같을 때 들어가는 게 안전해요.",
+    "어닝 리스크": "실적 발표가 오늘·내일이면 가격이 크게 튈 수 있어 피하는 게 안전해요.",
+    "거래": "청산된 매매 수. '손절가 기록'은 R을 계산할 수 있는 매매 수예요.",
+    "승률": "이긴 매매 비율(수수료 뺀 기준). '95% 범위'는 운을 감안했을 때 실제 승률이 있을 법한 범위.",
+    "손익": "수수료를 뺀 총 손익과 매매 1회당 평균.",
+    "평균 이익 / 손실": "이긴 매매의 평균 이익과 진 매매의 평균 손실. 손익비가 1보다 크면 이길 때 더 많이 벌어요.",
+    "PF": "총이익 ÷ 총손실. 1보다 크면 돈을 벌고 있는 것, 1.5 이상이면 좋아요.",
+    "기대값": "R = 처음 정한 손절 폭(1R). 매매 한 번에 평균 몇 R을 버는지. +면 장기적으로 이기는 방식이에요.",
+    "SQN": "기대값을 들쑥날쑥함으로 나눈 품질 점수. 2 이상이면 괜찮은 방식이에요.",
+}
+TERMS = {  # 가이드 용어 사전에만 쓰는 추가 용어
+    "롱 / 숏": "롱 = 오를 것에 베팅(사서 비싸게 팔기). 숏 = 내릴 것에 베팅(빌려서 팔고 싸게 되사기). DEGIRO 기본 계좌는 보통 롱만 해요.",
+    "손절 (스톱)": "'내 판단이 틀렸다'고 인정하고 나오는 가격. 들어가기 전에 정하고, 절대 더 멀리 옮기지 않아요.",
+    "R": "처음 정한 손절 폭(진입가−손절가). 손절이 1달러 아래면 1R = 1달러. +2R은 위험의 두 배를 번 것.",
+    "R:R (손익비)": "목표까지의 거리 ÷ 손절까지의 거리. 2면 1을 걸고 2를 노리는 매매. 1.5 이상을 권해요.",
+    "VWAP": "오늘 거래량으로 가중한 평균 가격. 그 위면 오늘 산 사람 대부분이 이익이라 매수세가 강한 편이에요.",
+    "EMA (9 / 20)": "최근 가격에 더 무게를 둔 이동평균선. 9EMA가 20EMA 위면 단기 상승 흐름.",
+    "오프닝 레인지 (ORH / ORL)": "장 시작 후 처음 15분(사이드바에서 변경)의 고가·저가. 위로 뚫으면 상승, 아래로 깨면 하락 신호로 많이 봐요.",
+    "PDH / PDL / PDC": "전일 고가 / 저가 / 종가. 많은 트레이더가 보는 가격이라 여기서 자주 멈추거나 뚫고 가요.",
+    "PMH / PML": "프리마켓(정규장 전) 고가 / 저가.",
+    "POC · 가치영역": "POC = 오늘 거래가 가장 많이 된 가격. 가치영역 = 거래량의 70%가 일어난 구간. 가격이 자석처럼 끌려오곤 해요.",
+    "셋업": "들어갈 이유가 되는 정해진 모양(예: 오프닝 레인지 돌파, VWAP 회복). 셋업 없이 들어가는 건 '즉흥 매매'예요.",
+    "갭 앤 고 / 갭 메우기": "크게 갭 상승한 종목이 계속 가는 것 / 갭을 되돌려 어제 종가로 돌아오는 것.",
+    "프리마켓 / 애프터마켓": "정규장(뉴욕 9:30~16:00) 전후 거래. 거래가 적어 가격이 크게 튀고 호가 차이가 커요.",
+}
+
+
+def howto(key: str):
+    """화면 맨 위의 '처음이라면' 안내 (사이드바 '초보자 안내 보기'로 끄고 켬)."""
+    if st.session_state.get("beginner", True) and key in HOWTO:
+        with st.expander("처음이라면 · 이 화면 쓰는 법"):
+            st.markdown(HOWTO[key])
+
+
+HOWTO = {
+    "market": """
+**오늘 매매해도 되는 날인지 판단하는 화면이에요.**
+
+1. 맨 위 카드 3개 중 **파란 테두리 카드(사이드바에서 고른 내 프로필)** 를 보세요. 초보자는 **방어형**을 추천해요.
+   - **롱 진입 가능**: 시장 상태가 좋아요. 스캐너로 가서 종목을 고르세요.
+   - **선별 진입**: 정말 좋은 자리(체크리스트 모두 통과)만 들어가요.
+   - **관망 / 대기**: 오늘은 쉬는 게 이기는 거예요. 무리하지 마세요.
+2. **숫자 타일**: SPY·QQQ가 같이 오르고 VIX가 20 아래면 대체로 편한 장이에요. 타일에 마우스를 올리면 뜻이 나와요.
+3. **시장 점수**: 60 이상 좋음, 35~60 애매, 35 이하 나쁨. 아래 항목별 점수로 이유를 볼 수 있어요.
+4. **이번 주 일정** 탭: 중요도 '높음'(FOMC, CPI, 고용지표 등) 발표 전후 30분은 가격이 크게 튀니 피하세요.
+""",
+    "scanner": """
+**오늘 볼 만한 종목을 고르는 화면이에요.** 점수는 내 프로필 기준으로 얼마나 잘 맞는지(0~100)예요.
+
+1. 점수 높은 순으로 봐요. **행을 누르면 종목 분석**으로 넘어가요.
+2. 좋은 후보: **RVOL 1.5 이상**(평소보다 활발) · **바이어스가 시장 방향과 같음** · **셋업 칸에 무언가 있음**.
+3. 피할 것: **ATR 소진% 100 이상**(이미 많이 움직임), 태그에 **어닝 D-0 / D-1**(실적 발표 임박).
+4. **시장 전체 무버** 탭은 관심종목 밖에서 오늘 크게 움직인 종목이에요. 처음엔 관심종목 안에서만 해도 충분해요.
+
+열 제목에 마우스를 올리면 설명이 나와요. 장이 닫혀 있으면 직전 정규장 기준이에요.
+""",
+    "stock": """
+**한 종목을 깊게 보고 들어갈지, 어디서 손절할지, 몇 주 살지 정하는 화면이에요.**
+
+1. **숫자 타일**: RVOL 1.5 이상, 방향이 시장과 같음, ATR 사용 100% 미만이면 계속 볼 가치가 있어요. 마우스를 올리면 설명이 나와요.
+2. **차트**: 보라색 선(VWAP) 위에 있으면 매수세가 강한 편이에요. 점선 가로줄은 사람들이 많이 보는 가격(전일 고가, 장 시작 15분 고가 등)으로, 여기서 멈추거나 뚫고 가요.
+3. **트레이드 플랜** 탭: 앱이 찾은 자리와 **진입·손절·목표·수량**이 나와요. 들어간다면 이 숫자를 그대로 쓰세요. 수량은 사이드바의 계좌 규모와 프로필 리스크로 계산돼 있어요.
+   - 셋업이 없으면 **대기 중인 트리거**를 보고, **키 레벨 탭에서 그 가격에 알림**을 걸어 두세요. 화면을 계속 볼 필요가 없어요.
+   - **체크리스트 4개가 모두 '통과'** 일 때만 들어가는 게 초보자에게 안전해요.
+4. **다음 5분** 탭: 방향 맞히기는 거의 동전 던지기예요. 대신 **범위**를 보세요. 손절이 68% 범위 안쪽이면 너무 좁아서 그냥 흔들림에도 손절이 나요.
+5. 들어갔다면 트레이드 플랜의 **일지에 기록**을 눌러요.
+""",
+    "journal": """
+**매매를 기록하고 내가 어디서 벌고 잃는지 찾는 화면이에요.** 실력이 느는 가장 빠른 방법이에요.
+
+1. **DEGIRO 가져오기**: DEGIRO 웹 → 활동 → 거래내역 → 기간 선택 → 내보내기(CSV). 다운로드 폴더에 있으면 자동으로 읽고, '일지에 가져오기'를 누르면 끝이에요.
+2. **정리하기**: 가져온 매매에 **셋업**(어떤 이유로 들어갔나)과 **손절가**를 채워요. 기억이 안 나면 '기타·즉흥'으로 두고, 손절가는 '추정치 채우기'를 써도 돼요.
+3. **통계**: 승률보다 **PF(1보다 크면 벌고 있음)** 와 **평균 이익이 평균 손실보다 큰지**가 더 중요해요.
+4. **패턴 분석**: 어떤 시간대·종목·셋업에서 잃는지 보여줘요. 잃는 쪽을 **안 하는 것**만으로도 성적이 좋아져요.
+
+20번 넘게 쌓이기 전의 숫자는 운일 수 있어요.
+""",
+    "backtest": """
+**앱의 셋업 규칙을 지난 60일에 그대로 적용했다면 어땠을지 계산하는 화면이에요.**
+
+- 기대값이 +이고 **95% 범위가 0보다 위**에 있어야 쓸 만한 규칙이에요.
+- 지금은 대부분 마이너스예요. 즉 **신호만 보고 기계적으로 따라 하면 안 된다**는 뜻이에요.
+- 'SPY 방향 일치만'을 켜거나 종목·청산 규칙을 바꿔 보며 어떤 조건에서 나아지는지 확인하세요.
+- **백테스트 vs 내 실제** 표: 백테스트는 좋은데 내 실제가 나쁘면 실행 문제(늦은 진입, 손절 안 지킴)예요.
+""",
+    "alerts": """
+**정해 둔 가격에 오면 Mac 알림이 울리게 하는 화면이에요.** 화면을 계속 보고 있지 않아도 돼요.
+
+- 가장 쉬운 방법: 종목 분석 → **키 레벨** 탭 → **이 종목에 알림 걸기**.
+- 여기서는 가격 이상/이하, VWAP 돌파, 셋업 발생 같은 조건을 직접 만들 수 있어요.
+- 같은 알림은 하루 한 번만 울려요. 트레이딩 데스크가 켜져 있어야 동작해요(허브에서 켜 두세요).
+- 처음엔 **테스트 알림**으로 소리가 나는지 확인하세요.
+""",
+    "risk": """
+**얼마나 살지 정하는 화면이에요.** 초보자가 계좌를 지키는 데 가장 중요한 화면이에요.
+
+- 원칙: **한 번 매매에서 잃어도 되는 돈을 먼저 정해요.** 계좌의 0.25~0.5%(1만 달러면 25~50달러)부터 시작하세요.
+- 진입가와 손절가를 넣으면 몇 주를 사야 그 금액만 잃는지 나와요. 손절이 가까울수록 더 많이 살 수 있지만, 흔들림에 손절이 나기 쉬워져요.
+- **켈리·시뮬레이션**: 내 승률과 손익비로 장기적으로 이기는지, 얼마나 깊게 빠질 수 있는지 보여줘요. 기대값이 −면 사이즈를 줄여도 결국 잃어요.
+- 하루 손실 한도에 닿으면 그날은 끝이에요. 잃은 걸 바로 되찾으려는 '복수 매매'가 계좌를 망가뜨리는 1순위예요.
+""",
+}
 
 
 def pills(items: list[str]):
@@ -1660,9 +1799,13 @@ def setup_table(fit: list[dict], acct: float, risk_pct: float):
         sh = min(sh, int(acct * 4 / x["entry"]))  # 레버리지 4배 상한
         rows.append({"셋업": x["name"], "방향": x["side"], "진입": x["entry"], "손절": x["stop"], "1차 목표": x["t1"],
                      "2차 목표": x["t2"], "R:R": x["rr"], "수량": sh, "손실 한도($)": sh * r, "메모": x["note"], "출처": x["src"]})
+    tips = {"진입": "이 가격 근처에서 들어가요.", "손절": TERMS["손절 (스톱)"], "1차 목표": "여기서 절반 익절하고 손절을 진입가로 올리는 걸 권해요.",
+            "2차 목표": "남은 절반의 목표.", "수량": "손절에 걸려도 '손실 한도'만큼만 잃도록 계산한 주식 수."}
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", column_config={
-        k: st.column_config.NumberColumn(format="%.2f") for k in ("진입", "손절", "1차 목표", "2차 목표")} | {
-        "R:R": st.column_config.NumberColumn(format="%.1f"), "손실 한도($)": st.column_config.NumberColumn(format="$%.0f")})
+        k: st.column_config.NumberColumn(format="%.2f", help=tips.get(k)) for k in ("진입", "손절", "1차 목표", "2차 목표")} | {
+        "R:R": st.column_config.NumberColumn(format="%.1f", help=TERMS["R:R (손익비)"]),
+        "수량": st.column_config.NumberColumn(help=tips["수량"]),
+        "손실 한도($)": st.column_config.NumberColumn(format="$%.0f", help="손절에 걸렸을 때 잃는 금액 = 사이드바 계좌 × 프로필 리스크%.")})
 
 
 def base_layout(fig, h):
@@ -1682,12 +1825,16 @@ with st.sidebar:
     st.markdown(f"<div class='side'><b>{state}</b><br><span>뉴욕 {now:%H:%M} · 암스테르담 {now.astimezone(AMS):%H:%M}</span>{nxt}</div>",
                 unsafe_allow_html=True)
     st.divider()
-    pname = st.segmented_control("전략 프로필", list(PROFILES), default="밸런스형", key="profile") or "밸런스형"
+    st.toggle("초보자 안내 보기", value=True, key="beginner", help="화면마다 '처음이라면 · 이 화면 쓰는 법'을 보여줍니다.")
+    pname = st.segmented_control("전략 프로필", list(PROFILES), default="밸런스형", key="profile",
+                                 help="초보자는 방어형 추천: 시장이 좋을 때만, 큰 종목의 눌림목만, 거래당 위험 0.25%.") or "밸런스형"
     st.caption(PROFILES[pname]["desc"])
-    acct = st.number_input("계좌 규모 (USD)", 1000, 10_000_000, 10_000, step=1000, key="acct")
+    acct = st.number_input("계좌 규모 (USD)", 1000, 10_000_000, 10_000, step=1000, key="acct",
+                           help="매매에 쓰는 돈. 트레이드 플랜의 '수량'과 하루 손실 한도를 이 금액 기준으로 계산해요.")
     shorts = st.toggle("공매도 가능 계좌", value=False, key="shorts", help="끄면 숏 셋업은 참고용으로만 보이고 점수·판단에서 빠집니다.")
-    or_min = st.select_slider("오프닝 레인지", [5, 15, 30], value=15, format_func=lambda x: f"{x}분", key="or_min")
-    auto = st.toggle("60초마다 자동 새로고침", value=False, key="auto")
+    or_min = st.select_slider("오프닝 레인지", [5, 15, 30], value=15, format_func=lambda x: f"{x}분", key="or_min",
+                              help="장 시작 후 처음 몇 분의 고가·저가를 기준선(ORH/ORL)으로 쓸지. 처음엔 15분을 추천해요.")
+    auto = st.toggle("60초마다 자동 새로고침", value=False, key="auto", help="장중에 켜 두면 시장·스캐너·종목 분석이 1분마다 갱신돼요.")
     if st.button("데이터 새로고침", width="stretch"):
         st.cache_data.clear()
         st.rerun()
@@ -1702,6 +1849,7 @@ def page_market():
     now = now_ny()
     sn, vx = sc["snaps"], sc["vix"]
     st.title("시장")
+    howto("market")
     stale = " · 데이터가 20분 넘게 지연됨" if state == "정규장" and sc["spy_t"] is not None and now - sc["spy_t"] > pd.Timedelta(minutes=20) else ""
     st.caption(f"{state} · {sc['fetched'].astimezone(AMS):%H:%M} 암스테르담 기준{stale}")
     ts = today_status(enrich(load_journal()), acct, pname)
@@ -1822,6 +1970,7 @@ def page_scanner():
     sc = scan(or_min)
     rg = regime(sc)
     st.title("스캐너")
+    howto("scanner")
     t_w, t_m = st.tabs(["관심종목 (셋업·점수)", "시장 전체 무버"])
     with t_m:
         movers_tab()
@@ -1885,25 +2034,23 @@ def watch_tab(sc: dict, rg: dict):
     df = pd.DataFrame(rows).sort_values("점수", ascending=False)
     ev = st.dataframe(df, hide_index=True, width="stretch", height=min(38 * len(df) + 40, 900),
                       on_select="rerun", selection_mode="single-row", key="scan_tbl", column_config={
-            "점수": st.column_config.ProgressColumn("점수", min_value=0, max_value=100, format="%d"),
+            "점수": st.column_config.ProgressColumn("점수", min_value=0, max_value=100, format="%d",
+                                                  help="내 프로필 기준 적합도. 공격형은 거래량·갭·변동성, 방어형은 유동성·시장 방향·낮은 변동성을 높게 봐요."),
             "현재가": st.column_config.NumberColumn(format="%.2f"),
-            "등락%": st.column_config.NumberColumn(format="%+.2f"), "갭%": st.column_config.NumberColumn(format="%+.2f"),
-            "RVOL": st.column_config.NumberColumn(format="%.2fx"), "VWAP σ": st.column_config.NumberColumn(format="%+.1f"),
-            "ATR%": st.column_config.NumberColumn(format="%.1f"), "ATR 소진%": st.column_config.NumberColumn(format="%.0f"),
-            "RS vs SPY%": st.column_config.NumberColumn(format="%+.2f"), "RSI": st.column_config.NumberColumn(format="%.0f"),
-            "거래대금(20일)": st.column_config.NumberColumn(format="compact")})
+            "등락%": st.column_config.NumberColumn(format="%+.2f", help="전일 종가 대비 등락"),
+            "갭%": st.column_config.NumberColumn(format="%+.2f", help=GLOSS["갭"]),
+            "RVOL": st.column_config.NumberColumn(format="%.2fx", help=GLOSS["RVOL"]),
+            "VWAP σ": st.column_config.NumberColumn(format="%+.1f", help=GLOSS["VWAP 거리"]),
+            "ATR%": st.column_config.NumberColumn(format="%.1f", help="하루 평균 움직임 폭(14일)을 가격 대비 %로."),
+            "ATR 소진%": st.column_config.NumberColumn(format="%.0f", help="오늘 고가−저가가 하루 평균 폭의 몇 %인지. 100% 넘으면 이미 많이 움직인 것."),
+            "RS vs SPY%": st.column_config.NumberColumn(format="%+.2f", help=GLOSS["SPY 대비 강도"]),
+            "RSI": st.column_config.NumberColumn(format="%.0f", help=GLOSS["RSI"]),
+            "바이어스": st.column_config.TextColumn(help=GLOSS["방향"]),
+            "셋업": st.column_config.TextColumn(help="지금 감지된 들어갈 만한 모양. 비어 있으면 아직 자리가 없는 것."),
+            "거래대금(20일)": st.column_config.NumberColumn(format="compact", help=GLOSS["유동성"])})
     if ev.selection.rows:
         st.session_state["_goto"] = df.iloc[ev.selection.rows[0]]["티커"]
         st.rerun()
-    with st.expander("컬럼 설명"):
-        st.markdown("""
-- **RVOL**: 같은 시각까지의 누적 거래량 ÷ 최근 20일 같은 시각 평균. 2배 이상이면 '오늘 뭔가 있다'.
-- **VWAP σ**: 세션 VWAP에서 몇 표준편차 떨어져 있는지. ±2σ 밖은 과열/과매도.
-- **ATR%**: 하루 평균 변동폭(14일) ÷ 가격. **ATR 소진%**: 오늘 고저폭이 ATR의 몇 %를 썼는지 — 100% 넘으면 추가 확장 여력이 줄어듦.
-- **RS vs SPY**: 베타를 감안한 SPY 대비 초과 등락. 리더는 눌림에서 사고, 약세주는 반등에서 판다.
-- **점수**: 선택한 프로필 기준 적합도. 공격형은 RVOL·갭·변동성, 방어형은 유동성·시장 정렬·낮은 변동성을 높게 봅니다.
-- 장외 시간에는 직전 정규장 기준이며, 프리마켓에는 갭과 프리마켓 거래량 기준입니다.
-""")
 
 
 def page_ticker():
@@ -1933,12 +2080,13 @@ def page_ticker():
     score, fit = profile_score(a, pname, rg["bias"], shorts)
     st.title(f"{inf.get('shortName') or sym} ({sym})")
     st.caption(f"{CAT_OF.get(sym, '기타')} · {a['last_t']:%m/%d %H:%M} ET 기준 · {pname} 적합도 {score:.0f}/100 · 시장 {rg['bias']}")
+    howto("stock")
 
     tiles([("현재가", num(a["last"]), pct(a["chg"]), tone(a["chg"])), ("갭", pct(a["gap"]), "전일 종가 대비", tone(a["gap"])),
-           ("RVOL", f"{num(a['rvol'], 2)}x", "같은 시각 평균 대비", "x-warn" if ok(a["rvol"]) and a["rvol"] >= 2 else ""),
-           ("VWAP 거리", f"{num(a['vwz'], 1)}σ", f"VWAP {num(a['vwap'])}", tone(a["vwz"])),
+           ("RVOL", f"{num(a['rvol'], 2)}x" if ok(a["rvol"]) else "-", "같은 시각 평균 대비", "x-warn" if ok(a["rvol"]) and a["rvol"] >= 2 else ""),
+           ("VWAP 거리", f"{num(a['vwz'], 1)}σ" if ok(a["vwz"]) else "-", f"VWAP {num(a['vwap'])}" if ok(a["vwap"]) else "정규장 시작 후 계산", tone(a["vwz"])),
            ("ATR (14일)", f"{num(a['atr_pct'] * 100 if ok(a['atr_pct']) else None, 1)}%",
-            f"오늘 {num(a['atr_used'] * 100 if ok(a['atr_used']) else None, 0)}% 사용", ""),
+            f"오늘 {num(a['atr_used'] * 100, 0)}% 사용" if ok(a["atr_used"]) else "정규장 시작 후 계산", ""),
            ("SPY 대비 강도", pct(a["rs"]), f"베타 {a['beta']:.2f}", tone(a["rs"])), ("RSI (14)", num(a["rsi"], 0), "", ""),
            ("방향", a["bias"], "거래량 델타 " + (f"{a['delta'] * 100:+.0f}%" if ok(a["delta"]) else "-"),
             "x-up" if a["bias"] == "롱" else "x-down" if a["bias"] == "숏" else "")])
@@ -2203,6 +2351,7 @@ def page_ticker():
 
 def page_risk():
     st.title("리스크 관리")
+    howto("risk")
     P = PROFILES[pname]
     st.caption(f"{pname} 규칙: 거래당 계좌의 {P['risk']}% · 하루 최대 {P['max_trades']}회 · 일 손실 {P['daily_loss']}% 도달 시 그날 종료")
     l, r = st.columns(2)
@@ -2276,6 +2425,31 @@ def page_guide():
 앱의 신호가 어디서 왔는지, 언제 통하고 언제 안 통하는지 정리했습니다. 대형 IB·HFT의 '비밀 전략'은 공개되지 않지만,
 **그들이 시장에 남기는 흔적**(VWAP 집행, 옵션 헤지, 리밸런싱)은 개인도 읽을 수 있고 이 앱은 그걸 레벨로 보여줍니다.
 """)
+    st.subheader("처음 시작하기")
+    st.markdown("이 앱은 **매매를 대신하지 않아요.** 오늘 해도 되는지, 어떤 종목을, 어디서·얼마나 살지 판단을 돕는 도구예요.")
+    st.markdown("**하루 루틴** (시각은 오늘 기준 암스테르담)")
+    st.dataframe(pd.DataFrame([
+        ("장 시작 30분 전", f"~{ams(540)}", "시장", "내 프로필 카드가 '관망'이면 오늘은 끝. 이번 주 일정에서 큰 발표 시각 확인."),
+        ("개장 직후 15분", f"{ams(570)}–{ams(585)}", "스캐너 · 종목 분석", "후보 2~3개만 고르고 레벨만 확인. 초보자는 이때 들어가지 않아요(가장 크게 흔들림)."),
+        ("오전 추세 구간", f"{ams(585)}–{ams(690)}", "종목 분석 · 알림", "트레이드 플랜의 진입·손절·수량대로만. 셋업이 없으면 키 레벨에 알림 걸고 기다려요."),
+        ("점심 횡보", f"{ams(690)}–{ams(840)}", "-", "새로 들어가지 않아요. 가짜 돌파가 많아요."),
+        ("오후", f"{ams(840)}–{ams(950)}", "종목 분석", "오전과 같은 방식. 마감 10분 전부터는 새로 들어가지 않아요."),
+        ("마감 후", f"{ams(960)} 이후", "매매 일지", "DEGIRO 거래내역 내보내기 → 가져오기 → 정리하기(셋업·손절 채우기)."),
+        ("주말", "-", "매매 일지 · 백테스트", "통계·패턴 분석으로 잃는 시간대·셋업을 찾아 다음 주에 빼기."),
+    ], columns=["언제", "시각", "화면", "할 일"]), hide_index=True, width="stretch")
+    st.markdown("""
+**초보자 규칙**
+1. 사이드바 프로필을 **방어형**으로 시작하세요.
+2. 한 번 매매에서 잃어도 되는 돈은 계좌의 **0.25~0.5%**. 수량은 트레이드 플랜(또는 리스크 화면)이 계산한 대로.
+3. **들어가기 전에 손절가를 정하고, 절대 더 멀리 옮기지 않아요.** 물타기(떨어질 때 더 사기)도 하지 않아요.
+4. 하루 매매 횟수와 손실 한도에 닿으면 그날은 끝. 3번 연속 손절도 끝.
+5. 모든 매매를 일지에 남기고, **20번 넘게 쌓이면** 통계로 무엇을 계속할지 정해요.
+6. 처음 2주는 1~5주처럼 **아주 작게** 해서 앱 사용과 손절 습관부터 익히세요.
+""")
+    with st.expander("용어 사전"):
+        st.dataframe(pd.DataFrame(list(TERMS.items()) + [(k, v) for k, v in GLOSS.items()], columns=["용어", "뜻"]),
+                     hide_index=True, width="stretch", height=560)
+
     st.subheader("앱에 들어간 셋업")
     st.dataframe(pd.DataFrame([
         ("ORB 돌파", "Toby Crabel (1990)", "첫 5/15/30분 고저 돌파 + VWAP 같은 쪽 + RVOL", "추세일, 갭 후 오전", "횡보일 가짜 돌파", "공격 · 밸런스"),
@@ -2328,6 +2502,7 @@ def page_guide():
 
 def page_journal():
     st.title("매매 일지")
+    howto("journal")
     j = enrich(load_journal())
     ts = today_status(j, acct, pname)
     msg = (f"오늘 {ts['n']}/{ts['max_trades']}회 · {ts['R']:+.1f}R · \\${ts['pnl']:+,.0f} "
@@ -2703,6 +2878,7 @@ def page_journal():
 
 def page_alerts():
     st.title("알림")
+    howto("alerts")
     w = alert_worker()
     st.caption(f"이 앱 서버가 켜져 있는 동안 프리마켓~애프터마켓 60초마다 확인하고 Mac 알림(소리 포함)을 띄웁니다. 브라우저 탭은 닫아도 됩니다. "
                f"마지막 확인: {w.last_run.astimezone(AMS):%H:%M:%S} 암스테르담" if w.last_run else
@@ -2765,6 +2941,7 @@ def page_alerts():
 
 def page_backtest():
     st.title("셋업 백테스트")
+    howto("backtest")
     st.caption("앱의 셋업 감지 규칙을 최근 60거래일 5분봉에 한 봉씩 다시 돌려, 신호가 뜬 봉 다음 봉 시가에 들어갔다면 어땠는지 계산합니다. "
                "같은 셋업·방향은 하루 한 번만, 같은 봉에서 손절과 목표가 모두 닿으면 손절로 칩니다.")
     c = st.columns([3, 1.6, 1, 1, 1])
