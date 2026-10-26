@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import glob
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -101,8 +103,10 @@ html, body, .stApp, button, input, textarea, select {
 .block-container { padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1440px }
 h1 { font-weight: 700 !important; letter-spacing: -.02em }
 h2, h3 { font-weight: 600 !important; letter-spacing: -.01em }
-.tiles { display: grid; gap: 10px; margin: 4px 0 18px }
-@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important } }
+.tw { container-type: inline-size }
+.tiles { display: grid; gap: 10px; margin: 4px 0 18px; grid-template-columns: repeat(var(--n), minmax(0, 1fr)) }
+@container (max-width: 880px) { .tiles { grid-template-columns: repeat(min(var(--n), 4), minmax(0, 1fr)) } }
+@container (max-width: 440px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 .tile, .card { background: rgba(128,128,128,.08); border-radius: 14px; padding: 12px 14px }
 .tile .l { font-size: 12px; opacity: .6 }
 .tile .v { font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
@@ -135,7 +139,7 @@ def tiles(items: list[tuple]):
     html = "".join(f"<div class='tile'><div class='l'>{l}</div><div class='v'>{v}</div>"
                    f"<div class='s {c}'>{s or '&nbsp;'}</div></div>" for l, v, s, c in items)
     n = min(len(items), 8)
-    st.markdown(f"<div class='tiles' style='grid-template-columns:repeat({n},minmax(0,1fr))'>{html}</div>".replace("$", "&#36;"),
+    st.markdown(f"<div class='tw'><div class='tiles' style='--n:{n}'>{html}</div></div>".replace("\\$", "$").replace("$", "&#36;"),
                 unsafe_allow_html=True)  # $ 두 개면 수식으로 렌더되는 것 방지
 
 
@@ -173,6 +177,10 @@ def pct(x, d=2) -> str:
 
 def num(x, d=2) -> str:
     return f"{x:,.{d}f}" if ok(x) else "-"
+
+
+def eur(x: float) -> str:
+    return f"{'-' if x < 0 else '+'}€{abs(x):,.0f}" if ok(x) else "-"
 
 
 def usd(x: float) -> str:
@@ -1025,9 +1033,9 @@ SETUP_NAMES = {"ORB": "ORB 돌파", "VWAP": "VWAP 리클레임/이탈", "PULL": 
 SETUP_KEYS = {v: k for k, v in SETUP_NAMES.items()}
 MISTAKES = ["추격 진입", "손절 미준수", "조기 청산", "물타기", "과다 사이즈", "복수 매매", "계획 외 매매", "시간대 위반", "뉴스·이벤트 무시"]
 J_COLS = ["id", "date", "sym", "side", "setup", "profile", "entry_time", "exit_time", "entry", "stop", "target", "exit",
-          "shares", "fees", "rule_ok", "mistakes", "notes"]
-J_NUM = ["entry", "stop", "target", "exit", "shares", "fees"]
-J_TXT = ["id", "sym", "side", "setup", "profile", "entry_time", "exit_time", "mistakes", "notes"]
+          "shares", "fees", "rule_ok", "mistakes", "notes", "exit_date", "pnl_eur", "src"]
+J_NUM = ["entry", "stop", "target", "exit", "shares", "fees", "pnl_eur"]
+J_TXT = ["id", "sym", "side", "setup", "profile", "entry_time", "exit_time", "mistakes", "notes", "exit_date", "src"]
 MIN_N = 20  # 셋업 판단에 필요한 최소 표본
 
 
@@ -1062,7 +1070,7 @@ def enrich(j: pd.DataFrame) -> pd.DataFrame:
     j["plan_R"] = (j["target"] - j["entry"]) * sg / risk
     j["pnl"] = (j["exit"] - j["entry"]) * sg * j["shares"] - j["fees"].fillna(0)
     j["risk_usd"] = risk * j["shares"]
-    j["closed"] = j["R"].notna()
+    j["closed"] = j["exit"].notna() & j["entry"].notna() & (j["shares"] > 0)  # 손절가가 없어도 청산됐으면 손익 통계에 포함
     j["setup_name"] = j["setup"].map(SETUP_NAMES).fillna(j["setup"])
     em = pd.to_datetime(j["entry_time"], format="%H:%M", errors="coerce")
     j["phase"] = [(phase_of(int(t.hour * 60 + t.minute)) or (0, 0, "장외"))[2] if pd.notna(t) else "시간 미기록" for t in em]
@@ -1080,35 +1088,40 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def summarize(g: pd.DataFrame) -> dict | None:
+    """승률·손익·PF는 청산된 모든 매매(수수료 뺀 $ 기준), R 지표는 손절가가 있는 매매만으로 계산."""
     g = g[g["closed"]]
     n = len(g)
     if not n:
         return None
-    R = g["R"].to_numpy()
-    w = R > 0
+    pnl = g["pnl"].to_numpy()
+    w = pnl > 0
     lo, hi = wilson(int(w.sum()), n)
-    cum = np.r_[0, np.cumsum(R)]
-    gain, loss = R[R > 0].sum(), -R[R < 0].sum()
+    gain, loss = pnl[pnl > 0].sum(), -pnl[pnl < 0].sum()
     streak = run = 0
-    for x in R:
+    for x in pnl:
         run = run + 1 if x <= 0 else 0
         streak = max(streak, run)
-    sd = R.std(ddof=1) if n > 1 else np.nan
-    return dict(n=n, win=w.mean(), lo=lo, hi=hi, exp=R.mean(), ci=1.96 * sd / np.sqrt(n) if n > 1 else np.nan,
-                avg_win=R[w].mean() if w.any() else np.nan, avg_loss=R[~w].mean() if (~w).any() else np.nan,
-                pf=gain / loss if loss > 0 else np.inf, totR=R.sum(), pnl=g["pnl"].sum(),
-                mdd=float((np.maximum.accumulate(cum) - cum).max()), streak=streak,
-                sqn=R.mean() / sd * np.sqrt(min(n, 100)) if n > 1 and sd > 0 else np.nan)
+    R = g["R"].dropna().to_numpy()
+    nR = len(R)
+    sd = R.std(ddof=1) if nR > 1 else np.nan
+    cum = np.r_[0, np.cumsum(R)]
+    eur = g["pnl_eur"].dropna() if "pnl_eur" in g else pd.Series(dtype=float)
+    return dict(n=n, nR=nR, win=w.mean(), lo=lo, hi=hi, pf=gain / loss if loss > 0 else np.inf, pnl=pnl.sum(),
+                avg_pnl=pnl.mean(), streak=streak, pnl_eur=eur.sum() if len(eur) else np.nan, n_eur=len(eur),
+                exp=R.mean() if nR else np.nan, ci=1.96 * sd / np.sqrt(nR) if nR > 1 else np.nan,
+                avg_win=R[R > 0].mean() if (R > 0).any() else np.nan, avg_loss=R[R <= 0].mean() if (R <= 0).any() else np.nan,
+                totR=R.sum() if nR else np.nan, mdd=float((np.maximum.accumulate(cum) - cum).max()) if nR else np.nan,
+                sqn=R.mean() / sd * np.sqrt(min(nR, 100)) if nR > 1 and sd > 0 else np.nan)
 
 
 def judge(s: dict) -> str:
     if s["n"] < MIN_N:
         return f"표본 부족 ({s['n']}/{MIN_N})"
-    if ok(s["ci"]) and s["exp"] - s["ci"] > 0:
-        return "엣지 확인 · 유지·확대"
-    if s["exp"] > 0:
-        return "플러스지만 불확실 · 유지"
-    return "마이너스 · 중단 검토"
+    if s["nR"] >= MIN_N:  # 손절가가 충분히 기록돼 있으면 R 기대값으로 판정
+        if ok(s["ci"]) and s["exp"] - s["ci"] > 0:
+            return "엣지 확인 · 유지·확대"
+        return "플러스지만 불확실 · 유지" if s["exp"] > 0 else "마이너스 · 중단 검토"
+    return "플러스 · 손절가 기록하면 R 판정" if s["pnl"] > 0 else "마이너스 · 중단 검토"
 
 
 def group_stats(j: pd.DataFrame, col: str, label: str) -> pd.DataFrame:
@@ -1118,16 +1131,16 @@ def group_stats(j: pd.DataFrame, col: str, label: str) -> pd.DataFrame:
         if s:
             rows.append({label: k, "거래": s["n"], "승률%": s["win"] * 100,
                          "승률 95% 범위": f"{s['lo'] * 100:.0f}–{s['hi'] * 100:.0f}%",
-                         "기대값(R)": s["exp"], "평균 이익(R)": s["avg_win"], "평균 손실(R)": s["avg_loss"],
-                         "PF": s["pf"] if np.isfinite(s["pf"]) else None, "누적 R": s["totR"], "손익($)": s["pnl"],
-                         "판정": judge(s)})
-    return pd.DataFrame(rows).sort_values("누적 R", ascending=False) if rows else pd.DataFrame()
+                         "평균 손익($)": s["avg_pnl"], "손익($)": s["pnl"], "PF": s["pf"] if np.isfinite(s["pf"]) else None,
+                         "기대값(R)": s["exp"], "평균 이익(R)": s["avg_win"], "평균 손실(R)": s["avg_loss"], "누적 R": s["totR"],
+                         "R 기록": s["nR"], "판정": judge(s)})
+    return pd.DataFrame(rows).sort_values("손익($)", ascending=False) if rows else pd.DataFrame()
 
 
 STAT_COLS = {"승률%": st.column_config.NumberColumn(format="%.0f"), "기대값(R)": st.column_config.NumberColumn(format="%+.2f"),
              "평균 이익(R)": st.column_config.NumberColumn(format="%+.2f"), "평균 손실(R)": st.column_config.NumberColumn(format="%+.2f"),
              "PF": st.column_config.NumberColumn(format="%.2f"), "누적 R": st.column_config.NumberColumn(format="%+.1f"),
-             "손익($)": st.column_config.NumberColumn(format="$%.0f")}
+             "손익($)": st.column_config.NumberColumn(format="$%.0f"), "평균 손익($)": st.column_config.NumberColumn(format="$%.0f")}
 
 
 def today_status(j: pd.DataFrame, acct: float, pname: str) -> dict:
@@ -1135,9 +1148,9 @@ def today_status(j: pd.DataFrame, acct: float, pname: str) -> dict:
     t = j[(j["date"] == now_ny().date()) & j["closed"]]
     pnl = float(t["pnl"].sum()) if len(t) else 0.0
     loss_pct = -pnl / acct * 100
-    return dict(n=len(t), R=float(t["R"].sum()) if len(t) else 0.0, pnl=pnl, max_trades=P["max_trades"],
+    return dict(n=len(t), R=float(t["R"].sum(min_count=1)) if t["R"].notna().any() else 0.0, pnl=pnl, max_trades=P["max_trades"],
                 limit=P["daily_loss"], stop=(loss_pct >= P["daily_loss"]) or len(t) >= P["max_trades"],
-                loss_pct=loss_pct, streak=int((t["R"].iloc[-3:] <= 0).all()) if len(t) >= 3 else 0)
+                loss_pct=loss_pct, streak=int((t["pnl"].iloc[-3:] <= 0).all()) if len(t) >= 3 else 0)
 
 
 def excursions(j: pd.DataFrame) -> pd.DataFrame:
@@ -1145,8 +1158,10 @@ def excursions(j: pd.DataFrame) -> pd.DataFrame:
     rows = []
     today = now_ny().date()
     for _, r in j[j["closed"]].iterrows():
-        if not r["entry_time"] or not r["exit_time"] or (today - r["date"]).days > 58:
+        if not r["entry_time"] or not r["exit_time"] or (today - r["date"]).days > 58 or not ok(r["stop"]):
             continue
+        if r["exit_date"] and r["exit_date"] != r["date"].isoformat():
+            continue  # 하루를 넘긴 매매는 분봉 구간이 길어 제외
         try:
             t0 = pd.Timestamp(dt.datetime.combine(r["date"], dt.datetime.strptime(r["entry_time"], "%H:%M").time()), tz=NY)
             t1 = pd.Timestamp(dt.datetime.combine(r["date"], dt.datetime.strptime(r["exit_time"], "%H:%M").time()), tz=NY)
@@ -1168,6 +1183,216 @@ def excursions(j: pd.DataFrame) -> pd.DataFrame:
         rows.append({"날짜": r["date"], "티커": r["sym"], "셋업": r["setup_name"], "R": r["R"],
                      "MFE(R)": max(mfe, 0), "MAE(R)": max(mae, 0), "놓친 R": max(mfe, 0) - r["R"]})
     return pd.DataFrame(rows)
+
+
+# ───────────────────────── DEGIRO import ─────────────────────────
+ISIN_MAP = os.path.join(os.path.dirname(JOURNAL), "isin_map.json")
+US_EXCH = {"NMS", "NGM", "NCM", "NYQ", "ASE", "PCX", "BTS", "NAS", "NYS", "PNK"}
+
+
+def _dnum(x) -> float:
+    """DEGIRO 숫자: '1,1156', '-1.058,98', '1,058.98' 모두 처리."""
+    s = str(x or "").strip().replace("€", "").replace(" ", "")
+    if not s:
+        return np.nan
+    c, d = s.rfind(","), s.rfind(".")
+    if c > -1 and d > -1:
+        s = s.replace(".", "").replace(",", ".") if c > d else s.replace(",", "")
+    elif c > -1:
+        s = s.replace(",", "") if s.count(",") > 1 else s.replace(",", ".")
+    elif s.count(".") > 1:
+        s = s.replace(".", "")
+    try:
+        return float(s)
+    except ValueError:
+        return np.nan
+
+
+def parse_degiro(blobs: list[bytes]) -> tuple[pd.DataFrame, int]:
+    """DEGIRO '거래내역(Transactions)' CSV 여러 개 → 중복 없는 거래 목록 (시각은 뉴욕 기준으로 변환)."""
+    import csv
+    import io
+    recs, skipped = [], 0
+    for fi, blob in enumerate(blobs):
+        text = blob.decode("utf-8-sig", errors="replace")
+        first = text.split("\n", 1)[0]
+        rows = list(csv.reader(io.StringIO(text), delimiter=";" if first.count(";") > first.count(",") else ","))
+        if len(rows) < 2:
+            continue
+        h = [x.strip().lower() for x in rows[0]]
+        ix = lambda *names: next((i for i, x in enumerate(h) if x in names), -1)
+        c = dict(date=ix("date", "datum"), time=ix("time", "tijd"), product=ix("product"), isin=ix("isin"),
+                 qty=ix("quantity", "aantal"), price=ix("price", "koers"), fx=ix("exchange rate", "wisselkoers"),
+                 total=next((i for i, x in enumerate(h) if x.startswith(("total", "totaal"))), -1),
+                 order=ix("order id", "order-id", "orderid"))
+        if min(c["date"], c["qty"], c["price"], c["isin"]) < 0:
+            raise ValueError("거래내역(Transactions) CSV가 아닌 것 같습니다. DEGIRO → 활동 → 거래내역 → 내보내기(CSV)로 받은 파일을 넣어 주세요.")
+        fee_cols = [i for i, x in enumerate(h) if "fee" in x or "kosten" in x]
+        ccy_col = c["price"] + 1 if c["price"] + 1 < len(h) and not h[c["price"] + 1] else -1
+        n = len(rows) - 1
+        for k, r in enumerate(rows[1:]):
+            if len(r) <= max(c.values()):
+                skipped += 1
+                continue
+            qty, price = _dnum(r[c["qty"]]), _dnum(r[c["price"]])
+            try:
+                ams_dt = dt.datetime.strptime(f"{r[c['date']].strip()} {r[c['time']].strip() or '00:00'}", "%d-%m-%Y %H:%M")
+            except ValueError:
+                skipped += 1
+                continue
+            if not ok(qty) or qty == 0 or not ok(price):
+                skipped += 1
+                continue
+            et = ams_dt.replace(tzinfo=AMS).astimezone(NY)
+            recs.append(dict(ts=et, date=et.date(), time=f"{et:%H:%M}", product=r[c["product"]].strip() if c["product"] > -1 else "",
+                             isin=r[c["isin"]].strip(), ccy=r[ccy_col].strip() if ccy_col > -1 else "", qty=qty, price=price,
+                             fx=_dnum(r[c["fx"]]) if c["fx"] > -1 else np.nan,
+                             fee_eur=sum(abs(_dnum(r[i])) for i in fee_cols if ok(_dnum(r[i]))),
+                             total_eur=_dnum(r[c["total"]]) if c["total"] > -1 else np.nan,
+                             order=r[c["order"]].strip() if c["order"] > -1 else "", seq=n - k, file=fi))  # 파일은 최신순 → 같은 분은 아래 행이 먼저
+    tx = pd.DataFrame(recs)
+    if tx.empty:
+        return tx, skipped
+    # 같은 주문이 같은 분·같은 가격으로 나눠 체결된 행은 파일 안에서는 모두 살리고, 파일끼리 겹친 행만 제거
+    key = ["order", "ts", "isin", "qty", "price"]
+    tx["dup"] = tx.groupby(["file"] + key).cumcount()
+    tx = tx.drop_duplicates(subset=key + ["dup"]).drop(columns=["dup", "file"]).sort_values(["ts", "seq"]).reset_index(drop=True)
+    return tx, skipped
+
+
+def degiro_trips(tx: pd.DataFrame, allow_short: bool) -> tuple[list[dict], int]:
+    """ISIN별로 포지션이 0에서 열려 다시 0이 될 때까지를 왕복 매매 1건으로 묶음 (부분 체결·추가 매수·분할 매도 포함)."""
+    trips, unmatched = [], 0
+
+    def close(cur, isin, open_=False):
+        legs = cur["legs"]
+        sg = cur["side"]
+        ent = [(q, r) for q, r, _ in legs if np.sign(q) == sg]
+        ex = [(q, r) for q, r, _ in legs if np.sign(q) != sg]
+        avg = lambda xs: sum(abs(q) * r.price for q, r in xs) / sum(abs(q) for q, _ in xs) if xs else np.nan
+        fx = np.nanmean([r.fx for _, r, _ in legs]) if any(ok(r.fx) for _, r, _ in legs) else 1.0
+        fee_eur = sum(r.fee_eur * f for _, r, f in legs)
+        first, last = legs[0][1], (ex[-1][1] if ex else None)
+        shares = sum(abs(q) for q, _ in ent)
+        trips.append(dict(isin=isin, product=first.product, ccy=first.ccy, side="롱" if sg > 0 else "숏",
+                          date=first.date, entry_time=first.time, entry=avg(ent), shares=int(shares) if float(shares).is_integer() else shares,
+                          exit=np.nan if open_ else avg(ex), exit_date="" if open_ else last.date.isoformat(),
+                          exit_time="" if open_ else last.time, fees=round(fee_eur * fx, 2),
+                          pnl_eur=np.nan if open_ else round(sum(r.total_eur * f for _, r, f in legs if ok(r.total_eur)), 2),
+                          src="degiro:" + (first.order or f"{first.isin}-{first.ts:%Y%m%d%H%M}"), open=open_))
+
+    for isin, g in tx.groupby("isin", sort=False):
+        pos, cur = 0.0, None
+        for r in g.itertuples():
+            q = r.qty
+            while abs(q) > 1e-9:
+                if abs(pos) < 1e-9:
+                    if q < 0 and not allow_short:  # 파일 시작 전에 산 주식을 판 경우: 짝이 없으므로 건너뜀
+                        unmatched += 1
+                        break
+                    cur = dict(side=1 if q > 0 else -1, legs=[])
+                if np.sign(q) == cur["side"]:
+                    cur["legs"].append((q, r, q / r.qty))
+                    pos += q
+                    q = 0.0
+                else:
+                    take = np.sign(q) * min(abs(q), abs(pos))
+                    cur["legs"].append((take, r, take / r.qty))
+                    pos += take
+                    q -= take
+                    if abs(pos) < 1e-9:
+                        close(cur, isin)
+                        cur, pos = None, 0.0
+        if cur is not None and abs(pos) > 1e-9:
+            close(cur, isin, open_=True)
+    return sorted(trips, key=lambda t: (t["date"], t["entry_time"])), unmatched
+
+
+def isin_symbols(isins: list[str], names: dict | None = None) -> dict:
+    """ISIN → 미국 티커 (Yahoo 검색, 결과는 journal/isin_map.json에 저장)."""
+    try:
+        with open(ISIN_MAP, encoding="utf-8") as f:
+            m = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        m = {}
+    todo = [i for i in dict.fromkeys(isins) if i and i not in m]
+
+    def look(query):
+        try:
+            q = [x for x in yf.Search(query, max_results=8).quotes if x.get("quoteType") == "EQUITY"]
+        except Exception:
+            q = []
+        us = [x["symbol"] for x in q if x.get("exchange") in US_EXCH and "." not in x.get("symbol", "")]
+        mine = [x for x in us if x in CAT_OF]  # 관심종목에 있는 티커 우선 (예: Alphabet A주 → GOOGL)
+        return (mine or us or [x.get("symbol") for x in q] or [None])[0]
+
+    def core(name):  # 'ADR ON TAIWAN SEMICONDUCTOR MANUFACTURING' → 'TAIWAN SEMICONDUCTOR MANUFACTURING'
+        name = re.sub(r"[.,]", " ", name.upper())
+        name = re.sub(r"\b(ADR ON|CLASS [A-Z]|INC|CORP|CORPORATION|LTD|LIMITED|N V|NV|PLC|HOLDINGS?|CO|SA|AG|THE)\b", " ", name)
+        return " ".join(name.split())
+
+    for isin in todo:
+        nm = (names or {}).get(isin, "")
+        hit = look(isin) or (nm and (look(core(nm)) or look(" ".join(core(nm).split()[:2]))))  # ISIN으로 안 나오면 회사 이름으로
+        if hit:
+            m[isin] = hit
+    if todo:
+        os.makedirs(os.path.dirname(ISIN_MAP), exist_ok=True)
+        with open(ISIN_MAP, "w", encoding="utf-8") as f:
+            json.dump(m, f, ensure_ascii=False, indent=1)
+    return m
+
+
+def merge_trips(trips: list[dict], pname: str) -> tuple[pd.DataFrame, dict]:
+    """가져온 매매를 일지에 합침. 이미 있는 건(src 같음)은 숫자만 갱신하고 셋업·손절·메모 등 직접 적은 내용은 유지."""
+    j = load_journal()
+    syms = isin_symbols([t["isin"] for t in trips], {t["isin"]: t["product"] for t in trips})
+    by_src = {s_: i for i, s_ in enumerate(j["src"]) if s_}
+    new, cnt = [], dict(added=0, updated=0, same=0)
+    keep_num = ["entry", "exit", "shares", "fees", "pnl_eur"]
+    for t in trips:
+        row = dict(date=t["date"], sym=syms.get(t["isin"], t["product"][:12]), side=t["side"], entry_time=t["entry_time"],
+                   exit_time=t["exit_time"], exit_date=t["exit_date"], entry=round(t["entry"], 4),
+                   exit=round(t["exit"], 4) if ok(t["exit"]) else np.nan, shares=t["shares"], fees=t["fees"],
+                   pnl_eur=t["pnl_eur"], src=t["src"])
+        if t["src"] in by_src:
+            i = by_src[t["src"]]
+            before = [j.at[i, k] for k in keep_num]
+            for k, v in row.items():
+                j.at[i, k] = v
+            after = [j.at[i, k] for k in keep_num]
+            same = all((not ok(a) and not ok(b)) or (ok(a) and ok(b) and abs(a - b) < 1e-6) for a, b in zip(before, after))
+            cnt["same" if same else "updated"] += 1
+        else:
+            new.append(dict(row, id=uuid.uuid4().hex[:8], setup="OTHER", profile=pname, stop=np.nan, target=np.nan,
+                            rule_ok=True, mistakes="", notes=""))
+            cnt["added"] += 1
+    if new:
+        j = pd.concat([j, pd.DataFrame(new)], ignore_index=True)
+    return j, cnt
+
+
+def suggest_stops(j: pd.DataFrame) -> pd.Series:
+    """손절가가 없는 매매에 '진입 직전 15분 저점(숏은 고점)'을 손절 추정치로 제안 (최근 58일, 5분봉)."""
+    out = pd.Series(np.nan, index=j.index)
+    today = now_ny().date()
+    todo = j[j["stop"].isna() & j["entry"].notna() & j["entry_time"].astype(bool)]
+    todo = todo[[(today - d).days <= 58 for d in todo["date"]]]
+    if todo.empty:
+        return out
+    data = bars(tuple(sorted(set(todo["sym"]))), "5m", "60d")
+    for i, r in todo.iterrows():
+        df = data.get(r["sym"])
+        if df is None:
+            continue
+        t0 = pd.Timestamp(dt.datetime.combine(r["date"], dt.datetime.strptime(r["entry_time"], "%H:%M").time()), tz=NY)
+        w = df[(df.index < t0.floor("5min") + pd.Timedelta(minutes=5)) & (df.index >= t0.floor("5min") - pd.Timedelta(minutes=15))]
+        if w.empty:
+            continue
+        stp = float(w["Low"].min()) if r["side"] == "롱" else float(w["High"].max())
+        if (r["entry"] - stp) * (1 if r["side"] == "롱" else -1) > 0:
+            out[i] = round(stp, 2)
+    return out
 
 
 # ───────────────────────── alerts ─────────────────────────
@@ -1850,7 +2075,8 @@ def page_ticker():
         mine = []
         for key in dict.fromkeys(x["key"] for x in a["setups"]):
             ss = summarize(jj[jj["setup"] == key])
-            mine.append(f"{SETUP_NAMES[key]}: " + (f"{ss['n']}회 · 승률 {ss['win'] * 100:.0f}% · 기대값 {ss['exp']:+.2f}R"
+            mine.append(f"{SETUP_NAMES[key]}: " + (f"{ss['n']}회 · 승률 {ss['win'] * 100:.0f}% · 회당 {usd(ss['avg_pnl'])}"
+                                                   + (f" · {ss['exp']:+.2f}R" if ok(ss["exp"]) else "")
                                                    + (" (표본 부족)" if ss["n"] < MIN_N else "") if ss else "기록 없음"))
         if mine:
             st.caption("내 일지 기록 — " + " / ".join(mine))
@@ -2114,7 +2340,126 @@ def page_journal():
         st.caption(msg)
     st.caption(f"저장 위치: `{JOURNAL}` (내 컴퓨터에만 저장되고 git에는 올라가지 않습니다)")
 
-    t_add, t_list, t_stats, t_pat, t_exc = st.tabs(["기록하기", "기록 목록", "셋업별 통계", "패턴 분석", "손절·목표 점검 (MAE/MFE)"])
+    labels = ["DEGIRO 가져오기", "정리하기", "통계", "패턴 분석", "손절·목표 점검", "기록 목록", "직접 기록"]
+    if st.session_state.get("_prefill") or st.session_state.get("_j_msg"):
+        labels = ["직접 기록"] + labels[:-1]  # 종목 분석에서 넘어온 플랜이 있으면 직접 기록 탭을 앞으로
+    T = dict(zip(labels, st.tabs(labels)))
+    t_imp, t_tidy, t_stats, t_pat, t_exc, t_list, t_add = (T[k] for k in ["DEGIRO 가져오기", "정리하기", "통계", "패턴 분석",
+                                                                         "손절·목표 점검", "기록 목록", "직접 기록"])
+    with t_imp:
+        if m_ := st.session_state.pop("_j_imp", None):
+            st.success(m_)
+        st.caption("DEGIRO 웹 → 활동(Activity) → 거래내역(Transactions) → 기간 선택 → 내보내기(Export) → CSV. "
+                   "기간이 겹치는 파일을 여러 개 넣어도 중복 없이 합치고, 다시 가져와도 직접 채운 셋업·손절·메모는 그대로 둡니다.")
+        ups = st.file_uploader("거래내역 CSV", type=["csv"], accept_multiple_files=True, key="dg_up", label_visibility="collapsed")
+        local = sorted(glob.glob(os.path.expanduser("~/Downloads/Transactions*.csv")), key=os.path.getmtime, reverse=True)
+        c = st.columns(3)
+        use_dl = bool(local) and c[0].toggle(f"다운로드 폴더의 거래내역 {len(local)}개 함께 읽기", value=not ups, key="dg_dl",
+                                             help=", ".join(os.path.basename(x) for x in local))
+        us_only = c[1].toggle("미국 주식(USD)만", value=True, key="dg_us")
+        allow_short = c[2].toggle("공매도 매매 포함", value=shorts, key="dg_short",
+                                  help="끄면 파일 시작 전에 산 주식을 판 기록은 짝이 없어 건너뜁니다.")
+        blobs = [u.getvalue() for u in ups or []]
+        if use_dl:
+            try:
+                blobs += [open(x, "rb").read() for x in local]
+            except OSError:
+                st.warning("다운로드 폴더를 읽을 권한이 없습니다. 위에 파일을 끌어다 놓아 주세요.")
+        if not blobs:
+            st.info("DEGIRO 거래내역 CSV를 끌어다 놓으세요.")
+        else:
+            try:
+                tx, skipped = parse_degiro(blobs)
+            except ValueError as e:
+                st.error(str(e))
+                tx = pd.DataFrame()
+            if len(tx):
+                trips, unm = degiro_trips(tx, allow_short)
+                if us_only:
+                    trips = [t for t in trips if t["ccy"] in ("USD", "")]
+                have = set(load_journal()["src"])
+                fresh = [t for t in trips if t["src"] not in have]
+                done_t = [t for t in trips if not t["open"]]
+                real = sum(t["pnl_eur"] for t in done_t if ok(t["pnl_eur"]))
+                tiles([("거래 기록", f"{len(tx):,}행", f"{tx['date'].min():%y.%m.%d} – {tx['date'].max():%y.%m.%d}", ""),
+                       ("왕복 매매", f"{len(trips)}건", f"청산 {len(done_t)} · 보유 중 {len(trips) - len(done_t)}", ""),
+                       ("새로 추가될 매매", f"{len(fresh)}건", f"이미 일지에 있음 {len(trips) - len(fresh)}", "x-up" if fresh else ""),
+                       ("실현 손익 (DEGIRO)", eur(real), "수수료·환전 수수료 포함", tone(real)),
+                       ("짝 없는 매도", f"{unm}건", "파일 시작 전 매수분" if unm else "없음", "x-warn" if unm else "")])
+                pv = pd.DataFrame([{"날짜": t["date"], "종목": t["product"], "방향": t["side"], "수량": t["shares"], "진입": t["entry"],
+                                    "청산": t["exit"], "손익(€)": t["pnl_eur"], "보유": "당일" if t["exit_date"] == t["date"].isoformat()
+                                    else ("보유 중" if t["open"] else "오버나잇"), "상태": "새로" if t["src"] not in have else "있음"}
+                                   for t in reversed(trips)])
+                st.dataframe(pv, hide_index=True, width="stretch", height=min(36 * len(pv) + 40, 420), column_config={
+                    "진입": st.column_config.NumberColumn(format="%.2f"), "청산": st.column_config.NumberColumn(format="%.2f"),
+                    "손익(€)": st.column_config.NumberColumn(format="€%+.0f")})
+                if st.button(f"일지에 가져오기 · {len(fresh)}건 추가, 기존 {len(trips) - len(fresh)}건 갱신", type="primary",
+                             disabled=not trips):
+                    with st.spinner("티커 확인하고 일지에 합치는 중…"):
+                        jn, cnt = merge_trips(trips, pname)
+                        save_journal(jn)
+                    st.session_state["_j_imp"] = (f"가져오기 완료: 새로 {cnt['added']}건, 갱신 {cnt['updated']}건, 변경 없음 {cnt['same']}건. "
+                                                  "'정리하기' 탭에서 셋업과 손절가를 채우세요.")
+                    st.rerun()
+
+    with t_tidy:
+        dg = j[j["src"].str.startswith("degiro")]
+        if dg.empty:
+            st.info("DEGIRO에서 가져온 매매가 없습니다. 'DEGIRO 가져오기' 탭에서 먼저 가져오세요.")
+        else:
+            if m_ := st.session_state.pop("_j_tidy", None):
+                st.success(m_)
+            todo_mask = (dg["setup"] == "OTHER") | dg["stop"].isna()
+            n_done = int((~todo_mask).sum())
+            st.progress(n_done / len(dg), text=f"가져온 매매 {len(dg)}건 중 {n_done}건 정리됨 · 셋업과 손절가를 채우면 셋업별 통계와 R 지표가 살아납니다")
+            c = st.columns([1.2, 1.2, 2.6])
+            only = c[0].toggle("정리 안 된 것만", value=True, key="td_only")
+            syms_ = c[1].multiselect("종목", sorted(dg["sym"].unique()), key="td_sym", placeholder="전체 종목")
+            if c[2].button("손절가 추정치 채우기 (최근 58일 · 진입 전 15분 저점/고점)", width="stretch"):
+                raw = load_journal()
+                with st.spinner("분봉 불러오는 중…"):
+                    sug = suggest_stops(raw[raw["src"].str.startswith("degiro")])
+                hit = sug.dropna()
+                for i, v in hit.items():
+                    raw.at[i, "stop"] = v
+                    raw.at[i, "notes"] = ((raw.at[i, "notes"] or "") + " [손절 추정]").strip()
+                save_journal(raw)
+                st.session_state["_j_tidy"] = f"손절가 추정치 {len(hit)}건 채움 (메모에 [손절 추정] 표시). 실제 손절가를 알면 덮어쓰세요."
+                st.rerun()
+            v = dg[todo_mask] if only else dg
+            if syms_:
+                v = v[v["sym"].isin(syms_)]
+            v = v.iloc[::-1]
+            ed = pd.DataFrame({"id": v["id"], "날짜": v["date"], "티커": v["sym"], "방향": v["side"], "수량": v["shares"],
+                               "진입": v["entry"], "청산": v["exit"], "손익($)": v["pnl"], "손익(€)": v["pnl_eur"],
+                               "셋업": v["setup"].map(SETUP_NAMES).fillna("기타·즉흥"), "손절": v["stop"], "목표": v["target"],
+                               "계획대로": v["rule_ok"], "실수": v["mistakes"], "메모": v["notes"]})
+            new = st.data_editor(ed, hide_index=True, width="stretch", height=min(36 * len(ed) + 40, 620), key="td_editor",
+                                 disabled=["날짜", "티커", "방향", "수량", "진입", "청산", "손익($)", "손익(€)"],
+                                 column_order=[x for x in ed.columns if x != "id"], column_config={
+                    "진입": st.column_config.NumberColumn(format="%.2f"), "청산": st.column_config.NumberColumn(format="%.2f"),
+                    "손익($)": st.column_config.NumberColumn(format="%+.0f"), "손익(€)": st.column_config.NumberColumn(format="%+.0f"),
+                    "셋업": st.column_config.SelectboxColumn(options=list(SETUP_NAMES.values()), required=True),
+                    "손절": st.column_config.NumberColumn(format="%.2f"), "목표": st.column_config.NumberColumn(format="%.2f"),
+                    "실수": st.column_config.TextColumn(help="여러 개면 ; 로 구분: " + ", ".join(MISTAKES))})
+            c = st.columns([1, 4])
+            if c[0].button("정리 내용 저장", type="primary"):
+                raw = load_journal()
+                pos = {x: i for i, x in enumerate(raw["id"])}
+                for r in new.to_dict("records"):
+                    i = pos.get(r["id"])
+                    if i is None:
+                        continue
+                    raw.at[i, "setup"] = SETUP_KEYS.get(r["셋업"], "OTHER")
+                    raw.at[i, "stop"] = r["손절"] if ok(r["손절"]) else np.nan
+                    raw.at[i, "target"] = r["목표"] if ok(r["목표"]) else np.nan
+                    raw.at[i, "rule_ok"] = bool(r["계획대로"])
+                    raw.at[i, "mistakes"] = r["실수"] or ""
+                    raw.at[i, "notes"] = r["메모"] or ""
+                save_journal(raw)
+                st.session_state["_j_tidy"] = f"{len(new)}건 저장했습니다."
+                st.rerun()
+            c[1].caption("엑셀처럼 셀을 여러 개 선택해 복사·붙여넣기 할 수 있습니다. 손절가를 모르면 비워 두세요. 승률·손익 통계는 손절가 없이도 계산됩니다.")
     with t_add:
         if msg_ := st.session_state.pop("_j_msg", None):
             st.success(msg_)
@@ -2166,10 +2511,11 @@ def page_journal():
             st.info("아직 기록이 없습니다. '기록하기' 탭에서 첫 매매를 남겨보세요.")
         else:
             ed = j[J_COLS + ["R", "pnl"]].copy()
+            src_by_id = dict(zip(j["id"], j["src"]))
             ed["setup"] = ed["setup"].map(SETUP_NAMES).fillna("기타·즉흥")
             ed = ed.iloc[::-1].reset_index(drop=True)
             new = st.data_editor(ed, hide_index=True, width="stretch", num_rows="dynamic", key="j_editor",
-                                 disabled=["id", "R", "pnl"], column_order=[c for c in ed.columns if c != "id"], column_config={
+                                 disabled=["id", "R", "pnl", "pnl_eur", "src"], column_order=[c for c in ed.columns if c not in ("id", "src")], column_config={
                     "date": st.column_config.DateColumn("날짜"), "sym": "티커",
                     "side": st.column_config.SelectboxColumn("방향", options=["롱", "숏"]),
                     "setup": st.column_config.SelectboxColumn("셋업", options=list(SETUP_NAMES.values())),
@@ -2179,11 +2525,13 @@ def page_journal():
                     "target": st.column_config.NumberColumn("목표", format="%.2f"), "exit": st.column_config.NumberColumn("청산", format="%.2f"),
                     "shares": st.column_config.NumberColumn("수량", format="%d"), "fees": st.column_config.NumberColumn("수수료", format="%.2f"),
                     "rule_ok": st.column_config.CheckboxColumn("계획대로"), "mistakes": "실수 (;로 구분)", "notes": "메모",
+                    "exit_date": "청산일", "pnl_eur": st.column_config.NumberColumn("손익(€)", format="%+.0f"),
                     "R": st.column_config.NumberColumn("R", format="%+.2f"), "pnl": st.column_config.NumberColumn("손익($)", format="%+.0f")})
             c = st.columns([1, 1, 4])
             if c[0].button("변경 저장", type="primary"):
                 new = new.dropna(subset=["date"]).copy()
                 new["setup"] = new["setup"].map(SETUP_KEYS).fillna("OTHER")
+                new["src"] = new["id"].map(src_by_id).fillna("")
                 new = new.fillna({k: "" for k in J_TXT})
                 save_journal(new.iloc[::-1])
                 st.success("저장했습니다.")
@@ -2208,33 +2556,43 @@ def page_journal():
             if not s_:
                 st.info("조건에 맞는 매매가 없습니다.")
             else:
-                m = st.columns(8)
-                m[0].metric("거래", f"{s_['n']}회")
-                m[1].metric("승률", f"{s_['win'] * 100:.0f}%", f"95% {s_['lo'] * 100:.0f}–{s_['hi'] * 100:.0f}%", delta_color="off")
-                m[2].metric("기대값", f"{s_['exp']:+.2f}R", f"±{s_['ci']:.2f}R" if ok(s_["ci"]) else None, delta_color="off")
-                m[3].metric("손익비", f"{s_['avg_win']:+.2f} / {s_['avg_loss']:+.2f}" if ok(s_["avg_win"]) and ok(s_["avg_loss"]) else "-")
-                m[4].metric("PF", f"{s_['pf']:.2f}" if np.isfinite(s_["pf"]) else "∞")
-                m[5].metric("누적", f"{s_['totR']:+.1f}R", usd(s_["pnl"]), delta_color="normal")
-                m[6].metric("최대 낙폭", f"{s_['mdd']:.1f}R", f"최장 연패 {s_['streak']}회", delta_color="off")
-                m[7].metric("SQN", num(s_["sqn"], 1), help="Van Tharp 시스템 품질 지수: 기대값/표준편차×√N(최대 100). 1.6↓ 약함, 2–3 좋음, 3↑ 우수")
-                st.caption(f"기대값 = 거래 1회당 평균 R. 표본이 {MIN_N}회 미만인 셋업은 운인지 실력인지 아직 구분할 수 없습니다.")
+                gw, gl = g.loc[g["pnl"] > 0, "pnl"], g.loc[g["pnl"] <= 0, "pnl"]
+                tiles([("거래", f"{s_['n']}회", f"손절가 기록 {s_['nR']}회", ""),
+                       ("승률", f"{s_['win'] * 100:.0f}%", f"95% 범위 {s_['lo'] * 100:.0f}–{s_['hi'] * 100:.0f}%", ""),
+                       ("손익 (달러)", usd(s_["pnl"]), f"회당 {usd(s_['avg_pnl'])}", tone(s_["pnl"])),
+                       ("손익 (DEGIRO €)", eur(s_["pnl_eur"]), f"{s_['n_eur']}건 · 수수료 포함" if s_["n_eur"] else "가져온 매매 없음", tone(s_["pnl_eur"])),
+                       ("평균 이익 / 손실", f"{usd(gw.mean()) if len(gw) else '-'} / {usd(gl.mean()) if len(gl) else '-'}",
+                        f"손익비 {gw.mean() / abs(gl.mean()):.2f}" if len(gw) and len(gl) and gl.mean() else "", ""),
+                       ("PF", f"{s_['pf']:.2f}" if np.isfinite(s_["pf"]) else "∞", f"최장 연패 {s_['streak']}회", ""),
+                       ("기대값 (R)", f"{s_['exp']:+.2f}R" if ok(s_["exp"]) else "-",
+                        (f"±{s_['ci']:.2f}R" if ok(s_["ci"]) else "손절가 기록 필요")
+                        + (f" · 추정 손절 {n_est}건 포함" if (n_est := int(g["notes"].str.contains("손절 추정", regex=False).sum())) else ""), tone(s_["exp"])),
+                       ("SQN", num(s_["sqn"], 1), "1.6↓ 약함 · 2–3 좋음", "")])
+                st.caption(f"승률·손익·PF는 수수료를 뺀 실제 손익 기준, R 지표는 손절가가 기록된 매매만으로 계산합니다. 표본이 {MIN_N}회 미만이면 운과 실력을 아직 구분할 수 없습니다.")
 
                 l, r = st.columns([3, 2])
                 with l:
                     g2 = g.reset_index(drop=True)
                     fig = make_subplots(specs=[[{"secondary_y": True}]])
-                    fig.add_scatter(x=g2.index + 1, y=g2["R"].cumsum(), name="누적 R", line=dict(color="#2563eb", width=2),
-                                    customdata=np.c_[g2["sym"], g2["setup_name"], g2["R"]],
-                                    hovertemplate="#%{x} %{customdata[0]} · %{customdata[1]}<br>%{customdata[2]:+.2f}R · 누적 %{y:+.1f}R<extra></extra>")
-                    fig.add_scatter(x=g2.index + 1, y=g2["pnl"].cumsum(), name="누적 손익($)", line=dict(color="#94a3b8", width=1, dash="dot"),
-                                    secondary_y=True, hovertemplate="누적 $%{y:,.0f}<extra></extra>")
+                    fig.add_scatter(x=g2.index + 1, y=g2["pnl"].cumsum(), name="누적 손익($)", line=dict(color="#0071e3", width=2),
+                                    customdata=np.c_[g2["sym"], g2["setup_name"], g2["pnl"], g2["date"].astype(str)],
+                                    hovertemplate="#%{x} %{customdata[3]} %{customdata[0]} · %{customdata[1]}<br>%{customdata[2]:+,.0f}$ · 누적 %{y:+,.0f}$<extra></extra>")
+                    if g2["pnl_eur"].notna().any():
+                        fig.add_scatter(x=g2.index + 1, y=g2["pnl_eur"].fillna(0).cumsum(), name="누적 손익(€, DEGIRO)",
+                                        line=dict(color="#94a3b8", width=1.5, dash="dot"), hovertemplate="누적 €%{y:,.0f}<extra></extra>")
+                    if g2["R"].notna().sum() >= 5:
+                        fig.add_scatter(x=g2.index + 1, y=g2["R"].fillna(0).cumsum(), name="누적 R", line=dict(color="#af52de", width=1.2),
+                                        secondary_y=True, hovertemplate="누적 %{y:+.1f}R<extra></extra>")
                     fig.update_layout(title="자산 곡선", xaxis_title="거래 #")
                     st.plotly_chart(base_layout(fig, 340), width="stretch")
                 with r:
-                    fig = go.Figure(go.Histogram(x=g["R"], xbins=dict(size=0.5), marker_color="#64748b"))
+                    use_r = s_["nR"] >= 5
+                    xs_ = g["R"].dropna() if use_r else g["pnl"]
+                    fig = go.Figure(go.Histogram(x=xs_, nbinsx=24, marker_color="#64748b"))
                     fig.add_vline(x=0, line=dict(color="#111827"))
-                    fig.add_vline(x=s_["exp"], line=dict(color="#2563eb", dash="dash"), annotation_text=f"평균 {s_['exp']:+.2f}R")
-                    fig.update_layout(title="R 분포", xaxis_title="R", bargap=0.05)
+                    fig.add_vline(x=xs_.mean(), line=dict(color="#0071e3", dash="dash"),
+                                  annotation_text=f"평균 {xs_.mean():+.2f}R" if use_r else f"평균 {'-' if xs_.mean() < 0 else '+'}${abs(xs_.mean()):,.0f}")
+                    fig.update_layout(title="R 분포" if use_r else "매매별 손익 분포 ($)", xaxis_title="R" if use_r else "$", bargap=0.05)
                     st.plotly_chart(base_layout(fig, 340), width="stretch")
 
                 st.subheader("셋업별 성과")
@@ -2242,14 +2600,14 @@ def page_journal():
                 st.dataframe(tb, hide_index=True, width="stretch", column_config=STAT_COLS)
                 ex = []
                 for k, gg in g.groupby("setup_name"):
-                    ss = summarize(gg)
-                    ex.append((k, ss["exp"], ss["ci"] if ok(ss["ci"]) else 0, ss["n"]))
+                    pv_ = gg["pnl"]
+                    ex.append((k, pv_.mean(), 1.96 * pv_.std(ddof=1) / np.sqrt(len(pv_)) if len(pv_) > 1 else 0, len(pv_)))
                 ex.sort(key=lambda x: x[1])
                 fig = go.Figure(go.Bar(x=[e[1] for e in ex], y=[f"{e[0]} ({e[3]})" for e in ex], orientation="h",
                                        marker_color=[UP if e[1] > 0 else DOWN for e in ex],
                                        error_x=dict(type="data", array=[e[2] for e in ex], color="#94a3b8")))
                 fig.add_vline(x=0, line=dict(color="#111827"))
-                fig.update_layout(title="셋업별 기대값 (R) · 막대 = 95% 신뢰구간", xaxis_title="거래당 평균 R")
+                fig.update_layout(title="셋업별 거래당 평균 손익 ($) · 막대 = 95% 신뢰구간", xaxis_title="$")
                 st.plotly_chart(base_layout(fig, 60 + 36 * len(ex)), width="stretch")
                 st.caption("신뢰구간이 0을 넘어 전부 오른쪽에 있어야 '검증된 엣지'입니다. 0에 걸쳐 있으면 아직 운과 구분되지 않습니다.")
 
@@ -2261,29 +2619,37 @@ def page_journal():
             by_set = [(k, summarize(g)) for k, g in closed.groupby("setup_name")]
             by_set = [(k, x) for k, x in by_set if x["n"] >= 5]
             if by_set:
-                best, worst = max(by_set, key=lambda x: x[1]["exp"]), min(by_set, key=lambda x: x[1]["exp"])
-                ins.append(f"가장 좋은 셋업: **{best[0]}** ({best[1]['n']}회, {best[1]['exp']:+.2f}R/회)")
+                best, worst = max(by_set, key=lambda x: x[1]["avg_pnl"]), min(by_set, key=lambda x: x[1]["avg_pnl"])
+                ins.append(f"가장 좋은 셋업: **{best[0]}** ({best[1]['n']}회, 회당 {usd(best[1]['avg_pnl'])})")
                 if worst[0] != best[0]:
-                    ins.append(f"가장 나쁜 셋업: **{worst[0]}** ({worst[1]['n']}회, {worst[1]['exp']:+.2f}R/회)")
+                    ins.append(f"가장 나쁜 셋업: **{worst[0]}** ({worst[1]['n']}회, 회당 {usd(worst[1]['avg_pnl'])})")
             bad = closed[~closed["rule_ok"]]
             if len(bad):
-                ins.append(f"계획을 어긴 매매 {len(bad)}회의 누적 **{bad['R'].sum():+.1f}R** (\\${bad['pnl'].sum():+,.0f}) — "
-                           f"계획대로 한 매매는 회당 {closed[closed['rule_ok']]['R'].mean():+.2f}R, 어긴 매매는 {bad['R'].mean():+.2f}R")
+                ins.append(f"계획을 어긴 매매 {len(bad)}회의 손익 **{usd(bad['pnl'].sum())}** — "
+                           f"계획대로 한 매매는 회당 {usd(closed[closed['rule_ok']]['pnl'].mean())}, 어긴 매매는 회당 {usd(bad['pnl'].mean())}")
             wins = closed[closed["R"] > 0]
             if len(wins) and wins["plan_R"].notna().any():
                 ins.append(f"이긴 매매의 평균 실현 {wins['R'].mean():+.2f}R vs 계획 목표 {wins['plan_R'].mean():+.2f}R"
                            + (" — 목표 전에 일찍 청산하는 경향" if wins["R"].mean() < 0.8 * wins["plan_R"].mean() else ""))
             ph = [(k, summarize(g)) for k, g in closed.groupby("phase")]
-            ph = [(k, x) for k, x in ph if x["n"] >= 5 and x["exp"] < 0]
+            ph = [(k, x) for k, x in ph if x["n"] >= 5 and x["pnl"] < 0]
             for k, x in ph:
-                ins.append(f"**{k}** 구간 매매가 마이너스 ({x['n']}회, {x['exp']:+.2f}R/회) — 이 시간대는 쉬는 것을 고려")
+                ins.append(f"**{k}** 구간 매매가 마이너스 ({x['n']}회, 회당 {usd(x['avg_pnl'])}) — 이 시간대는 쉬는 것을 고려")
+            hold = closed.assign(h=np.where(closed["exit_date"].isin(["", None]) | (closed["exit_date"] == closed["date"].astype(str)), "당일", "오버나잇"))
+            hs = {k: summarize(g) for k, g in hold.groupby("h")}
+            if len(hs) == 2 and min(x["n"] for x in hs.values()) >= 5:
+                ins.append(f"당일 청산 {hs['당일']['n']}회 회당 {usd(hs['당일']['avg_pnl'])} vs 오버나잇 {hs['오버나잇']['n']}회 회당 {usd(hs['오버나잇']['avg_pnl'])}")
+            if closed["sym"].nunique() > 1:
+                bysym = closed.groupby("sym")["pnl"].agg(["sum", "count"]).sort_values("sum")
+                ins.append(f"가장 많이 번 종목 **{bysym.index[-1]}** ({usd(bysym['sum'].iloc[-1])}, {bysym['count'].iloc[-1]}회) · "
+                           f"가장 많이 잃은 종목 **{bysym.index[0]}** ({usd(bysym['sum'].iloc[0])}, {bysym['count'].iloc[0]}회)")
             if ins:
                 st.subheader("발견한 패턴")
                 st.markdown("\n".join(f"- {t}" for t in ins))
             mx = closed.assign(mistake=closed["mistakes"].str.split(";")).explode("mistake")
             mx = mx[mx["mistake"].fillna("") != ""]
-            pairs = [("phase", "장중 구간"), ("weekday", "요일"), ("side", "방향"), ("profile", "프로필"),
-                     ("rule_ok", "계획 준수"), ("sym", "종목")]
+            pairs = [("phase", "장중 구간"), ("weekday", "요일"), ("sym", "종목"), ("side", "방향"),
+                     ("rule_ok", "계획 준수"), ("profile", "프로필")]
             for i in range(0, len(pairs), 2):
                 cols = st.columns(2)
                 for col, (k, lab) in zip(cols, pairs[i:i + 2]):
@@ -2292,12 +2658,12 @@ def page_journal():
                         src = closed.assign(rule_ok=closed["rule_ok"].map({True: "계획대로", False: "계획 위반"})) if k == "rule_ok" else closed
                         tb = group_stats(src, k, lab)
                         if not tb.empty:
-                            st.dataframe(tb[[lab, "거래", "승률%", "기대값(R)", "누적 R", "손익($)"]], hide_index=True,
+                            st.dataframe(tb[[lab, "거래", "승률%", "평균 손익($)", "손익($)", "기대값(R)"]], hide_index=True,
                                          width="stretch", column_config=STAT_COLS)
             if len(mx):
                 st.markdown("**실수 태그별 비용**")
                 tb = group_stats(mx, "mistake", "실수")
-                st.dataframe(tb[["실수", "거래", "승률%", "기대값(R)", "누적 R", "손익($)"]], hide_index=True, width="stretch",
+                st.dataframe(tb[["실수", "거래", "승률%", "평균 손익($)", "손익($)", "기대값(R)"]], hide_index=True, width="stretch",
                              column_config=STAT_COLS)
 
     with t_exc:
