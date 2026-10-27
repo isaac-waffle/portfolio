@@ -50,7 +50,7 @@ RULES = "v6"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버�
 # v4 (2026-10-26): 2024.01~2026.10 Alpaca 5분봉으로 v1에서 재튜닝 (학습 24.01~25.06 · 확인 25.07~12 · 최종 시험 26.01~10).
 #     세 명 모두 v1·v2보다 덜 잃지만 여전히 손실 — 주로 거래를 크게 줄여서 좋아진 것 (lab/tune_2026-10-26_2024-01-02.json)
 # v5 (2026-10-26): 일봉 추세 필터·과거 뉴스 8.1만 건으로 재튜닝 — 아이작만 소폭 변경(VWAP 회복 셋업 제외, 악재 뉴스 기준 −0.2),
-#     티모·차차는 통과한 변경 없음. 돌격대장은 10년(2016~2026) 일봉 검증 후 트레일링 2.5→3.5 ATR (swing_lab.py long)
+#     티모·차차는 통과한 변경 없음. 돌쇠은 10년(2016~2026) 일봉 검증 후 트레일링 2.5→3.5 ATR (swing_lab.py long)
 # v6 (2026-10-26): 단타에 우위가 없어 아이작=모멘텀(매월 6개월 상위 5), 티모=돌파 8종목, 차차=돌파+SPY 50일선 필터로 전환
 # v2 (2026-10-26): traders_lab 튜닝 (9월 학습 · 10월 확인 · 8월 최종 시험) — 아이작·티모만 변경, 차차는 8월에서 나빠져 유지
 START_CASH = 20_000.0
@@ -99,7 +99,7 @@ TRADERS = {
                 risk=0.005, max_pos=5, max_trades=5, daily_loss=0.0, n=20, volr=1.5, stop_atr=2.0, trail_atr=3.5, exit_ma=20,
                 mkt="50", exit_mkt=True, min_dvol=2e7, min_rvol=0, cooldown=0,
                 motto="SPY가 50일선 위일 때만 돌파를 산다. 시장이 꺾이면 전부 팔고 현금으로 기다린다."),
-    "swing": dict(kind="swing", mode="breakout", name="스윙형", nick="돌격대장", color="#eda100",
+    "swing": dict(kind="swing", mode="breakout", name="스윙형", nick="돌쇠", color="#eda100",
                   risk=0.01, max_pos=5, max_trades=5, daily_loss=0.0, n=20, volr=1.5, stop_atr=2.0, trail_atr=3.5, exit_ma=20,
                   min_dvol=2e7, min_rvol=0, cooldown=0,
                   motto="20일 신고가를 거래량과 함께 돌파한 종목을 며칠~몇 주 들고 간다. 손절은 ATR, 수익은 추세가 꺾일 때까지."),

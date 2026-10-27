@@ -371,7 +371,7 @@ function drawLive(){
     : '<div class="empty">관심 종목에 영향 있는 뉴스가 아직 없어요.</div>';
   $('news').scrollTop = nk;
   $('sys').innerHTML = L.system.length ? L.system.map(e => evRow(e)).join('') : '<div class="empty">아직 기록 없음</div>';
-  $('foot').innerHTML = `규칙 ${esc(L.rules)} · 시작 자금 각 ${usd(L.start_cash)} · 네 명 모두 일봉 스윙 (v6부터 — 아이작 모멘텀 · 티모 돌파 8종목 · 차차 돌파+시장 필터 · 돌격대장 돌파), 장 마감 후 신호 → 다음 날 시가 매매, 오버나잇 보유 · 수수료 매수·매도 각 $2, 슬리피지 0.05% 반영 · 데이터 Yahoo Finance 1분봉` +
+  $('foot').innerHTML = `규칙 ${esc(L.rules)} · 시작 자금 각 ${usd(L.start_cash)} · 네 명 모두 일봉 스윙 (v6부터 — 아이작 모멘텀 · 티모 돌파 8종목 · 차차 돌파+시장 필터 · 돌쇠 돌파), 장 마감 후 신호 → 다음 날 시가 매매, 오버나잇 보유 · 수수료 매수·매도 각 $2, 슬리피지 0.05% 반영 · 데이터 Yahoo Finance 1분봉` +
     (L.fetch_sec ? ` (수집 ${L.fetch_sec.toFixed(1)}초)` : '') + `<br>기록 위치: apps/journal/traders/ — trades.csv(거래·근거), days.csv(일별 결과), events/(모든 생각). 이 화면을 닫아도 프로그램이 켜져 있으면 계속 매매해요.`;
 }
 

@@ -287,7 +287,7 @@ def main():
     print(f"\n저장: {out} · 총 {time.time() - t0:.0f}초")
 
 
-# ───────────────────────── 10년 검증 (돌격대장 강화) ─────────────────────────
+# ───────────────────────── 10년 검증 (돌쇠 강화) ─────────────────────────
 LONG = {"학습": ("2016-01-01", "2021-12-31"), "확인": ("2022-01-01", "2023-12-31"), "최종시험": ("2024-01-01", "2026-10-23")}
 CURRENT = dict(mode="breakout", n=20, stop_atr=2.0, trail_atr=3.5, exit_ma=20, max_pos=5, volr=1.5, risk=0.01, mkt="none", mom=126)
 
@@ -305,7 +305,7 @@ def long_grid() -> list[dict]:
 
 def long_main():
     """2016~2026 일봉. 선택 편향을 줄이려고 나스닥100으로 고르고(학습 16~21, 확인 22~23 하락장 포함), 관심종목에선 확인만.
-    최종시험(24~26)은 지금 돌격대장 규칙을 정할 때 이미 본 기간이라 '완전히 새 기간'은 아님 — 연도별 표로 같이 판단."""
+    최종시험(24~26)은 지금 돌쇠 규칙을 정할 때 이미 본 기간이라 '완전히 새 기간'은 아님 — 연도별 표로 같이 판단."""
     t0 = time.time()
     X = indicators(load("2014-06-01"))
     W = [s for s in T.WATCHLIST if s in X["cols"]]
@@ -319,7 +319,7 @@ def long_main():
         bm = {s: bh(X, [s], a, b) for s in BENCH}
         print(f"  {k:<5} {a[:4]}~{b[:4]}  SPY {bm['SPY'] * 100:+7.1f}% · QQQ {bm['QQQ'] * 100:+7.1f}% · SMH {bm['SMH'] * 100:+7.1f}% · "
               f"나스닥100 동일비중 {bh(X, N, a, b) * 100:+7.1f}% · 관심종목 동일비중 {bh(X, W, a, b) * 100:+7.1f}%")
-    picks = {"현재 돌격대장": CURRENT}
+    picks = {"현재 돌쇠": CURRENT}
     for mode, name in (("breakout", "돌파형 최적"), ("rotation", "모멘텀형 최적")):
         rs = [x for x in rows if x[0]["mode"] == mode]
         ranked = sorted(rs, key=lambda x: -x[1]["학습"]["calmar"])

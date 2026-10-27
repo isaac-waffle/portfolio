@@ -211,7 +211,7 @@ def forecast_info() -> str:
 def traders_info() -> str:
     try:
         st = json.loads((APPS / "journal" / "traders" / "state.json").read_text())["traders"]
-        names = {"agg": "아이작", "bal": "티모", "def": "차차", "swing": "돌격대장"}
+        names = {"agg": "아이작", "bal": "티모", "def": "차차", "swing": "돌쇠"}
         return " · ".join(f"{names[k]} ${t['cash'] + sum(p['shares'] * p['entry'] for p in t['pos'].values()):,.0f}"
                           for k, t in st.items() if k in names)
     except Exception:
