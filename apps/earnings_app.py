@@ -17,6 +17,8 @@ import requests
 import streamlit as st
 
 from notebook_st import apply as notebook_theme
+import earnings_track as track
+from earnings_track import earnings_reactions
 import yfinance as yf
 from plotly.subplots import make_subplots
 
@@ -173,29 +175,8 @@ def spy_hist():
 
 @st.cache_data(ttl=900, show_spinner=False)
 def implied_move(s: str, earn_date: dt.date | None, price: float):
-    """첫 어닝 이후 만기의 ATM 스트래들 가격으로 옵션 시장이 반영한 예상 변동폭을 계산."""
-    if not earn_date or not price:
-        return None
-    try:
-        t = yf.Ticker(s)
-        exps = [e for e in t.options if dt.date.fromisoformat(e) >= earn_date + dt.timedelta(days=1)]
-        if not exps:
-            return None
-        exp = exps[0]
-        ch = t.option_chain(exp)
-        calls, puts = ch.calls, ch.puts
-        k = calls.iloc[(calls["strike"] - price).abs().argsort()[:1]]["strike"].iloc[0]
-
-        def mid(df):
-            r = df[df["strike"] == k].iloc[0]
-            m = (r["bid"] + r["ask"]) / 2 if r["bid"] > 0 and r["ask"] > 0 else r["lastPrice"]
-            return float(m), float(r.get("impliedVolatility", np.nan))
-
-        c, civ = mid(calls)
-        p, piv = mid(puts)
-        return {"expiry": exp, "strike": float(k), "straddle": c + p, "move": (c + p) / price, "iv": np.nanmean([civ, piv])}
-    except Exception:
-        return None
+    """첫 어닝 이후 만기의 ATM 스트래들 가격으로 옵션 시장이 반영한 예상 변동폭을 계산 (earnings_track과 같은 계산)."""
+    return track.implied_move(s, earn_date, price)
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -216,48 +197,6 @@ def google_news(query: str, n: int = 15):
                       "source": it.findtext("source") or "", "when": when})
     items.sort(key=lambda x: x["when"] or dt.datetime.min.replace(tzinfo=dt.timezone.utc), reverse=True)
     return items[:n]
-
-
-def earnings_reactions(hist: pd.DataFrame, ed: pd.DataFrame | None) -> pd.DataFrame:
-    """과거 각 어닝에 대해 반응일(장전→당일, 장후→다음 거래일) 기준 갭·종가·5일 변동."""
-    if ed is None or ed.empty or hist.empty:
-        return pd.DataFrame()
-    h = hist.copy()
-    h.index = h.index.tz_localize(None).normalize()
-    dates = h.index
-    rows = []
-    for ts, r in ed.iterrows():
-        if pd.isna(r.get("Reported EPS")):
-            continue
-        local = ts.tz_convert("America/New_York")
-        d = pd.Timestamp(local.date())
-        amc = local.hour >= 12
-        pos = dates.searchsorted(d)
-        if pos >= len(dates):
-            continue
-        if amc:
-            if dates[pos] != d:
-                continue
-            base_i, react_i = pos, pos + 1
-        else:
-            if dates[pos] != d or pos == 0:
-                continue
-            base_i, react_i = pos - 1, pos
-        if react_i >= len(dates):
-            continue
-        base = h["Close"].iloc[base_i]
-        gap = h["Open"].iloc[react_i] / base - 1
-        day = h["Close"].iloc[react_i] / base - 1
-        w5_i = min(react_i + 4, len(dates) - 1)
-        w5 = h["Close"].iloc[w5_i] / base - 1
-        sur = r.get("Surprise(%)")
-        rows.append({
-            "발표일": local.date(), "시점": "장후" if amc else "장전",
-            "EPS 예상": r.get("EPS Estimate"), "EPS 실제": r.get("Reported EPS"),
-            "서프라이즈": sur / 100 if pd.notna(sur) else np.nan,
-            "갭(시가)": gap, "반응일 종가": day, "5일 누적": w5,
-        })
-    return pd.DataFrame(rows)
 
 
 def rsi(close: pd.Series, n=14) -> pd.Series:
@@ -340,6 +279,14 @@ def dbl_table(df: pd.DataFrame, tickers: list[str], fmt: dict, key: str, num_col
         st.rerun()
 
 
+@st.cache_resource
+def _tracker():
+    """발표 전 예측 저장·발표 후 채점을 20분마다 (earnings_track.py). 다른 프로세스가 이미 돌리면 그쪽에 맡김."""
+    return track.start_background()
+
+
+_tracker()
+
 # ───────────────────────── sidebar ─────────────────────────
 if goto := st.session_state.pop("_goto", None):
     if goto in WATCHLIST:
@@ -350,11 +297,100 @@ if goto := st.session_state.pop("_goto", None):
 st.session_state.setdefault("pick", "NVDA")
 st.session_state.setdefault("custom", "")
 st.sidebar.title("어닝 대시보드")
-page = st.sidebar.radio("화면", ["어닝 캘린더", "종목 분석"], key="page", label_visibility="collapsed")
+page = st.sidebar.radio("화면", ["어닝 캘린더", "종목 분석", "예측 적중률"], key="page", label_visibility="collapsed")
 st.sidebar.caption(f"데이터: Yahoo Finance · Nasdaq · Google News\n\n기준: {dt.datetime.now():%Y-%m-%d %H:%M}")
 if st.sidebar.button("데이터 새로고침"):
     st.cache_data.clear()
     st.rerun()
+
+
+# ───────────────────────── page: prediction accuracy ─────────────────────────
+if page == "예측 적중률":
+    st.title("어닝 예측 적중률")
+    recs = pd.DataFrame(track.load())
+    if recs.empty:
+        st.info("아직 저장된 예측이 없습니다. 관심종목 발표 3일 전부터 20분마다 자동 저장됩니다.")
+        st.stop()
+    for c in ("move", "status", "im_in1", "im_in2", "hist_in", "dir_hit", "call", "sur", "react_date"):
+        if c not in recs:
+            recs[c] = None
+    done = recs[recs["move"].notna()].sort_values(["date", "sym"], ascending=False)
+    wait = recs[recs["move"].isna() & (recs["status"] != "취소")].sort_values("date")
+
+    def rate(col):
+        v = done[col].dropna().astype(bool)
+        return (f"{v.sum()}/{len(v)}", f"{v.mean() * 100:.0f}%") if len(v) else ("-", "")
+
+    im1, im1p = rate("im_in1")
+    hi, hip = rate("hist_in")
+    dh, dhp = rate("dir_hit")
+    c = st.columns(4)
+    c[0].metric("채점한 어닝", f"{len(done)}건", f"대기 {len(wait)}건", delta_color="off")
+    c[1].metric("옵션 ±1σ 적중", f"{im1p or '-'}", f"{im1} · 기대 68%", delta_color="off")
+    c[2].metric("과거 평균 적중", f"{hip or '-'}", hi, delta_color="off")
+    c[3].metric("방향 적중", f"{dhp or '-'}", f"{dh} · 동전 50%", delta_color="off")
+    if len(done):
+        e_im = (done["move"].abs() - done["im"]).abs().dropna()
+        e_hi = (done["move"].abs() - done["hist_move"]).abs().dropna()
+        st.caption(f"변동 크기 평균 오차 — 옵션 {e_im.mean() * 100:.1f}%p ({len(e_im)}건) · 과거 평균 {e_hi.mean() * 100:.1f}%p ({len(e_hi)}건). 작을수록 정확.")
+
+        st.subheader("예상 범위 vs 실제 반응")
+        d = done.sort_values(["date", "sym"])
+        lab = d["sym"] + " " + pd.to_datetime(d["date"]).dt.strftime("%m/%d")
+        fig = go.Figure()
+        fig.add_bar(x=lab, y=2 * d["im"], base=-d["im"], name="옵션 ±1σ", marker_color="#5a6fd6", opacity=0.35,
+                    hovertemplate="%{x}<br>옵션 ±%{customdata:.1%}<extra></extra>", customdata=d["im"])
+        for sgn in (1, -1):
+            fig.add_scatter(x=lab, y=sgn * d["hist_move"], mode="markers", name="과거 평균", showlegend=sgn == 1,
+                            legendgroup="h", marker=dict(symbol="line-ew-open", size=22, color="#8a90aa", line=dict(width=2.5, color="#8a90aa")),
+                            hovertemplate="%{x}<br>과거 평균 ±%{customdata:.1%}<extra></extra>", customdata=d["hist_move"])
+        inside = d["im_in1"].where(d["im"].notna(), d["hist_in"]).fillna(False).astype(bool)
+        fig.add_scatter(x=lab, y=d["move"], mode="markers", name="실제 반응일 변동",
+                        marker=dict(size=13, color=np.where(inside, "#4f6bed", "#eb6834"),
+                                    line=dict(width=2, color="rgba(255,255,255,.9)")),
+                        hovertemplate="%{x}<br>실제 %{y:+.1%}<extra></extra>")
+        fig.add_hline(y=0, line_width=1, line_color="#8a90aa")
+        fig.update_layout(height=340, barmode="overlay", yaxis=dict(tickformat="+.0%", title="반응일 종가 변동"),
+                          legend=dict(orientation="h", y=1.12, x=0), margin=dict(l=10, r=10, t=30, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("파란 막대 = 옵션이 예상한 ±1σ, 회색 가로선 = 과거 평균 변동폭, 점 = 실제. 범위 밖이면 주황 점.")
+
+        st.subheader("채점 결과")
+        ok = lambda v: "-" if v is None or pd.isna(v) else "✅" if v else "❌"
+        p100 = lambda v: "-" if v is None or pd.isna(v) else f"{v * 100:.1f}%"
+
+        def call_txt(r):
+            if r["sur"] is None or pd.isna(r["sur"]):
+                return "-"
+            beat = r["sur"] > 0
+            p, n = (r["beat_up"], r["n_beat"]) if beat else (r["miss_up"], r["n_miss"])
+            pt = "-" if p is None or pd.isna(p) else f"{p * 100:.0f}%"
+            return f"{r['call']} (상승 {pt}, {int(n)}회)" if isinstance(r["call"], str) else f"판단 없음 (상승 {pt}, {int(n)}회)"
+
+        tbl = pd.DataFrame({
+            "종목": d["sym"], "발표일": d["date"], "시점": d["when"],
+            "실제": d["move"].map(lambda v: pct(v)),
+            "옵션 ±1σ": d["im"].map(p100), "옵션 범위": d["im_in1"].map(ok),
+            "과거 평균": d["hist_move"].map(p100), "과거 범위": d["hist_in"].map(ok),
+            "EPS": d["sur"].map(lambda v: "-" if v is None or pd.isna(v) else f"{'상회' if v > 0 else '하회'} {v * 100:+.0f}%"),
+            "방향 예측": d.apply(call_txt, axis=1), "방향": d["dir_hit"].map(ok), "기록": d["source"],
+        }).iloc[::-1]
+        st.dataframe(tbl, hide_index=True, use_container_width=True, height=35 * len(tbl) + 38)
+
+    if len(wait):
+        st.subheader("발표 대기 중인 예측")
+        p100 = lambda v: "-" if v is None or pd.isna(v) else f"{v * 100:.1f}%"
+        up_n = lambda p, n: "-" if p is None or pd.isna(p) else f"{p * 100:.0f}% ({int(n)}회)"
+        st.dataframe(pd.DataFrame({
+            "종목": wait["sym"], "발표일": wait["date"], "시점": wait["when"], "저장 시각(ET)": wait["snap_at"],
+            "옵션 ±1σ": wait["im"].map(p100), "과거 평균": wait["hist_move"].map(p100),
+            "상회 시 상승": [up_n(p, n) for p, n in zip(wait["beat_up"], wait["n_beat"])],
+            "하회 시 상승": [up_n(p, n) for p, n in zip(wait["miss_up"], wait["n_miss"])], "기록": wait["source"],
+        }), hide_index=True, use_container_width=True, height=35 * len(wait) + 38)
+    st.caption("관심종목 발표 3일 전부터 20분마다 예측을 저장하고, 발표 직전 값으로 고정합니다(장전 발표는 전날 장 마감, 장후 발표는 당일 장 마감). "
+               "반응일 장이 끝나면 자동 채점합니다. 방향은 실제 EPS 결과에 맞는 시나리오의 과거 상승 확률이 50%를 넘으면 상승으로 보며, "
+               f"그 시나리오 표본이 {track.MIN_N}회 미만이면 판단하지 않습니다. '재구성'은 기록 시작 전 어닝을 Alpaca 과거 옵션 일봉 종가로 다시 계산한 것입니다.")
+    st.stop()
 
 
 # ───────────────────────── page: calendar ─────────────────────────

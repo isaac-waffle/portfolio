@@ -449,6 +449,11 @@ setInterval(loadLocal, 5000); setInterval(() => loadRemote(false), 300000);
 
 
 def main():
+    # 어닝 예측 자동 저장·채점 (earnings_track.py) — 어닝 대시보드를 안 열어도 돌게. 이미 돌고 있으면 바로 끝남(파일 잠금)
+    if Path(PYTHON).exists():
+        LOGS.mkdir(parents=True, exist_ok=True)
+        subprocess.Popen([PYTHON, str(APPS / "earnings_track.py"), "loop"], cwd=ROOT, start_new_session=True,
+                         stdout=open(LOGS / "earnings_track.log", "a"), stderr=subprocess.STDOUT)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     if "--open" in sys.argv:
         threading.Timer(0.5, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
