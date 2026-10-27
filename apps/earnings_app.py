@@ -15,6 +15,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+
+from notebook_st import apply as notebook_theme
 import yfinance as yf
 from plotly.subplots import make_subplots
 
@@ -29,6 +31,7 @@ UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/53
 UP, DOWN = "#16a34a", "#dc2626"
 
 st.set_page_config(page_title="어닝 대시보드", layout="wide")
+notebook_theme()  # 공책 테마 (apps/notebook_st.py)
 
 
 # ───────────────────────── helpers ─────────────────────────

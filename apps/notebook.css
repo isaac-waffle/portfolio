@@ -1,0 +1,27 @@
+/* 공책 테마 — 허브(hub.py)와 가상 트레이더(traders.html)가 같이 씀. 각 서버가 페이지 <head> 끝에 끼워 넣음.
+   줄 노트 종이 + 볼펜 잉크. 제목·라벨은 손글씨(Gaegu), 숫자·표·본문은 읽기 쉽게 시스템 글꼴 그대로. 빨간 여백 선은 없음. */
+:root{
+  --bg:#f8f5e9;--card:#fffdf6;--text:#1f2747;--sub:#5f6788;--mute:#8a90aa;
+  --line:rgba(35,52,126,.18);--soft:rgba(35,52,126,.05);--pill:rgba(35,52,126,.08);
+  --accent:#2b44b0;--ink:#26388a;--rule:rgba(90,135,210,.24);
+  --shadow:2px 3px 0 rgba(35,52,126,.10);
+  --hand:"Gaegu","Nanum Pen Script","Apple SD Gothic Neo",cursive;
+  --sketch:255px 14px 225px 16px/16px 225px 14px 255px;
+  --sketch2:16px 225px 14px 255px/255px 14px 225px 16px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17181d;--card:#202229;--text:#e7eaf6;--sub:#a4abc6;--mute:#7d84a0;
+  --line:rgba(170,185,255,.18);--soft:rgba(170,185,255,.06);--pill:rgba(170,185,255,.10);
+  --accent:#93a7ff;--ink:#a9b8ff;--rule:rgba(140,165,230,.10);--shadow:2px 3px 0 rgba(0,0,0,.35);
+}}
+:root[data-theme="dark"]{
+  --bg:#17181d;--card:#202229;--text:#e7eaf6;--sub:#a4abc6;--mute:#7d84a0;
+  --line:rgba(170,185,255,.18);--soft:rgba(170,185,255,.06);--pill:rgba(170,185,255,.10);
+  --accent:#93a7ff;--ink:#a9b8ff;--rule:rgba(140,165,230,.10);--shadow:2px 3px 0 rgba(0,0,0,.35);
+}
+body{background-color:var(--bg);
+  background-image:repeating-linear-gradient(180deg,transparent 0,transparent 31px,var(--rule) 31px,var(--rule) 32px)}
+h1{font-family:var(--hand)!important;font-weight:700!important;letter-spacing:0!important;color:var(--ink);
+  text-decoration:underline wavy color-mix(in srgb,var(--ink) 40%,transparent);text-decoration-thickness:2px;text-underline-offset:10px}
+.hand{font-family:var(--hand)}
+::selection{background:color-mix(in srgb,var(--ink) 22%,transparent)}
