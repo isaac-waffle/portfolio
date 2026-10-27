@@ -572,14 +572,21 @@ with tabs[3]:
             st.subheader("예상 주가 범위 (발표 다음 거래일)")
             lo, hi = price * (1 - move), price * (1 + move)
             lo2, hi2 = price * (1 - 2 * move), price * (1 + 2 * move)
-            fig = go.Figure()
-            fig.add_shape(type="rect", x0=lo2, x1=hi2, y0=0, y1=1, fillcolor="#cbd5e1", opacity=0.35, line_width=0)
-            fig.add_shape(type="rect", x0=lo, x1=hi, y0=0, y1=1, fillcolor="#3b82f6", opacity=0.35, line_width=0)
-            fig.add_vline(x=price, line_color="#0f172a", line_width=2)
-            for x, t in [(lo2, "-2σ"), (lo, "-1σ"), (price, "현재"), (hi, "+1σ"), (hi2, "+2σ")]:
-                fig.add_annotation(x=x, y=1.15, text=f"{t}<br>${x:,.2f}", showarrow=False, yref="y")
-            fig.update_layout(height=170, yaxis=dict(visible=False, range=[0, 1.5]),
-                              margin=dict(l=10, r=10, t=10, b=10), xaxis_title="주가($)")
+            # 도형(shape)만 있으면 x축이 자동으로 안 잡혀(-1~6) 빈 차트가 됨 → 점 trace를 넣고 범위도 직접 지정
+            pts = [(lo2, "-2σ"), (lo, "-1σ"), (price, "현재"), (hi, "+1σ"), (hi2, "+2σ")]
+            fig = go.Figure(go.Scatter(
+                x=[x for x, _ in pts], y=[0.5] * 5, mode="markers+text",
+                marker=dict(size=[9, 9, 16, 9, 9], color=["#8a90aa", "#5a6fd6", "#eb6834", "#5a6fd6", "#8a90aa"]),
+                text=[f"<b>{t}</b><br>${x:,.2f}" for x, t in pts], textposition="top center", textfont=dict(size=14),
+                customdata=[f"{x / price - 1:+.1%}" for x, _ in pts],
+                hovertemplate="%{text}<br>현재가 대비 %{customdata}<extra></extra>", showlegend=False))
+            fig.add_shape(type="rect", x0=lo2, x1=hi2, y0=0.3, y1=0.7, fillcolor="#8a90aa", opacity=0.22, line_width=0, layer="below")
+            fig.add_shape(type="rect", x0=lo, x1=hi, y0=0.3, y1=0.7, fillcolor="#5a6fd6", opacity=0.35, line_width=0, layer="below")
+            fig.add_shape(type="line", x0=price, x1=price, y0=0.3, y1=0.5, line=dict(color="#eb6834", width=3))
+            pad = (hi2 - lo2) * 0.06
+            fig.update_layout(height=200, yaxis=dict(visible=False, range=[0.15, 1.25], fixedrange=True),
+                              xaxis=dict(range=[lo2 - pad, hi2 + pad], tickprefix="$", title="주가($)"),
+                              margin=dict(l=10, r=10, t=10, b=10))
             st.plotly_chart(fig, use_container_width=True)
             st.caption("1σ 범위 ≈ 약 68% 확률 구간. 옵션 내재 변동폭이 없으면 과거 평균으로 대체합니다.")
         if not react.empty:
