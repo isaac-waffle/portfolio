@@ -271,6 +271,7 @@ const tAms = ts => new Date(ts).toLocaleTimeString('ko-KR', {timeZone:'Europe/Am
 const KIND = {think:'생각', pass:'패스', decide:'결정', buy:'매수', sell:'매도', close:'결과', plan:'계획', review:'회고', scan:'스캔', news:'뉴스'};
 const TC = {agg:'var(--agg)', bal:'var(--bal)', def:'var(--def)', swing:'var(--swing)'};
 let L = null, H = null, gkey = '셋업', tkey = 'all';
+const WAIT = {pullback: '과매도 눌림', trendpull: '20일선 반등', breakout: '돌파'};
 const OPEN = new Set();  // 펼친 '자세히' (5초마다 다시 그려도 유지)
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
@@ -348,9 +349,9 @@ function drawLive(){
       <div class="head"><span class="hd"></span>${esc(t.head || t.status)}</div>
       <div class="poss">${pos}</div>
       <div class="foot2 num">${cnt} · ${t.wins}승 ${t.losses}패${t.halted ? ` · <span class="warn">${esc(t.halted)}</span>` : ''}</div>
-      <details class="more" data-k="${t.key}" ${OPEN.has(t.key) ? 'open' : ''}><summary>자세히 — 생각 전문 · ${t.mode === 'rotation' ? '모멘텀 순위' : t.kind === 'swing' ? '돌파 대기 종목' : '눈여겨보는 종목'} · 기록 ${t.feed.length}</summary>
+      <details class="more" data-k="${t.key}" ${OPEN.has(t.key) ? 'open' : ''}><summary>자세히 — 생각 전문 · ${t.mode === 'rotation' ? '모멘텀 순위' : t.kind === 'swing' ? (WAIT[t.mode] || '돌파') + ' 대기 종목' : '눈여겨보는 종목'} · 기록 ${t.feed.length}</summary>
         <div class="bubble"><div class="h">지금 생각</div>${esc(t.thought)}</div>
-        <h3>${t.mode === 'rotation' ? '모멘텀 순위 <span class="muted" style="font-weight:400">(6개월 수익률 · 상위 5 편입, 매달 교체)</span>' : t.kind === 'swing' ? '돌파 신호 · 대기 종목 <span class="muted" style="font-weight:400">(장 마감 후 일봉)</span>' : '눈여겨보는 종목 <span class="muted" style="font-weight:400">(점수 · 판단)</span>'}</h3>${wl}
+        <h3>${t.mode === 'rotation' ? '모멘텀 순위 <span class="muted" style="font-weight:400">(6개월 수익률 · 상위 5 편입, 매달 교체)</span>' : t.kind === 'swing' ? (WAIT[t.mode] || '돌파') + ' 신호 · 대기 종목 <span class="muted" style="font-weight:400">(장 마감 후 일봉)</span>' : '눈여겨보는 종목 <span class="muted" style="font-weight:400">(점수 · 판단)</span>'}</h3>${wl}
         <div class="meta">${t.mode === 'rotation' ? `<span class="chip">종목당 비중 ${Math.round(100 / t.max_trades)}%</span>` : `<span class="chip">거래당 위험 ${usd(t.start * t.risk)}</span>`}${t.daily_loss ? `<span class="chip">손실 한도까지 ${usd(Math.max(lossLeft, 0))}</span>` : '<span class="chip">오버나잇 보유</span>'}</div>
         <div class="m motto">${esc(t.motto)}</div>
         <h3>생각 기록</h3><div class="feed">${t.feed.length ? t.feed.map(e => evRow(e)).join('') : '<div class="empty">아직 기록 없음</div>'}</div>
@@ -371,7 +372,7 @@ function drawLive(){
     : '<div class="empty">관심 종목에 영향 있는 뉴스가 아직 없어요.</div>';
   $('news').scrollTop = nk;
   $('sys').innerHTML = L.system.length ? L.system.map(e => evRow(e)).join('') : '<div class="empty">아직 기록 없음</div>';
-  $('foot').innerHTML = `규칙 ${esc(L.rules)} · 시작 자금 각 ${usd(L.start_cash)} · 네 명 모두 일봉 스윙 (v6부터 — 아이작 모멘텀 · 티모 돌파 8종목 · 차차 돌파+시장 필터 · 돌쇠 돌파), 장 마감 후 신호 → 다음 날 시가 매매, 오버나잇 보유 · 수수료 매수·매도 각 $2, 슬리피지 0.05% 반영 · 데이터 Yahoo Finance 1분봉` +
+  $('foot').innerHTML = `규칙 ${esc(L.rules)} · 시작 자금 각 ${usd(L.start_cash)} · 네 명 모두 일봉 스윙, 매수 규칙은 제각각 (v7 — 아이작 모멘텀 순환 · 티모 과매도 눌림목 · 차차 20일선 지지 반등 · 돌쇠 신고가 돌파), 장 마감 후 신호 → 다음 날 시가 매매, 오버나잇 보유 · 수수료 매수·매도 각 $2, 슬리피지 0.05% 반영 · 데이터 Yahoo Finance 1분봉` +
     (L.fetch_sec ? ` (수집 ${L.fetch_sec.toFixed(1)}초)` : '') + `<br>기록 위치: apps/journal/traders/ — trades.csv(거래·근거), days.csv(일별 결과), events/(모든 생각). 이 화면을 닫아도 프로그램이 켜져 있으면 계속 매매해요.`;
 }
 

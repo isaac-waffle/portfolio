@@ -40,7 +40,7 @@ LOCAL = [
     dict(key="earnings", name="어닝 대시보드", port=8502, icon="calendar", color="#ff3b30",
          cmd=[STREAMLIT, "run", "apps/earnings_app.py"]),
     dict(key="traders", name="가상 트레이더", port=8503, icon="traders", color="#34c759",
-         cmd=[PYTHON, "apps/traders.py"]),
+         cmd=[PYTHON, "apps/traders.py"], agent="com.isaac-waffle.traders"),  # apps/traders_service.sh install 이면 launchd로
     dict(key="forecast", name="SI Forecast Desk", port=8765, icon="crystal", color="#af52de",
          cmd=["zsh", "start_live.sh"], stop=["zsh", "stop_live.sh"], cwd=FORECAST, wait=120),
     dict(key="site", name="포트폴리오 미리보기", port=8766, icon="globe", color="#007aff",
@@ -62,6 +62,14 @@ def is_up(port: int) -> bool:
 
 def start_app(app: dict):
     LOGS.mkdir(parents=True, exist_ok=True)
+    if app.get("agent") and (Path.home() / "Library" / "LaunchAgents" / f"{app['agent']}.plist").exists():
+        # 맥 서비스(launchd)로 설치돼 있으면 그쪽으로 켬 — 죽어도 다시 뜨고 로그인 때 자동 시작
+        subprocess.run(["launchctl", "kickstart", f"gui/{os.getuid()}/{app['agent']}"], capture_output=True, timeout=10)
+        for _ in range(app.get("wait", 60) * 2):
+            if is_up(app["port"]):
+                return
+            time.sleep(0.25)
+        return
     cmd = list(app["cmd"])
     if cmd[0] == STREAMLIT:
         cmd += ["--server.port", str(app["port"]), "--server.headless", "true",

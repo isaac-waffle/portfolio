@@ -6,10 +6,10 @@
 | 트레이딩 데스크 (단타 보조) | `trading_app.py` | 8501 |
 | 어닝 대시보드 | `earnings_app.py` | 8502 |
 | 어닝 예측 기록·채점 (발표 전 예측 자동 저장 → 발표 후 적중률, 대시보드 '예측 적중률' 화면) | `earnings_track.py` (허브·대시보드가 백그라운드로 실행) | - |
-| 가상 트레이더 (v6부터 네 명 모두 일봉 스윙: 아이작 모멘텀 · 티모 돌파 8종목 · 차차 돌파+시장 필터 · 돌쇠 돌파, 생각·매매 실시간) | `traders.py` + `traders.html` | 8503 |
+| 가상 트레이더 (네 명 모두 일봉 스윙, v7부터 매수 규칙이 제각각: 아이작 모멘텀 순환 · 티모 RSI(2) 과매도 눌림목 · 차차 20일선 지지 반등+SPY 200일선 필터 · 돌쇠 20일 신고가 돌파, 생각·매매 실시간) | `traders.py` + `traders.html` | 8503 |
 | 가상 트레이더 백테스트·튜닝 (과거 5분봉으로 같은 판단 코드 재생) | `traders_lab.py` (명령줄) | - |
 | 가상 트레이더 뉴스 해석 (Alpaca 실시간 뉴스 → 규칙·테마 지도로 종목별 호재/악재) | `traders_news.py` (테마 지도는 직접 수정 가능) | - |
-| 스윙·추세형 백테스트 (일봉, 돌파·눌림목·모멘텀 3종을 관심종목·나스닥100으로 검증) | `swing_lab.py` (명령줄) | - |
+| 스윙·추세형 백테스트 (일봉, 돌파·눌림목·추세 눌림·모멘텀을 관심종목·나스닥100으로 검증, `long` 10년 돌쇠 · `trio` 네 명 규칙 비교) | `swing_lab.py` (명령줄) | - |
 | SI Forecast Desk (16개 종목 실시간 예측, `~/Desktop/stock-forecast-intraday`의 `start_live.sh`로 실행) | 별도 폴더 | 8765 |
 | 포트폴리오 사이트 미리보기 | `site/` | 8766 |
 
@@ -25,6 +25,7 @@
 Mac 앱 다시 만들기 (경로를 옮겼거나 아이콘을 바꿨을 때): `.venv/bin/pip install pillow && .venv/bin/python apps/mac/build_app.py` → `/Applications/This is not AI.app` (예전 이름의 앱은 자동으로 지움)
 
 - 매매 일지·알림 데이터는 `apps/journal/`에 저장되고 git에 올라가지 않습니다.
+- 가상 트레이더는 맥 서비스(launchd)로 돌립니다: `apps/traders_service.sh install` (한 번만) → 로그인하면 자동으로 켜지고, 죽으면 30초 안에 다시 뜨고, 하루 한 번(새벽 4시 ET) 스스로 새로 시작합니다. Claude·허브·터미널이 꺼져 있어도 돌고, 맥이 잠들면 멈춥니다(켜져 있는 동안은 caffeinate로 잠들기 방지). 허브의 끄기·켜기도 그대로 쓰면 되고, 로그는 `~/Library/Logs/traders.log`. 되돌리기: `apps/traders_service.sh uninstall`.
 - 가상 트레이더 기록은 `apps/journal/traders/` (`trades.csv` 거래와 진입 근거, `days.csv` 일별 결과, `events/` 그날의 모든 생각). 규칙을 바꾸면 `traders.py`의 `RULES` 버전을 올려 두면 '기록·개선' 화면에서 버전별 성과를 비교할 수 있습니다. 켜 두는 동안 맥이 잠들지 않습니다(caffeinate).
 - 어닝 예측 기록은 `apps/journal/earnings_preds.json`. 관심종목 발표 3일 전부터 20분마다 저장하고 발표 직전 값으로 고정, 반응일 장 마감 뒤 채점합니다. 기록 전 어닝은 `.venv/bin/python apps/earnings_track.py backfill 2026-10-12`로 재구성(Alpaca 과거 옵션 일봉).
 - Alpaca 키는 가상 트레이더 뉴스·백테스트·어닝 재구성에도 쓰입니다 (`~/.trading_desk.env`).

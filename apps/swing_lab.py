@@ -106,6 +106,8 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
             px = O[i, j] * (1 + SLIP)
             if P["mode"] == "rotation":
                 val = eq_prev * w
+            elif not P.get("stop_atr"):  # 손절 없는 전략은 종목당 같은 비중
+                val = eq_prev / P["max_pos"]
             else:
                 stop_d = P["stop_atr"] * atr[i - 1, j]
                 val = min(eq_prev * P["risk"] / (stop_d / px) if stop_d > 0 else 0, eq_prev / P["max_pos"])
@@ -144,6 +146,8 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
             why = None
             if P["mode"] == "breakout" and c < X[f"ma{P['exit_ma']}"][i, j]:
                 why = f"{P['exit_ma']}일선 이탈"
+            elif P["mode"] == "trendpull" and c < X[f"ma{P['exit_ma']}"][i, j]:
+                why = f"{P['exit_ma']}일선 이탈 (추세 꺾임)"
             elif P["mode"] == "pullback" and (c > X["ma5"][i, j] or held >= P["max_hold"]):
                 why = "5일선 회복 (반등 완료)" if c > X["ma5"][i, j] else f"{P['max_hold']}일 경과"
             elif P.get("exit_mkt") and not mkt[i]:
@@ -170,9 +174,15 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
                 if P["mode"] == "breakout":
                     sig = ok & (C[i, ci] > X[f"hh{P['n']}"][i, ci]) & (C[i, ci] > X["ma50"][i, ci]) & (X["ma50"][i, ci] > X["ma200"][i, ci]) \
                         & (X["volr"][i, ci] >= P["volr"])
+                elif P["mode"] == "trendpull":  # 정배열 종목이 20일선까지 내려왔다가 그 위에서 반등 마감
+                    m20 = X["ma20"][i, ci]
+                    sig = ok & (C[i, ci] > X["ma50"][i, ci]) & (X["ma50"][i, ci] > X["ma200"][i, ci]) \
+                        & (L[i, ci] <= m20 * (1 + P["tol"])) & (C[i, ci] > m20) & (C[i, ci] > C[i - 1, ci])
                 else:
                     sig = ok & (C[i, ci] > X["ma200"][i, ci]) & (C[i, ci] > X["ma50"][i, ci]) & (X["rsi2"][i, ci] < P["rsi"])
-                cand = [ci[k] for k in np.argsort(-np.where(sig, np.nan_to_num(mom, nan=-9), -np.inf)) if sig[k]]
+                score = (-atr[i, ci] / C[i, ci] if P.get("rank") == "lowvol" else -X["rsi2"][i, ci] if P.get("rank") == "rsi"
+                         else np.nan_to_num(mom, nan=-9))
+                cand = [ci[k] for k in np.argsort(-np.where(sig, score, -np.inf)) if sig[k]]
                 free = P["max_pos"] - len(pos) + len(sells)
                 buys = [(j, 0) for j in cand if j not in pos][:max(free, 0)]
         eq = cash + sum(p["sh"] * (C[i, j] if np.isfinite(C[i, j]) else p["entry"]) for j, p in pos.items())
@@ -191,6 +201,7 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
                    avg=float(np.mean([t["ret"] for t in trades])))
     out["calmar"] = out["cagr"] / abs(out["mdd"]) if out["mdd"] < 0 else out["cagr"]
     out["trades"] = trades
+    out["curve"] = pd.Series(eq[1:], index=idx[days])
     return out
 
 
@@ -221,9 +232,18 @@ def desc(P: dict) -> str:
         return (f"돌파형: {P['n']}일 신고가 + 거래량 {P['volr']}배↑, 손절 2ATR→트레일링 {P['trail_atr']}ATR, {P['exit_ma']}일선 이탈 청산, "
                 f"최대 {P['max_pos']}종목, 시장필터 {mk}{' (꺼지면 전량 정리)' if P.get('exit_mkt') else ''}"
                 + (f", +{P['partial']}R에서 절반 익절" if P.get("partial") else ""))
+    if P["mode"] == "trendpull":
+        mk = {"200": "SPY 200일선", "50": "SPY 50일선"}.get(P["mkt"], "없음")
+        tol = f" +{P['tol'] * 100:.0f}%" if P["tol"] else ""
+        return (f"추세 눌림형: 정배열 종목이 20일선{tol}까지 내려왔다 반등 마감, "
+                f"{P['exit_ma']}일선 이탈 청산, 손절 {P['stop_atr']}ATR" + (f"→트레일링 {P['trail_atr']}ATR" if P.get("trail_atr") else "")
+                + f", 최대 {P['max_pos']}종목, {'변동성 낮은 순' if P.get('rank') == 'lowvol' else '6개월 수익률 순'}, 시장필터 {mk}"
+                + (" (꺼지면 전량 정리)" if P.get("exit_mkt") else ""))
     if P["mode"] == "pullback":
-        return (f"눌림목형: 상승추세 중 RSI(2)<{P['rsi']}, 5일선 회복 또는 {P['max_hold']}일 뒤 청산, 손절 {P['stop_atr']}ATR, "
-                f"최대 {P['max_pos']}종목, 시장필터 {'SPY 200일선' if P['mkt'] == '200' else '없음'}")
+        return (f"눌림목형: 상승추세 중 RSI(2)<{P['rsi']}, 5일선 회복 또는 {P['max_hold']}일 뒤 청산, "
+                f"{'손절 ' + format(P['stop_atr'], 'g') + 'ATR' if P.get('stop_atr') else '손절 없음·종목당 같은 비중'}, "
+                f"{({'rsi': 'RSI 낮은 순', 'lowvol': '변동성 낮은 순'}).get(P.get('rank'), '6개월 수익률 순')}, "
+                f"최대 {P['max_pos']}종목, 시장필터 {({'200': 'SPY 200일선', '50': 'SPY 50일선'}).get(P['mkt'], '없음')}")
     return (f"모멘텀형: {'매주' if P['rebal'] == 'W' else '매월'} {P['mom'] // 21}개월 수익률 상위 {P['max_pos']}종목, 50일선 위만, "
             f"시장필터 {'SPY ' + P['mkt'] + '일선 (꺼지면 현금)' if P['mkt'] != 'none' else '없음'}")
 
@@ -348,6 +368,63 @@ def long_main():
     print(f"\n저장: {out} · 총 {time.time() - t0:.0f}초")
 
 
+# ───────────────────────── 셋을 서로 다른 규칙으로 (v7) ─────────────────────────
+# 아이작 = 모멘텀 순환(그대로), 돌쇠 = 돌파(그대로), 티모 = 단기 눌림목(RSI2 과매도 반등), 차차 = 추세 눌림(20일선 지지 + 시장 필터)
+ISAAC = dict(mode="rotation", max_pos=5, mom=126, rebal="M", mkt="none", exit_mkt=False, stop_atr=None, trail_atr=None)
+
+
+def trio_grid() -> dict:
+    timo = [dict(mode="pullback", rsi=rs, max_hold=mh, stop_atr=sa, max_pos=mp, risk=0.0075, mkt=mk, mom=126, rank=rk)
+            for rs, mh, sa, mp, mk, rk in itertools.product((5, 10, 15), (5, 10), (None, 2.0, 3.0), (5, 8, 10), ("200", "50", "none"),
+                                                            ("mom", "rsi", "lowvol"))]
+    chacha = [dict(mode="trendpull", tol=tl, exit_ma=em, stop_atr=2.0, trail_atr=tr, max_pos=mp, risk=0.005, mkt=mk,
+                   exit_mkt=ex, rank=rk, mom=126)
+              for tl, em, tr, mp, mk, ex, rk in itertools.product((0.0, 0.01, 0.02), (20, 50), (None, 3.0), (5, 8),
+                                                                  ("200", "50"), (False, True), ("lowvol", "mom"))]
+    return {"티모": timo, "차차": chacha}
+
+
+def trio_main():
+    """2016~2026 나스닥100으로 고르고(학습 16~21 → 확인 22~23 플러스), 24~26과 관심종목은 확인만."""
+    t0 = time.time()
+    X = indicators(load("2014-06-01"))
+    W = [s for s in T.WATCHLIST if s in X["cols"]]
+    N = [s for s in NDX if s in X["cols"]]
+    picks = {"아이작": ISAAC}
+    for who, G in trio_grid().items():
+        rows = [(P, {k: simulate(P, X, a, b, N) for k, (a, b) in LONG.items()}) for P in G]
+        ranked = sorted(rows, key=lambda x: -x[1]["학습"]["calmar"])
+        picks[who] = next((x for x in ranked if x[1]["확인"]["ret"] > 0), ranked[0])[0]
+        ck = np.mean([x[1]["확인"]["ret"] > 0 for x in rows])
+        hd = np.array([x[1]["최종시험"]["ret"] for x in rows])
+        print(f"{who} 후보 {len(G)}개 — 22~23 플러스 {ck * 100:.0f}% · 24~26 플러스 {np.mean(hd > 0) * 100:.0f}% (중앙값 {np.median(hd) * 100:+.1f}%)")
+    picks["돌쇠"] = CURRENT
+    print(f"시뮬 {time.time() - t0:.0f}초")
+    curves = {}
+    for who, P in picks.items():
+        print(f"\n[{who}] {desc(P)}")
+        for uni_name, U in (("나스닥100", N), ("관심종목", W)):
+            for k, (a, b) in LONG.items():
+                r = simulate(P, X, a, b, U)
+                print(f"  {uni_name:<5} {k:<5} {fmt(r)}")
+                if uni_name == "관심종목" and k == "최종시험":
+                    curves[who] = r["curve"]
+                    rec = simulate(P, X, "2026-07-01", "2026-10-23", W)
+                    print(f"  관심종목 최근 4개월(26.07~10) 거래 {rec['n']}회")
+    print("\n■ 연도별 (매년 $20,000 · 나스닥100)")
+    yrs = range(2016, 2027)
+    print("  " + " " * 8 + " ".join(f"{y:>7}" for y in yrs))
+    for who, P in picks.items():
+        print(f"  {who:<6}" + " ".join(f"{simulate(P, X, f'{y}-01-01', f'{y}-12-31', N)['ret'] * 100:+7.1f}" for y in yrs))
+    print(f"  {'QQQ':<6}" + " ".join(f"{bh(X, ['QQQ'], f'{y}-01-01', f'{y}-12-31') * 100:+7.1f}" for y in yrs))
+    rets = pd.DataFrame(curves).pct_change().dropna()
+    print("\n■ 일간 수익률 상관 (관심종목 24~26) — 낮을수록 서로 다르게 움직임")
+    print(rets.corr().round(2).to_string())
+    out = LAB / "swing_trio.json"
+    out.write_text(json.dumps(T._clean({k: dict(params=P, desc=desc(P)) for k, P in picks.items()}), ensure_ascii=False, indent=1, default=str))
+    print(f"\n저장: {out} · 총 {time.time() - t0:.0f}초")
+
+
 if __name__ == "__main__":
     import sys
-    long_main() if "long" in sys.argv else main()
+    trio_main() if "trio" in sys.argv else long_main() if "long" in sys.argv else main()
