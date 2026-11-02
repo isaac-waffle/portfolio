@@ -16,7 +16,10 @@ import csv
 import datetime as dt
 import json
 import math
+import errno
 import os
+import resource
+import signal
 import subprocess
 import sys
 import threading
@@ -38,6 +41,24 @@ import yfinance as yf
 
 import traders_news as news_mod
 
+
+class _MemTzCache:
+    """yfinance 시간대 캐시를 메모리로 — 기본 캐시(SQLite)는 download(threads=True)의 스레드마다 연결을 열고 안 닫아서
+    며칠 켜 두면 열린 파일 한도(256)를 넘겨 서버가 멈췄음 (2026-11-02)."""
+    tz_db = None
+
+    def __init__(self):
+        self.d = {}
+
+    def lookup(self, tkr):
+        return self.d.get(tkr)
+
+    def store(self, tkr, tz):
+        self.d[tkr] = tz
+
+
+yf.cache._TzCacheManager._tz_cache = _MemTzCache()
+
 warnings.filterwarnings("ignore")
 
 NY, AMS = ZoneInfo("America/New_York"), ZoneInfo("Europe/Amsterdam")
@@ -45,13 +66,15 @@ APPS = Path(__file__).resolve().parent
 DATA = APPS / "journal" / "traders"
 PAGE = APPS / "traders.html"
 PORT = 8503
-RULES = "v6"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
+RULES = "v7"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
 # v3 (2026-10-26): 실시간 뉴스 반영 (traders_news.py) — 아직 백테스트로 검증 안 됨
 # v4 (2026-10-26): 2024.01~2026.10 Alpaca 5분봉으로 v1에서 재튜닝 (학습 24.01~25.06 · 확인 25.07~12 · 최종 시험 26.01~10).
 #     세 명 모두 v1·v2보다 덜 잃지만 여전히 손실 — 주로 거래를 크게 줄여서 좋아진 것 (lab/tune_2026-10-26_2024-01-02.json)
 # v5 (2026-10-26): 일봉 추세 필터·과거 뉴스 8.1만 건으로 재튜닝 — 아이작만 소폭 변경(VWAP 회복 셋업 제외, 악재 뉴스 기준 −0.2),
 #     티모·차차는 통과한 변경 없음. 돌쇠은 10년(2016~2026) 일봉 검증 후 트레일링 2.5→3.5 ATR (swing_lab.py long)
 # v6 (2026-10-26): 단타에 우위가 없어 아이작=모멘텀(매월 6개월 상위 5), 티모=돌파 8종목, 차차=돌파+SPY 50일선 필터로 전환
+# v7 (2026-10-28): 셋이 같은 돌파 규칙이라 같이 멈춰 있어서 매수 규칙을 나눔 (swing_lab.py trio, 2016~2026 나스닥100)
+#     티모=RSI(2) 과매도 눌림목(손절 없이 5종목 균등, 5일선 회복·5거래일 청산), 차차=20일선 지지 반등(변동성 낮은 순, SPY 200일선 필터)
 # v2 (2026-10-26): traders_lab 튜닝 (9월 학습 · 10월 확인 · 8월 최종 시험) — 아이작·티모만 변경, 차차는 8월에서 나빠져 유지
 START_CASH = 20_000.0
 FEE = 2.0  # 주문당 수수료 $ (매수 $2, 매도 $2)
@@ -82,23 +105,24 @@ HOLIDAYS = {dt.date(2026, 11, 26), dt.date(2026, 12, 25), dt.date(2027, 1, 1), d
             dt.date(2027, 7, 5), dt.date(2027, 9, 6), dt.date(2027, 11, 25), dt.date(2027, 12, 24)}
 EARLY = {dt.date(2026, 11, 27): 780, dt.date(2026, 12, 24): 780, dt.date(2027, 11, 26): 780}
 
-SETUP_KO = {"MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
+SETUP_KO = {"MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
             "GAPFILL": "갭 메우기 반등", "FADE": "과매도 반등", "SQZ": "스퀴즈 발사", "PDL": "전일 고점 돌파"}
 
+SETUP_OF = {"breakout": "BRK", "pullback": "PB", "trendpull": "TP", "rotation": "MOM"}
 # 분 단위는 ET 자정 기준 (570 = 09:30)
 TRADERS = {
     # v6: 단타 셋을 성격에 맞는 스윙으로 전환 (단타 v5 규칙은 traders_lab.DAY_RULES에 보관, 단타 기록은 그대로 남음)
     "agg": dict(kind="swing", mode="rotation", name="공격형", nick="아이작", color="#2a78d6",
                 risk=0.0, max_pos=5, max_trades=5, daily_loss=0.0, mom=126, min_dvol=2e7, min_rvol=0, cooldown=0,
                 motto="6개월 가장 많이 오른 5종목을 20%씩 사서 매달 갈아탄다. 크게 벌고 크게 흔들린다 (낙폭 −40%대 각오)."),
-    "bal": dict(kind="swing", mode="breakout", name="밸런스형", nick="티모", color="#eb6834",
-                risk=0.0075, max_pos=8, max_trades=8, daily_loss=0.0, n=20, volr=1.5, stop_atr=2.0, trail_atr=3.5, exit_ma=20,
-                min_dvol=2e7, min_rvol=0, cooldown=0,
-                motto="20일 신고가 돌파를 8종목까지 나눠 산다. 거래당 위험은 작게, 추세가 꺾일 때까지 보유."),
-    "def": dict(kind="swing", mode="breakout", name="방어형", nick="차차", color="#1baf7a",
-                risk=0.005, max_pos=5, max_trades=5, daily_loss=0.0, n=20, volr=1.5, stop_atr=2.0, trail_atr=3.5, exit_ma=20,
-                mkt="50", exit_mkt=True, min_dvol=2e7, min_rvol=0, cooldown=0,
-                motto="SPY가 50일선 위일 때만 돌파를 산다. 시장이 꺾이면 전부 팔고 현금으로 기다린다."),
+    "bal": dict(kind="swing", mode="pullback", name="밸런스형", nick="티모", color="#eb6834",
+                risk=0.0, max_pos=5, max_trades=5, daily_loss=0.0, rsi=10, max_hold=5, stop_atr=0, trail_atr=0, exit_ma=5,
+                mkt="50", min_dvol=2e7, min_rvol=0, cooldown=0,
+                motto="상승 추세 종목이 2~3일 급하게 빠지면(RSI(2) 10 미만) 산다. 5일선 위로 반등하면 팔고, 5거래일 안에 안 오르면 정리. 남들이 팔 때 사는 역발상."),
+    "def": dict(kind="swing", mode="trendpull", name="방어형", nick="차차", color="#1baf7a",
+                risk=0.005, max_pos=5, max_trades=5, daily_loss=0.0, tol=0.01, stop_atr=2.0, trail_atr=3.0, exit_ma=50,
+                rank="lowvol", mkt="200", exit_mkt=True, min_dvol=2e7, min_rvol=0, cooldown=0,
+                motto="정배열 종목이 20일선까지 내려왔다 다시 오르면 산다. 변동성 낮은 종목부터, 50일선이 깨지거나 시장(SPY 200일선)이 꺾이면 정리."),
     "swing": dict(kind="swing", mode="breakout", name="스윙형", nick="돌쇠", color="#eda100",
                   risk=0.01, max_pos=5, max_trades=5, daily_loss=0.0, n=20, volr=1.5, stop_atr=2.0, trail_atr=3.5, exit_ma=20,
                   min_dvol=2e7, min_rvol=0, cooldown=0,
@@ -978,46 +1002,83 @@ class SwingTrader(Trader):
         return last > ma, f"SPY {f2(last)} {'>' if last > ma else '<'} {n}일선 {f2(ma)}"
 
     def signals(self, day: dt.date, snaps: dict):
-        P = self.P
+        """장 마감 후 일봉으로 매수·매도 신호. 규칙은 mode별 (swing_lab.py와 같은 정의):
+        breakout  (돌쇠) N일 종가 신고가 + 거래량 volr배 + 50·200일선 정배열 → 손절 2ATR·트레일링, exit_ma일선 이탈 청산
+        pullback  (티모) 200·50일선 위에서 RSI(2) < rsi (단기 과매도) → 5일선 위 마감 또는 max_hold일 지나면 청산
+        trendpull (차차) 정배열 종목이 20일선(+tol)까지 내려왔다가 20일선 위·전일 대비 상승 마감 → exit_ma일선 이탈 청산"""
+        P, mode = self.P, self.P.get("mode", "breakout")
         F = self.daily_bars(day)
         if F is None:
             return False
         on, mtxt = self.market_on(F)
         if not on:
             self.log("think", f"시장 필터 꺼짐 ({mtxt}) — 신규 매수 없음" + (" · 보유 종목은 내일 시가에 전부 정리." if P.get("exit_mkt") and self.pos else "."))
-        sells, cands, watch = [], [], []
+        sells, cands, near = [], [], []
+        stat = dict(trend=0, sig=0)
         for s, df in F.items():
             if s == "SPY" and s not in WATCHLIST:
                 continue
-            c, v = df["Close"], df["Volume"]
-            last = float(c.iloc[-1])
+            c, v, lo = df["Close"], df["Volume"], df["Low"]
+            last, prev = float(c.iloc[-1]), float(c.iloc[-2])
             atr = float(true_range(df).rolling(14).mean().iloc[-1])
-            ma20, ma50 = float(c.tail(20).mean()), float(c.tail(50).mean())
+            ma5, ma20, ma50 = float(c.tail(5).mean()), float(c.tail(20).mean()), float(c.tail(50).mean())
             ma200 = float(c.tail(200).mean()) if len(c) >= 200 else np.nan
-            hh = float(c.iloc[-P["n"] - 1:-1].max())
+            d = c.diff()
+            rsi2 = float((100 - 100 / (1 + d.clip(lower=0).ewm(alpha=0.5, adjust=False).mean()
+                                       / (-d.clip(upper=0)).ewm(alpha=0.5, adjust=False).mean().replace(0, np.nan))).iloc[-1])
+            hh = float(c.iloc[-P.get("n", 20) - 1:-1].max())
             volr = float(v.iloc[-1] / v.iloc[-51:-1].mean()) if v.iloc[-51:-1].mean() > 0 else 0
             dvol = float((c * v).tail(20).mean())
             mom = float(c.iloc[-6] / c.iloc[-127] - 1) if len(c) > 127 else np.nan
-            if s in self.pos:  # 트레일링 갱신 · 청산 신호
+            if s in self.pos:  # 청산 신호 · 트레일링 갱신
                 p = self.pos[s]
-                p["stop"] = max(p["stop"], last - P["trail_atr"] * atr)
+                if P.get("trail_atr"):
+                    p["stop"] = max(p["stop"], last - P["trail_atr"] * atr)
                 p["hi"] = max(p.get("hi", p["entry"]), last)
-                if last < ma20:
-                    sells.append(dict(sym=s, why=f"종가 {f2(last)}가 {P['exit_ma']}일선 {f2(ma20)} 아래 — 추세 꺾임"))
+                held = int((pd.DatetimeIndex(df.index).date > dt.date.fromisoformat(p["opened"][:10])).sum())
+                why = None
+                if mode == "pullback" and last > ma5:
+                    why = f"종가 {f2(last)}가 5일선 {f2(ma5)} 위 — 반등 완료, 차익 실현"
+                elif mode == "pullback" and held >= P["max_hold"]:
+                    why = f"{held}거래일 지나도 반등이 약함 — 시간 손절"
+                elif mode != "pullback" and last < (ma20 if P["exit_ma"] == 20 else ma50):
+                    why = f"종가 {f2(last)}가 {P['exit_ma']}일선 {f2(ma20 if P['exit_ma'] == 20 else ma50)} 아래 — 추세 꺾임"
                 elif P.get("exit_mkt") and not on:
-                    sells.append(dict(sym=s, why=f"{mtxt} — 시장 필터 꺼짐, 현금으로"))
+                    why = f"{mtxt} — 시장 필터 꺼짐, 현금으로"
+                if why:
+                    sells.append(dict(sym=s, why=why))
                 continue
-            up = ok(ma200) and last > ma50 > ma200
-            ok_ = dvol >= P["min_dvol"] and last >= 5 and ok(atr)
-            if ok_ and up and last > hh and volr >= P["volr"]:
-                cands.append(dict(sym=s, mom=mom if ok(mom) else -9, atr=atr, close=last,
-                                  why=f"20일 고점 {f2(hh)} 돌파 (종가 {f2(last)}), 거래량 {volr:.1f}배, 50·200일선 위"
-                                      + (f", 6개월 {pc(mom, 0)}" if ok(mom) else "")))
-            elif ok_ and up:
-                gap = hh / last - 1
-                watch.append(dict(sym=s, setup="BRK", score=round(min(99, max(0, 100 - gap * 1000))), ok=False, src="관심종목",
-                                  why=f"20일 고점 돌파했지만 거래량 {volr:.1f}배 (필요 {P['volr']}배)" if last > hh
-                                  else f"20일 고점까지 {gap * 100:.1f}% · 거래량 {volr:.1f}배"))
+            if not (dvol >= P["min_dvol"] and last >= 5 and ok(atr) and ok(ma200)):
+                continue
+            score = -atr / last if P.get("rank") == "lowvol" else (mom if ok(mom) else -9)
+            mtag = f", 6개월 {pc(mom, 0)}" if ok(mom) else ""
+            if mode == "pullback":
+                trend = last > ma200 and last > ma50
+                hit = trend and rsi2 < P["rsi"]
+                why = f"상승 추세(50·200일선 위)에서 RSI(2) {rsi2:.0f} — 단기 과매도, 5일선 {f2(ma5)} 회복까지 반등 노림"
+                gap_txt = f"RSI(2) {rsi2:.0f} (필요 {P['rsi']} 미만)"
+                closeness = 100 - (rsi2 - P["rsi"])
+            elif mode == "trendpull":
+                trend = last > ma50 > ma200
+                touch = float(lo.iloc[-1]) <= ma20 * (1 + P["tol"])
+                hit = trend and touch and last > ma20 and last > prev
+                why = f"정배열 추세에서 20일선 {f2(ma20)}까지 눌렸다가 위에서 반등 마감 (종가 {f2(last)}, 전일 대비 {pc(last / prev - 1)})"
+                gap_txt = (f"20일선까지 {(float(lo.iloc[-1]) / ma20 - 1) * 100:.1f}% 위에서 멈춤" if not touch else
+                           f"20일선 닿았지만 {'20일선 아래 마감' if last <= ma20 else '하락 마감'}")
+                closeness = 100 - max(0.0, (float(lo.iloc[-1]) / ma20 - 1 - P["tol"]) * 1000)
+            else:
+                trend = last > ma50 > ma200
+                hit = trend and last > hh and volr >= P["volr"]
+                why = f"20일 고점 {f2(hh)} 돌파 (종가 {f2(last)}), 거래량 {volr:.1f}배, 50·200일선 위"
+                gap_txt = (f"20일 고점 돌파했지만 거래량 {volr:.1f}배 (필요 {P['volr']}배)" if last > hh
+                           else f"20일 고점까지 {(hh / last - 1) * 100:.1f}% · 거래량 {volr:.1f}배")
+                closeness = 100 - max(0.0, hh / last - 1) * 1000
+            stat["trend"] += trend
+            if hit:
+                stat["sig"] += 1
+                cands.append(dict(sym=s, mom=score, atr=atr, close=last, why=why + mtag))
+            elif trend:
+                near.append(dict(sym=s, setup=SETUP_OF[mode], score=round(min(99, max(0, closeness))), ok=False, src="관심종목", why=gap_txt))
         cands.sort(key=lambda x: -x["mom"])
         if not on:
             cands = []
@@ -1025,17 +1086,21 @@ class SwingTrader(Trader):
         buys = cands[:max(free, 0)]
         self.orders = dict(**{"for": next_open(dt.datetime.combine(day, dt.time(17), NY)).date().isoformat()},
                            buy=buys, sell=sells, done=False)
-        self.watch = [dict(sym=b["sym"], setup="BRK", score=100, ok=True, src="관심종목", why=b["why"]) for b in buys] + \
-                     sorted(watch, key=lambda w: -w["score"])[:5 - len(buys)]
+        near.sort(key=lambda w: -w["score"])
+        self.watch = [dict(sym=b["sym"], setup=SETUP_OF[mode], score=100, ok=True, src="관심종목", why=b["why"]) for b in buys] + near[:5 - len(buys)]
         self.sig_day = day.isoformat()
         for x in sells:
             self.log("decide", f"{x['sym']} 내일 시가에 매도 — {x['why']}.", sym=x["sym"])
         for x in buys:
-            self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. 손절은 시가 − 2 ATR(≈{f2(2 * x['atr'])}).", sym=x["sym"])
+            self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. " + (f"손절은 시가 − {P['stop_atr']:g} ATR(≈{f2(P['stop_atr'] * x['atr'])})."
+                     if P.get("stop_atr") else f"손절 없이 비중 {100 / P['max_pos']:.0f}%, 최대 {P['max_hold']}거래일."), sym=x["sym"])
         skipped = cands[len(buys):]
         if skipped:
-            self.log("pass", f"돌파 신호는 더 있지만 자리가 없음 ({len(self.pos)}/{P['max_pos']}): "
-                             + ", ".join(x["sym"] for x in skipped[:5]) + " — 6개월 수익률 높은 순으로 골랐어.")
+            self.log("pass", f"신호는 더 있지만 자리가 없음 ({len(self.pos)}/{P['max_pos']}): "
+                             + ", ".join(x["sym"] for x in skipped[:5]) + (" — 변동성 낮은 순으로 골랐어." if P.get("rank") == "lowvol" else " — 6개월 수익률 높은 순으로 골랐어."))
+        if not buys and on:
+            self.log("think", f"오늘 매수 신호 없음 — 관심종목 {len(WATCHLIST)}개 중 추세 조건 통과 {stat['trend']}개, 신호 0개. "
+                              + ("가장 가까운 후보: " + " · ".join(f"{w['sym']} ({w['why']})" for w in near[:3]) if near else "추세 조건을 통과한 종목이 없어."))
         return True
 
     # ── 개장: 시가 주문 실행 ──
@@ -1065,9 +1130,9 @@ class SwingTrader(Trader):
                 return
             px = float(b["Open"]) * (1 + SLIP)
             rot = self.P.get("mode") == "rotation"
-            if rot:  # 모멘텀: 종목당 1/N 비중, 손절 없음 (다음 리밸런싱에서 순위 밖이면 교체)
+            if rot or not self.P.get("stop_atr"):  # 모멘텀·눌림목: 종목당 1/N 비중, 손절 없음 (순위 밖 교체 / 5일선 회복·시간 청산)
                 stop = 0.0
-                shares = int(min(eq * x["w"], self.cash - FEE) / px)
+                shares = int(min(eq * x.get("w", 1 / self.P["max_pos"]), self.cash - FEE) / px)
             else:
                 stop = px - self.P["stop_atr"] * x["atr"]
                 shares = int(min(eq * self.P["risk"] / (px - stop), eq / self.P["max_pos"] / px, (self.cash - FEE) / px))
@@ -1076,13 +1141,15 @@ class SwingTrader(Trader):
                 continue
             self.cash -= shares * px + FEE
             self.pos[x["sym"]] = dict(shares=shares, init=shares, entry=px, stop=stop, stop0=stop, t1=px, t2=px, hi=px,
-                                      setup="MOM" if rot else "BRK", src="관심종목", opened=now.isoformat(),
+                                      setup=SETUP_OF[self.P.get("mode", "breakout")], src="관심종목", opened=now.isoformat(),
                                       checked=(b.name - pd.Timedelta(minutes=1)).isoformat(), half=True, realized=-FEE,
                                       sold=0, sold_val=0.0, mfe=px, mae=px, why=x["why"], score=100,
                                       feat=dict(mkt_score=np.nan, rvol=np.nan, rs=np.nan, atr_pct=x["atr"] / px if x["atr"] else np.nan, gap=np.nan))
             self.day["trades"] += 1
             self.log("buy", f"{x['sym']} {shares}주 시가 매수 @ {f2(px)} — {x['why']}. " + (
                      f"비중 {x['w'] * 100:.0f}%, 손절 없음 — 다음 달 첫 거래일에 순위 밖이면 교체." if rot else
+                     f"비중 {100 / self.P['max_pos']:.0f}%, 손절 없음 — 5일선 위로 마감하면 팔고, {self.P['max_hold']}거래일 안에 반등 없으면 정리."
+                     if not self.P.get("stop_atr") else
                      f"손절 {f2(stop)} (최대 손실 ${shares * (px - stop):,.0f}). 목표는 없고, 추세가 꺾일 때까지 들고 감."),
                      sym=x["sym"], price=px, shares=shares)
         o["done"] = True
@@ -1105,7 +1172,7 @@ class SwingTrader(Trader):
 
     def run_tick(self, now: dt.datetime, today: dt.date, m: int, snaps: dict, bars: dict):
         cm = close_min(today)
-        for s in [s for s, p in self.pos.items() if p.get("setup") not in ("BRK", "MOM")]:  # v6 전환 때 남은 단타 포지션
+        for s in [s for s, p in self.pos.items() if p.get("setup") not in SETUP_OF.values()]:  # v6 전환 때 남은 단타 포지션
             self.sell(s, self.pos[s]["shares"], self.price(s, snaps, self.pos[s]["entry"]), "단타 → 스윙 전환 정리", now, final=True)
         last_done = today if m >= cm + 5 else prev_trading_day(today)
         if self.sig_day != last_done.isoformat() and (m >= cm + 5 or m < 570):
@@ -1121,19 +1188,25 @@ class SwingTrader(Trader):
         if m < cm:
             self.at_open(now, bars)
             self.watch_stops(now, bars)
-            rot = self.P.get("mode") == "rotation"
+            mode = self.P.get("mode")
+            rot = mode == "rotation"
+            what = {"rotation": "모멘텀 순위", "pullback": "과매도 눌림(RSI 2)", "trendpull": "20일선 지지 반등"}.get(mode, "돌파 신호")
             body = f"보유: {self.held_txt(snaps)}." if self.pos else (
-                "보유 없음 — 장 마감 후 모멘텀 순위를 보고 내일 시가에 첫 편입." if rot else "보유 없음 — 장 마감 후 돌파 신호를 다시 볼게.")
-            return self.think("보유" if self.pos else "관망", body + (" 손절 없이 매달 말에만 갈아탐." if rot else " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로."),
-                              "day" + ",".join(self.pos),
-                              (f"{len(self.pos)}종목 보유 — 월말까지 그대로" if rot else f"{len(self.pos)}종목 보유 — 손절선만 감시") if self.pos
-                              else ("관망 — 장 마감 후 모멘텀 순위 점검" if rot else "관망 — 장 마감 후 신호 점검"))
+                "보유 없음 — 장 마감 후 모멘텀 순위를 보고 내일 시가에 첫 편입." if rot else f"보유 없음 — 장 마감 후 {what}을 다시 볼게.")
+            tail = (" 손절 없이 매달 말에만 갈아탐." if rot else
+                    " 손절 없이 장 마감 후 5일선 회복·보유 일수만 확인." if not self.P.get("stop_atr") else
+                    " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로.")
+            return self.think("보유" if self.pos else "관망", body + tail, "day" + ",".join(self.pos),
+                              (f"{len(self.pos)}종목 보유 — 월말까지 그대로" if rot else
+                               f"{len(self.pos)}종목 보유 — 반등 기다림" if not self.P.get("stop_atr") else f"{len(self.pos)}종목 보유 — 손절선만 감시")
+                              if self.pos else ("관망 — 장 마감 후 모멘텀 순위 점검" if rot else f"관망 — 장 마감 후 {what} 점검"))
         nxt = self.order_txt()
         self.think("보유" if self.pos else "마감", (f"장 끝 — 일봉 신호 점검 완료. 내일 {nxt}." if self.sig_day == today.isoformat() and nxt else
                    "장 끝 — 일봉 신호 점검 완료. 내일 시가 주문 없음." if self.sig_day == today.isoformat() else
                    "장 끝 — 오늘 일봉이 올라오면 신호를 점검할게.") + f" 보유: {self.held_txt(snaps)}.", "close" + str(self.sig_day) + nxt,
                    f"장 끝 — 내일 {nxt}" if self.sig_day == today.isoformat() and nxt else
-                   "장 끝 — 내일 주문 없음" if self.sig_day == today.isoformat() else "장 끝 — 일봉 대기")
+                   (f"장 끝 — 주문 없음 · 가장 가까운 {near[0]['sym']}: {near[0]['why']}" if (near := [w for w in self.watch if not w.get("ok")])
+                    and self.P.get("mode") != "rotation" else "장 끝 — 내일 주문 없음") if self.sig_day == today.isoformat() else "장 끝 — 일봉 대기")
 
     def review(self, snaps: dict, today: dt.date, *_):
         eq = self.equity(snaps)
@@ -1381,6 +1454,7 @@ class Engine:
                       key=lambda i: -max(abs(v) for v in i["imp"].values()))[:3]
 
     def run(self):
+        started = time.time()
         while True:
             try:
                 self.tick()
@@ -1388,10 +1462,54 @@ class Engine:
             except Exception as e:
                 self.error = f"{type(e).__name__}: {e}"
                 traceback.print_exc()
+                if isinstance(e, OSError) and e.errno == errno.EMFILE:
+                    restart(self, "열린 파일 수 한도 초과")
+            if open_files() > FD_RESTART:  # yfinance가 스레드마다 캐시 DB를 열어 두고 안 닫음 — 한도 전에 새로 시작
+                restart(self, f"열린 파일 {open_files()}개")
+            nyt = now_ny()
+            if time.time() - started > 20 * 3600 and 240 <= nyt.hour * 60 + nyt.minute < 300:
+                restart(self, "하루 한 번 새로 시작 (새벽 4시 ET)")
             build_live(self)
             m = now_ny().hour * 60 + now_ny().minute
             regular = is_trading_day(now_ny().date()) and 565 <= m < close_min(now_ny().date()) + 2
             time.sleep(30 if regular else 120 if 240 <= m < 1200 else 300)
+
+
+# ───────────────────────── 계속 돌기 (launchd) ─────────────────────────
+# launchd(~/Library/LaunchAgents/com.isaac-waffle.traders.plist, apps/traders_service.sh)가 로그인 때 띄우고,
+# 비정상 종료(코드 ≠ 0)면 다시 띄움. 허브의 '끄기'(SIGTERM)는 저장 후 0으로 끝나서 다시 안 뜸.
+FD_RESTART = 2000
+
+
+def open_files() -> int:
+    try:
+        return len(os.listdir("/dev/fd"))
+    except OSError:
+        return 10 ** 6
+
+
+def raise_fd_limit():
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    want = 10240 if hard == resource.RLIM_INFINITY else min(10240, hard)
+    if soft < want:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (want, hard))
+        except (ValueError, OSError):
+            pass
+
+
+def restart(E: "Engine", why: str):
+    """상태 저장 후 같은 프로세스 자리에서 새로 시작(exec) — 쌓인 파일·메모리가 비워짐. 실패하면 종료(launchd가 다시 띄움)."""
+    try:
+        E.save()
+        E.sys_log("system", f"트레이더 서버 재시작 — {why}")
+    except Exception:
+        pass
+    print(f"{now_ny():%m-%d %H:%M} ET 재시작: {why}", flush=True)
+    try:
+        os.execv(sys.executable, [sys.executable, os.path.abspath(__file__), *sys.argv[1:]])
+    finally:
+        os._exit(75)
 
 
 def build_live(E: Engine):
@@ -1599,7 +1717,16 @@ def _dumps(obj) -> bytes:
 
 
 def main():
+    raise_fd_limit()
     E = Engine()
+
+    def on_term(*_):  # 허브의 '끄기' — 저장하고 정상 종료(launchd가 다시 띄우지 않음)
+        try:
+            E.save()
+        finally:
+            os._exit(0)
+
+    signal.signal(signal.SIGTERM, on_term)
     build_live(E)
     try:  # 켜 두는 동안 맥이 잠들지 않게 (이 프로세스가 끝나면 같이 끝남)
         subprocess.Popen(["caffeinate", "-i", "-w", str(os.getpid())], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
