@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Isaac Kim — Data Scientist</title>
 <meta name="description" content="Isaac Kim is a data scientist and econometrician in Amsterdam building forecasting models, data pipelines and analytics tools. Includes a live stock forecast lab that grades itself in public.">
-<meta name="theme-color" content="#f7f5ef">
+<meta name="theme-color" content="#ffffff">
 <meta property="og:title" content="Isaac Kim — Data Scientist">
 <meta property="og:description" content="Forecasting, econometrics and data engineering. Live stock forecast lab, case studies and experience.">
 <meta property="og:type" content="website">
@@ -16,9 +16,9 @@
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Noto+Serif+KR:wght@600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="assets/css/style.css?v=23">
-<link rel="stylesheet" href="assets/css/home.css?v=1">
+<link rel="stylesheet" href="assets/css/home.css?v=5">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
 </head>
@@ -29,7 +29,7 @@
     <a class="brand" href="#top">Isaac Kim</a>
     <nav aria-label="Primary">
       <ul id="menu">
-        <li><a href="#tools" data-i18n="nav.tools">Live tools</a></li>
+        <li><a href="#tools" data-i18n="nav.tools">Tools</a></li>
         <li><a href="#work" data-i18n="nav.work">Work</a></li>
         <li><a href="#experience" data-i18n="nav.exp">Experience</a></li>
         <li><a href="#about" data-i18n="nav.about">About</a></li>
@@ -85,8 +85,8 @@
   <section class="sec" id="tools">
     <div class="wrap">
       <div class="sec-row">
-        <h2 data-i18n="tools.h">Live tools</h2>
-        <p data-i18n="tools.p">Three stock tools that run unattended in the cloud and update themselves.</p>
+        <h2 data-i18n="tools.h">Stock tools</h2>
+        <p data-i18n="tools.p">Four update themselves in the cloud. The P&amp;L Analyzer runs entirely in your browser.</p>
       </div>
       <div class="tool-grid">
         <a class="tool" href="lab.html">
@@ -106,6 +106,18 @@
           <h3 data-i18n="tools.leg.h">Wall Street Legends</h3>
           <p data-i18n="tools.leg.p">Buffett, Munger, Graham, Lynch and Druckenmiller as explicit rules: buy, hold or sell for 50 stocks, with the reasons.</p>
           <span class="tool-live" id="legLive" hidden></span>
+          <span class="go" data-i18n="tools.open">Open</span>
+        </a>
+        <a class="tool" href="demos/radar.html">
+          <span class="tool-top"><span class="dot"></span><span data-i18n="tools.radar.when">Every 2 hours</span></span>
+          <h3 data-i18n="tools.radar.h">Market Radar</h3>
+          <p data-i18n="tools.radar.p">A heatmap, Reddit's most-mentioned tickers, unusual options volume and insider trades for the watchlist.</p>
+          <span class="go" data-i18n="tools.open">Open</span>
+        </a>
+        <a class="tool" href="demos/pnl.html">
+          <span class="tool-top"><span class="dot off"></span><span data-i18n="tools.pnl.when">Runs in your browser</span></span>
+          <h3 data-i18n="tools.pnl.h">P&amp;L Analyzer</h3>
+          <p data-i18n="tools.pnl.p">Drop in a broker export and see realised profit and loss by day, week and month, on a calendar and per stock.</p>
           <span class="go" data-i18n="tools.open">Open</span>
         </a>
       </div>
@@ -175,16 +187,19 @@
     </div>
   </section>
 
-  <section class="contact-band" id="contact">
+  <section class="sec contact-sec" id="contact">
     <div class="wrap contact-grid">
-      <div>
+      <div class="contact-text">
+        <p class="label" data-i18n="contact.label">Contact</p>
         <h2 data-i18n="contact.h">Let's talk.</h2>
         <p data-i18n="contact.p">Open to data science and analytics roles in the Netherlands. Orientation-year permit, so the reduced skilled-migrant salary threshold applies.</p>
       </div>
-      <div class="actions">
-        <a class="btn primary" href="mailto:eunho203@gmail.com">eunho203@gmail.com</a>
-        <a class="btn" href="https://www.linkedin.com/in/eunho-kim" target="_blank" rel="noopener">LinkedIn ↗</a>
-      </div>
+      <ul class="contact-list">
+        <li><a href="mailto:eunho203@gmail.com"><span data-i18n="contact.email">Email</span><b>eunho203@gmail.com</b><i aria-hidden="true">→</i></a></li>
+        <li><a href="https://www.linkedin.com/in/eunho-kim" target="_blank" rel="noopener"><span>LinkedIn</span><b>linkedin.com/in/eunho-kim</b><i aria-hidden="true">↗</i></a></li>
+        <li><a href="https://github.com/isaac-waffle" target="_blank" rel="noopener"><span>GitHub</span><b>github.com/isaac-waffle</b><i aria-hidden="true">↗</i></a></li>
+        <li><div><span data-i18n="contact.loc">Based in</span><b data-i18n="contact.locV">Amsterdam, the Netherlands</b></div></li>
+      </ul>
     </div>
   </section>
 </main>
@@ -192,14 +207,14 @@
 <footer>
   <div class="wrap">
     <span>© <span id="yr">2026</span> Isaac Kim · Amsterdam</span>
-    <span><a href="lab.html">Forecast Lab</a> · <a href="demos/earnings.html">Earnings Desk</a> · <a href="demos/legends.html" data-i18n="tools.leg.h">Wall Street Legends</a> · <a href="https://github.com/isaac-waffle/portfolio" target="_blank" rel="noopener" data-i18n="foot.src">Source</a></span>
+    <span><a href="lab.html">Forecast Lab</a> · <a href="demos/earnings.html">Earnings Desk</a> · <a href="demos/legends.html" data-i18n="tools.leg.h">Wall Street Legends</a> · <a href="demos/radar.html" data-i18n="tools.radar.h">Market Radar</a> · <a href="demos/pnl.html" data-i18n="tools.pnl.h">P&amp;L Analyzer</a> · <a href="https://github.com/isaac-waffle/portfolio" target="_blank" rel="noopener" data-i18n="foot.src">Source</a></span>
   </div>
 </footer>
 
 <dialog class="case" id="caseDlg" aria-labelledby="caseTitle"></dialog>
 
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})});</script>
-<script src="assets/js/i18n.js?v=1"></script>
-<script src="assets/js/main.js?v=22"></script>
+<script src="assets/js/i18n.js?v=4"></script>
+<script src="assets/js/main.js?v=23"></script>
 </body>
 </html>

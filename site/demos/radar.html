@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Market Radar — Isaac Kim</title>
+<meta name="description" content="Four things retail traders watch, on one page for a 50-stock watchlist: a heatmap, Reddit's most-mentioned tickers, unusual options volume and insider trades.">
+<meta property="og:title" content="Market Radar — heatmap, Reddit buzz, unusual options, insider trades">
+<meta property="og:description" content="Four popular trader views built on free data, refreshed every two hours.">
+<meta property="og:type" content="website">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* This one file is also the local app's screen: apps/radar.py serves it with the notebook theme injected,
+   which overrides the colour variables below (same names as apps/notebook.css). */
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --soft:#f1f4f8; --pill:#eef1f5; --text:#0f172a; --sub:#475569; --mute:#94a3b8; --line:#e2e8f0;
+  --accent:#1d3a8a; --ink:#0f172a; --up:#15803d; --down:#c2362c; --sketch:12px; --sketch2:12px;
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12141c; --card:#1a1d28; --soft:#222634; --pill:#262b3a; --text:#eceef6; --sub:#b3b8cc; --mute:#7f859d; --line:#2c3142;
+  --accent:#93a7ff; --ink:#eceef6; --up:#4cc38a; --down:#ff7b72; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12141c; --card:#1a1d28; --soft:#222634; --pill:#262b3a; --text:#eceef6; --sub:#b3b8cc; --mute:#7f859d; --line:#2c3142;
+  --accent:#93a7ff; --ink:#eceef6; --up:#4cc38a; --down:#ff7b72; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background-color:var(--bg);color:var(--text);font-family:var(--font);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 48px}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--sub)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;min-height:60px}
+.back{font-size:14px;font-weight:500;color:var(--sub);text-decoration:none}
+.back:hover{color:var(--accent)}
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--pill);border:1px solid var(--line);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font-size:13px;font-weight:600;color:var(--sub)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.top-end{display:flex;gap:8px;align-items:center}
+.plain{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600}
+.plain:hover{border-color:var(--accent)}
+.plain:disabled{opacity:.5;cursor:default}
+
+.hero{padding:14px 0 22px}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.06em;text-transform:uppercase}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up);flex:none}
+.dot.off{background:var(--mute)}
+h1{font-weight:700;font-size:clamp(30px,5vw,44px);line-height:1.12;letter-spacing:-.03em;margin:10px 0 10px}
+.lede{font-size:16px;color:var(--sub);max-width:64ch;margin:0}
+.status{font-size:13px;color:var(--mute);margin-top:12px}
+
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;background:none;padding:10px 14px;font-size:14.5px;font-weight:600;color:var(--sub);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.headline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-bottom:14px}
+.headline p{margin:0;font-size:15.5px;font-weight:600}
+.headline p span{font-weight:400;color:var(--sub)}
+.note{font-size:12.5px;color:var(--mute);margin:14px 0 0;max-width:90ch}
+h2{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sub);margin:22px 0 10px}
+.empty{padding:40px 16px;text-align:center;color:var(--sub);background:var(--card);border:1px solid var(--line);border-radius:var(--sketch)}
+
+/* heatmap */
+.heat{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));grid-auto-rows:62px;grid-auto-flow:dense;gap:4px}
+.cell{border-radius:6px;padding:7px 9px;min-width:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;
+  background:color-mix(in srgb,var(--c) var(--a),var(--card));border:1px solid color-mix(in srgb,var(--c) 30%,var(--line))}
+.cell b{font-size:13.5px;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell span{font-size:12.5px;font-weight:600}
+.cell small{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.s2{grid-column:span 2}.cell.s3{grid-column:span 2;grid-row:span 2}.cell.s4{grid-column:span 3;grid-row:span 2}
+.cell.s3 b,.cell.s4 b{font-size:20px}.cell.s3 span,.cell.s4 span{font-size:16px}
+.scale{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+.scale i{width:22px;height:10px;border-radius:2px;background:color-mix(in srgb,var(--c) var(--a),var(--card))}
+
+/* tables */
+.sheet{background:var(--card);border:1px solid var(--line);border-radius:var(--sketch);overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 12px;text-align:right;white-space:nowrap;border-top:1px solid var(--line)}
+thead th{border-top:0;font-size:11.5px;font-weight:600;color:var(--sub);background:var(--soft);letter-spacing:.02em}
+th:first-child,td:first-child,.l{text-align:left}
+td b{font-weight:700}
+td.nm{max-width:220px;overflow:hidden;text-overflow:ellipsis;color:var(--sub)}
+.star{color:var(--accent);margin-left:4px}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px}
+.tag.c,.tag.buy{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up)}
+.tag.p,.tag.sell{background:color-mix(in srgb,var(--down) 14%,transparent);color:var(--down)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:6px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:var(--sketch);padding:14px 16px}
+.tile .l{font-size:12.5px;font-weight:600;color:var(--sub);text-align:left}
+.tile .v{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.15;color:var(--c)}
+.tile .s{font-size:12.5px;color:var(--sub)}
+.split{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--pill);min-width:180px;flex:1;max-width:360px}
+.split i:first-child{background:var(--up)}.split i:last-child{background:var(--down)}
+.foot{font-size:12.5px;color:var(--mute);margin:26px 0 0;line-height:1.6}
+.foot a{color:var(--sub);font-weight:500}
+@media (max-width:640px){
+  .heat{grid-template-columns:repeat(auto-fill,minmax(74px,1fr));grid-auto-rows:56px}
+  .cell.s4{grid-column:span 2}
+  th,td{padding:8px 9px}
+  .hide-s{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../" id="back">‹ Isaac Kim</a>
+    <div class="top-end">
+      <button class="plain" type="button" id="refresh" hidden></button>
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" id="lang-en" aria-pressed="true">English</button>
+        <button type="button" id="lang-ko" aria-pressed="false">한국어</button>
+      </div>
+    </div>
+  </div>
+  <header class="hero">
+    <span class="kicker"><span class="dot off" id="dot"></span><span data-t="kicker"></span></span>
+    <h1 data-t="title"></h1>
+    <p class="lede" data-t="lede"></p>
+    <div class="status num" id="status"></div>
+  </header>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div id="view"></div>
+  <p class="foot"><span data-t="foot"></span>
+    <span id="links"><a href="../lab.html">Forecast Lab</a> · <a href="earnings.html">Earnings Desk</a> · <a href="legends.html" data-t="legends"></a> ·
+    <a href="https://github.com/isaac-waffle/portfolio/blob/main/apps/radar.py" target="_blank" rel="noopener" data-t="code"></a></span></p>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var LOCAL = window.RADAR_LOCAL || null, qs = new URLSearchParams(location.search);
+  var LIVE = LOCAL ? LOCAL.data : qs.get("data") || "https://raw.githubusercontent.com/isaac-waffle/portfolio/radar-data/radar.json";
+  var SAMPLE = "../data/radar-sample.json";
+
+  var T = {
+    en: { kicker: "Live · refreshed every 2 hours", title: "Market Radar", doc: "Market Radar — Isaac Kim",
+      lede: "Four views that retail traders check every day, rebuilt on free data for my 50-stock watchlist: where the money moved, what Reddit is talking about, where options volume is unusual, and what insiders are doing.",
+      tabs: { heat: "Heatmap", reddit: "Reddit buzz", options: "Unusual options", insiders: "Insider trades" },
+      asof: "Data as of {t} (your local time)", sample: "Live feed unreachable. Showing a bundled snapshot from {t}.", loading: "Loading…", none: "No data yet.", refresh: "Refresh", refreshing: "Refreshing…",
+      per: { d: "1 day", w: "1 week", m: "1 month", q: "3 months", y: "This year" },
+      heatHead: "{up} up · {down} down <span>· median {med} · best {best} · worst {worst}</span>", market: "Indexes and sectors", stocks: "Watchlist, sized by market value",
+      redHead: "Fastest riser: {s} <span>· mentions {x} in 24 hours</span>", redNone: "Most mentioned: {s}", rank: "Rank", move: "Move", ticker: "Ticker", name: "Name", mentions: "Mentions", vs24: "vs 24h ago", upv: "Upvotes", today: "Price today", mine: "On my watchlist",
+      redNote: "Mentions across stock subreddits such as r/wallstreetbets over the last 24 hours, from ApeWisdom. Popularity is not a signal by itself.",
+      optHead: "Calls {c} · Puts {p} <span>· premium in {n} unusual contracts</span>", contract: "Contract", exp: "Expiry", vol: "Volume", oi: "Open int.", ratio: "Vol / OI", prem: "Premium", iv: "IV", otm: "From price", call: "Call", put: "Put",
+      optNote: "A contract is listed when today's volume is at least twice its open interest, at least 500 contracts and $250k in premium, on the three nearest expiries. This is an approximation from end-of-day option chains: it cannot tell whether the volume was bought or sold, or opening or closing.",
+      insBuys: "Open-market buys", insSells: "Sales", insS: "{n} trades in 90 days", date: "Date", who: "Insider", role: "Role", shares: "Shares", value: "Value", noBuys: "No insider bought on the open market in the last 90 days.",
+      insNote: "Purchases and sales by officers and directors over the last 90 days, from filings as reported by Yahoo Finance. Stock awards, gifts and option exercises are left out. Sales are often scheduled in advance; open-market buys are rarer and more telling.",
+      foot: "Free, delayed data that can be wrong. Not investment advice. ", legends: "Wall Street Legends", code: "View the code" },
+    ko: { kicker: "실시간 · 2시간마다 갱신", title: "마켓 레이더", doc: "마켓 레이더 — Isaac Kim",
+      lede: "개인 트레이더들이 매일 확인하는 네 가지 화면을 무료 데이터로 다시 만들어 관심종목 50개에 맞췄습니다. 돈이 어디로 움직였는지, 레딧에서 무엇이 화제인지, 옵션 거래량이 어디서 튀는지, 내부자가 무엇을 하는지 봅니다.",
+      tabs: { heat: "히트맵", reddit: "레딧 인기 종목", options: "이상 옵션 거래", insiders: "내부자 매매" },
+      asof: "{t} 기준 (내 시간대)", sample: "실시간 데이터를 받지 못해 {t}에 저장한 표본을 보여 줍니다.", loading: "불러오는 중…", none: "아직 데이터가 없습니다.", refresh: "새로고침", refreshing: "받는 중…",
+      per: { d: "1일", w: "1주", m: "1달", q: "3달", y: "올해" },
+      heatHead: "상승 {up} · 하락 {down} <span>· 중앙값 {med} · 최고 {best} · 최저 {worst}</span>", market: "지수와 섹터", stocks: "관심종목 (칸 크기는 시가총액)",
+      redHead: "가장 빨리 뜨는 종목: {s} <span>· 24시간 사이 언급 {x}</span>", redNone: "가장 많이 언급: {s}", rank: "순위", move: "변동", ticker: "티커", name: "이름", mentions: "언급 수", vs24: "24시간 전 대비", upv: "추천", today: "오늘 주가", mine: "내 관심종목",
+      redNote: "월스트리트베츠 등 주식 관련 레딧에서 지난 24시간 동안 언급된 횟수입니다(ApeWisdom). 인기가 많다는 것만으로는 신호가 아닙니다.",
+      optHead: "콜 {c} · 풋 {p} <span>· 이상 거래 {n}건의 거래 대금</span>", contract: "계약", exp: "만기", vol: "거래량", oi: "미결제약정", ratio: "거래량/미결제", prem: "거래 대금", iv: "내재변동성", otm: "현재가 대비", call: "콜", put: "풋",
+      optNote: "가까운 만기 3개에서 오늘 거래량이 미결제약정의 2배 이상이고, 500계약 이상, 거래 대금 25만 달러 이상인 계약을 골랐습니다. 장 마감 옵션 체인으로 만든 근사치라서 그 거래가 매수인지 매도인지, 신규인지 청산인지는 알 수 없습니다.",
+      insBuys: "장내 매수", insSells: "매도", insS: "90일간 {n}건", date: "날짜", who: "내부자", role: "직책", shares: "주식 수", value: "금액", noBuys: "최근 90일 동안 장내에서 매수한 내부자가 없습니다.",
+      insNote: "최근 90일 동안 임원과 이사가 사고판 내역입니다(Yahoo Finance가 전하는 공시 기준). 주식 보상, 증여, 옵션 행사는 뺐습니다. 매도는 미리 예약된 경우가 많고, 장내 매수는 드물어서 더 의미가 있습니다.",
+      foot: "무료 지연 데이터라 틀릴 수 있습니다. 투자 조언이 아닙니다. ", legends: "월가 전설 5인", code: "코드 보기" }
+  };
+  var lang = "en";
+  try { var q = qs.get("lang") || localStorage.getItem("site-lang") || (LOCAL && LOCAL.lang) || localStorage.getItem("earn-lang"); lang = q === "ko" ? "ko" : "en"; } catch (e) { if (LOCAL) lang = LOCAL.lang; }
+  var t = function (k) { return T[lang][k]; };
+  var fill = function (s, o) { return s.replace(/\{(\w+)\}/g, function (_, k) { return o[k]; }); };
+  var D = null, sample = false, tab = "heat", per = "d";
+  try { var h = location.hash.slice(1); if (T.en.tabs[h]) tab = h; } catch (e) {}
+
+  var pc = function (x, d) { return x == null ? "–" : (x >= 0 ? "+" : "") + (x * 100).toFixed(d == null ? 1 : d) + "%"; };
+  var cls = function (x) { return x == null ? "muted" : x >= 0 ? "up" : "down"; };
+  var money = function (x) { var a = Math.abs(x); return "$" + (a >= 1e9 ? (a / 1e9).toFixed(1) + "B" : a >= 1e6 ? (a / 1e6).toFixed(a >= 1e8 ? 0 : 1) + "M" : a >= 1e3 ? (a / 1e3).toFixed(0) + "K" : a.toFixed(0)); };
+  var int = function (x) { return (x || 0).toLocaleString("en-US"); };
+  var day = function (s) { var p = String(s).split("-"); return lang === "ko" ? +p[1] + "/" + +p[2] : new Date(+p[0], p[1] - 1, +p[2]).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+  var CLIP = { d: .04, w: .09, m: .16, q: .30, y: .60 };
+
+  function cell(r, size) {
+    var x = r.r[per], a = x == null ? 0 : Math.min(1, Math.abs(x) / CLIP[per]) * 62 + 8;
+    return '<div class="cell ' + size + '" style="--c:var(--' + (x >= 0 ? "up" : "down") + ");--a:" + a.toFixed(0) + '%" title="' + esc(r.name) + '"><b>' + esc(r.sym) + '</b><span class="num">' + pc(x) + "</span>" +
+      (size === "s1" || !r.name ? "" : "<small>" + esc(lang === "ko" && r.ko ? r.ko : r.name) + "</small>") + "</div>";
+  }
+  function heat() {
+    var H = D.heat; if (!H || !H.stocks.length) return '<div class="empty">' + t("none") + "</div>";
+    var xs = H.stocks.map(function (r) { return r.r[per]; }).filter(function (x) { return x != null; }).sort(function (a, b) { return a - b; });
+    var by = H.stocks.filter(function (r) { return r.r[per] != null; }).sort(function (a, b) { return b.r[per] - a.r[per]; });
+    var head = fill(t("heatHead"), { up: xs.filter(function (x) { return x >= 0; }).length, down: xs.filter(function (x) { return x < 0; }).length,
+      med: pc(xs[Math.floor(xs.length / 2)]), best: by.length ? esc(by[0].sym) + " " + pc(by[0].r[per]) : "–", worst: by.length ? esc(by[by.length - 1].sym) + " " + pc(by[by.length - 1].r[per]) : "–" });
+    var seg = '<div class="seg" role="group">' + Object.keys(CLIP).map(function (k) { return '<button type="button" data-per="' + k + '" aria-pressed="' + (k === per) + '">' + t("per")[k] + "</button>"; }).join("") + "</div>";
+    var scale = '<div class="scale num"><span>−' + (CLIP[per] * 100).toFixed(0) + "%</span>" + [["down", 70], ["down", 35], ["down", 10], ["up", 10], ["up", 35], ["up", 70]].map(function (s) { return '<i style="--c:var(--' + s[0] + ");--a:" + s[1] + '%"></i>'; }).join("") + "<span>+" + (CLIP[per] * 100).toFixed(0) + "%</span></div>";
+    var size = function (c) { return c >= 1e12 ? "s4" : c >= 2.5e11 ? "s3" : c >= 6e10 ? "s2" : "s1"; };
+    return '<div class="headline"><p>' + head + "</p>" + seg + "</div>" +
+      "<h2>" + t("market") + '</h2><div class="heat">' + H.market.map(function (r) { return cell(r, "s2"); }).join("") + "</div>" +
+      '<div class="headline" style="margin:22px 0 10px"><h2 style="margin:0">' + t("stocks") + "</h2>" + scale + '</div><div class="heat">' + H.stocks.map(function (r) { return cell(r, size(r.cap || 0)); }).join("") + "</div>";
+  }
+  function reddit() {
+    var R = D.reddit; if (!R || !R.length) return '<div class="empty">' + t("none") + "</div>";
+    var hot = R.filter(function (r) { return r.surge != null && r.mentions >= 20; }).sort(function (a, b) { return b.surge - a.surge; })[0];
+    var head = hot && hot.surge > 0 ? fill(t("redHead"), { s: esc(hot.sym), x: pc(hot.surge, 0) }) : fill(t("redNone"), { s: esc(R[0].sym) });
+    return '<div class="headline"><p>' + head + '</p><span class="muted" style="font-size:13px"><span class="star">★</span> ' + t("mine") + '</span></div><div class="sheet"><table><thead><tr><th>' + t("rank") + '</th><th class="l">' + t("ticker") + '</th><th class="l hide-s">' + t("name") + "</th><th>" + t("mentions") + "</th><th>" + t("vs24") + '</th><th class="hide-s">' + t("upv") + "</th><th>" + t("today") + "</th></tr></thead><tbody>" +
+      R.map(function (r) {
+        var mv = r.rank0 ? r.rank0 - r.rank : 0;
+        return '<tr><td class="num">' + r.rank + ' <span class="' + (mv > 0 ? "up" : mv < 0 ? "down" : "muted") + '" style="font-size:12px">' + (mv > 0 ? "▲" + mv : mv < 0 ? "▼" + -mv : "") + '</span></td><td class="l"><b>' + esc(r.sym) + "</b>" + (r.mine ? '<span class="star" title="' + t("mine") + '">★</span>' : "") + '</td><td class="l nm hide-s">' + esc(r.name) + '</td><td class="num">' + int(r.mentions) + '</td><td class="num ' + cls(r.surge) + '">' + pc(r.surge, 0) + '</td><td class="num hide-s">' + int(r.upvotes) + '</td><td class="num ' + cls(r.chg) + '">' + pc(r.chg) + "</td></tr>";
+      }).join("") + '</tbody></table></div><p class="note">' + t("redNote") + "</p>";
+  }
+  function options() {
+    var O = D.options; if (!O || !O.rows.length) return '<div class="empty">' + t("none") + "</div>";
+    var tot = O.calls + O.puts || 1;
+    return '<div class="headline"><p>' + fill(t("optHead"), { c: money(O.calls), p: money(O.puts), n: O.n }) + '</p><div class="split"><i style="width:' + (O.calls / tot * 100).toFixed(1) + '%"></i><i style="width:' + (O.puts / tot * 100).toFixed(1) + '%"></i></div></div>' +
+      '<div class="sheet"><table><thead><tr><th class="l">' + t("contract") + "</th><th>" + t("exp") + "</th><th>" + t("prem") + "</th><th>" + t("vol") + '</th><th class="hide-s">' + t("oi") + "</th><th>" + t("ratio") + '</th><th class="hide-s">' + t("iv") + '</th><th class="hide-s">' + t("otm") + "</th></tr></thead><tbody>" +
+      O.rows.map(function (r) {
+        return '<tr><td class="l"><b>' + esc(r.sym) + '</b> <span class="num">' + r.strike + '</span> <span class="tag ' + (r.kind === "C" ? "c" : "p") + '">' + t(r.kind === "C" ? "call" : "put") + '</span></td><td class="num">' + day(r.exp) + '</td><td class="num"><b>' + money(r.prem) + '</b></td><td class="num">' + int(r.vol) + '</td><td class="num hide-s">' + int(r.oi) + '</td><td class="num">' + (r.ratio >= 100 ? "100×+" : r.ratio.toFixed(1) + "×") + '</td><td class="num hide-s">' + (r.iv != null ? (r.iv * 100).toFixed(0) + "%" : "–") + '</td><td class="num hide-s">' + (r.otm != null ? pc(r.otm * (r.kind === "C" ? 1 : -1), 0) : "–") + "</td></tr>";
+      }).join("") + '</tbody></table></div><p class="note">' + t("optNote") + "</p>";
+  }
+  function insiders() {
+    var I = D.insiders; if (!I || !I.rows.length) return '<div class="empty">' + t("none") + "</div>";
+    var tbl = function (rows) {
+      return '<div class="sheet"><table><thead><tr><th class="l">' + t("ticker") + "</th><th>" + t("date") + '</th><th class="l">' + t("who") + '</th><th class="l hide-s">' + t("role") + '</th><th class="hide-s">' + t("shares") + "</th><th>" + t("value") + "</th></tr></thead><tbody>" +
+        rows.map(function (r) { return '<tr><td class="l"><b>' + esc(r.sym) + '</b></td><td class="num">' + day(r.date) + '</td><td class="l nm">' + esc(r.who) + '</td><td class="l nm hide-s">' + esc(r.role) + '</td><td class="num hide-s">' + int(r.shares) + '</td><td class="num ' + (r.side === "buy" ? "up" : "") + '"><b>' + money(r.value) + "</b></td></tr>"; }).join("") + "</tbody></table></div>";
+    };
+    var buys = I.rows.filter(function (r) { return r.side === "buy"; }), sells = I.rows.filter(function (r) { return r.side === "sell"; });
+    return '<div class="tiles"><div class="tile" style="--c:var(--up)"><div class="l">' + t("insBuys") + '</div><div class="v num">' + money(I.buy_value) + '</div><div class="s">' + fill(t("insS"), { n: I.buys }) + '</div></div><div class="tile" style="--c:var(--down)"><div class="l">' + t("insSells") + '</div><div class="v num">' + money(I.sell_value) + '</div><div class="s">' + fill(t("insS"), { n: I.sells }) + "</div></div></div>" +
+      "<h2>" + t("insBuys") + "</h2>" + (buys.length ? tbl(buys) : '<div class="empty">' + t("noBuys") + "</div>") + "<h2>" + t("insSells") + "</h2>" + tbl(sells) + '<p class="note">' + t("insNote") + "</p>";
+  }
+  var VIEWS = { heat: heat, reddit: reddit, options: options, insiders: insiders };
+
+  function render() {
+    document.documentElement.lang = lang; document.title = t("doc");
+    $("lang-en").setAttribute("aria-pressed", lang === "en"); $("lang-ko").setAttribute("aria-pressed", lang === "ko");
+    document.querySelectorAll("[data-t]").forEach(function (el) { el.textContent = t(el.getAttribute("data-t")); });
+    if (LOCAL) document.querySelector('[data-t="kicker"]').textContent = lang === "ko" ? "실시간 · 가격과 레딧은 15분마다 갱신" : "Live · prices and Reddit refresh every 15 minutes";
+    $("tabs").innerHTML = Object.keys(VIEWS).map(function (k) { return '<button type="button" role="tab" data-tab="' + k + '" aria-selected="' + (k === tab) + '">' + t("tabs")[k] + "</button>"; }).join("");
+    if (LOCAL) { $("back").hidden = true; $("links").hidden = true; $("refresh").hidden = false; $("refresh").textContent = D && D.loading ? t("refreshing") : t("refresh"); $("refresh").disabled = !!(D && D.loading); }
+    if (!D || !D.updated) { $("view").innerHTML = '<div class="empty">' + t(D ? "none" : "loading") + "</div>"; $("status").textContent = ""; return; }
+    var when = new Date(D.updated * 1000).toLocaleString(lang === "ko" ? "ko-KR" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    $("dot").className = "dot" + (sample ? " off" : "");
+    $("status").textContent = fill(t(sample ? "sample" : "asof"), { t: when });
+    $("view").innerHTML = VIEWS[tab]();
+  }
+  function setLang(l) { lang = l; try { localStorage.setItem("site-lang", l); localStorage.setItem("earn-lang", l); } catch (e) {} render(); }
+  $("lang-en").onclick = function () { setLang("en"); };
+  $("lang-ko").onclick = function () { setLang("ko"); };
+  $("tabs").onclick = function (e) { var b = e.target.closest("[data-tab]"); if (!b) return; tab = b.getAttribute("data-tab"); try { history.replaceState(null, "", "#" + tab); } catch (x) {} render(); };
+  $("view").onclick = function (e) { var b = e.target.closest("[data-per]"); if (b) { per = b.getAttribute("data-per"); render(); } };
+  $("refresh").onclick = function () { fetch("/api/refresh", { method: "POST" }).then(function () { if (D) D.loading = true; render(); setTimeout(load, 3000); }); };
+
+  function load() {
+    fetch(LIVE, { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
+      if (!LOCAL && !(d && d.heat)) throw 0; D = d; sample = false; render();
+      if (LOCAL) setTimeout(load, d.loading || !d.updated ? 3000 : 60000);
+    }).catch(function () {
+      if (LOCAL) { setTimeout(load, 5000); return; }
+      fetch(SAMPLE).then(function (r) { return r.json(); }).then(function (d) { D = d; sample = true; render(); }).catch(function () { D = {}; render(); });
+    });
+  }
+  render(); load();
+})();
+</script>
+</body>
+</html>

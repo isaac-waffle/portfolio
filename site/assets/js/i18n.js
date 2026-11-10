@@ -3,7 +3,7 @@
 (function () {
   "use strict";
   var KO = {
-    "nav.tools": "실시간 도구", "nav.work": "프로젝트", "nav.exp": "경력", "nav.about": "소개", "nav.contact": "연락하기",
+    "nav.tools": "도구", "nav.work": "프로젝트", "nav.exp": "경력", "nav.about": "소개", "nav.contact": "연락하기",
     "hero.eyebrow": "데이터 사이언티스트 · 암스테르담",
     "hero.pitch": "예측 모델, 데이터 파이프라인, 분석 도구를 만들고 <em>현실 데이터로 검증합니다</em>.",
     "hero.now": "현재", "hero.nowV": "Verisure 데이터·리포팅 애널리스트",
@@ -11,7 +11,9 @@
     "hero.edu": "학력", "hero.eduV": "암스테르담 대학교 계량경제·데이터 사이언스 학사 (우등 졸업)",
     "hero.cta": "프로젝트 보기", "hero.mail": "이메일 보내기",
     "kpi.gpa": "학점, 우등 졸업", "kpi.proj": "만든 프로젝트", "kpi.kpis": "자동화한 KPI", "kpi.data": "제품당 데이터 포인트", "kpi.live": "실시간 예측 종목",
-    "tools.h": "실시간 도구", "tools.p": "클라우드에서 혼자 돌면서 스스로 갱신되는 주식 도구 세 가지입니다.",
+    "tools.h": "주식 도구", "tools.p": "네 가지는 클라우드에서 스스로 갱신되고, 손익 분석기는 브라우저 안에서만 돌아갑니다.",
+    "tools.radar.when": "2시간마다", "tools.radar.h": "마켓 레이더", "tools.radar.p": "관심종목의 히트맵, 레딧에서 가장 많이 언급되는 종목, 이상 옵션 거래량, 내부자 매매를 한 화면에서 봅니다.",
+    "tools.pnl.when": "브라우저에서 실행", "tools.pnl.h": "손익 분석기", "tools.pnl.p": "증권사 거래 내역 파일을 넣으면 실현 손익을 일·주·월 단위로, 달력과 종목별로 보여 줍니다.",
     "tools.open": "열기",
     "tools.lab.when": "미국 장중 15분마다", "tools.lab.p": "16개 종목의 다음 5분, 다음 1시간, 다음 거래일을 예측하고, 봉이 마감되면 모든 예측을 공개적으로 채점합니다.",
     "tools.earn.when": "3시간마다", "tools.earn.p": "다가오는 미국 실적 발표 전체와 기업별 사전 브리핑을 봅니다. 과거 반응, 예상 변동폭, 주변 맥락을 담았습니다.",
@@ -29,6 +31,7 @@
     "about.edu2": "산업공학 학사", "about.edu2s": "아주대학교, 2019",
     "about.thesis": "졸업 논문", "about.thesisT": "설명 가능한 AI와 계량경제학의 부분 효과 비교 ↗",
     "about.cert": "자격증", "about.skills": "기술", "about.langs": "언어", "about.langsV": "영어 (C1) · 한국어 (모국어) · 네덜란드어 (A2)",
+    "contact.label": "연락처", "contact.email": "이메일", "contact.loc": "거주지", "contact.locV": "네덜란드 암스테르담",
     "contact.h": "이야기 나눠요.", "contact.p": "네덜란드의 데이터 사이언스·분석 직무를 찾고 있습니다. 구직 비자(orientation year)를 보유해 낮은 고급 인력 연봉 기준이 적용됩니다.",
     "foot.src": "소스 코드"
   };

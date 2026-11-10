@@ -59,7 +59,7 @@
 
   /* ---------- seeded helpers for project art ---------- */
   function rng(s) { return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
-  var C = { ink: "#171a2b", ink2: "#474b63", ink3: "#74788f", ink4: "#cfc8b6", line: "#ece7da", line2: "#dcd6c6", acc: "#2b44b0", up: "#2a9d6a", dn: "#d9534a", blue: "#2b44b0", bg: "#f1eee5", panel: "#fffdf8" };
+  var C = { ink: "#0f172a", ink2: "#334155", ink3: "#64748b", ink4: "#cbd5e1", line: "#eef2f6", line2: "#e2e8f0", acc: "#1d3a8a", up: "#1f9d63", dn: "#dc4a3f", blue: "#1d3a8a", bg: "#f6f7f9", panel: "#ffffff" };
   function grid() { return ""; }
   function walk(r, n, y0, vol) { var y = y0, out = []; for (var i = 0; i < n; i++) { y += (r() - 0.5) * vol; out.push(y); } return out; }
   function poly(xs, ys) { return xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(""); }
