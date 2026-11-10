@@ -1300,7 +1300,27 @@ class Engine:
         self.mk = dict(score=0, bias="-", vix=np.nan, breadth=0, notes=[])
         self.system: deque = deque(maxlen=60)
         self.last_fetch, self.fetch_sec, self.error = None, 0.0, ""
+        self.desk_day, self.desk_try = None, 0.0
         self.load_feed()
+
+    def desk(self):
+        """장 마감 20분 뒤 하루 한 번 퀀트 데스크(paper_desk.py — Alpaca 모의계좌 주문)를 별도 프로세스로 실행.
+        실패해도 트레이더에는 영향 없음. 일봉이 아직 없으면(종료 코드 2) 15분 뒤 다시."""
+        now = now_ny()
+        today, m = now.date(), now.hour * 60 + now.minute
+        if (not is_trading_day(today) or m < close_min(today) + 20 or self.desk_day == today.isoformat()
+                or time.time() - self.desk_try < 900 or not (APPS / "paper_desk.py").exists()):
+            return
+        self.desk_try = time.time()
+        try:
+            r = subprocess.run([sys.executable, str(APPS / "paper_desk.py"), "--send"], capture_output=True, text=True, timeout=900, cwd=str(APPS))
+        except Exception as e:
+            return self.sys_log("desk", f"퀀트 데스크 실행 실패: {type(e).__name__}: {e}")
+        if r.returncode == 2:
+            return
+        self.desk_day = today.isoformat()
+        tail = (r.stdout.strip().splitlines() or [r.stderr.strip()[-200:] or "출력 없음"])[-1]
+        self.sys_log("desk", ("퀀트 데스크: " if r.returncode == 0 else f"퀀트 데스크 오류({r.returncode}): ") + tail)
 
     def load_feed(self):
         p = DATA / "events" / f"{now_ny().date().isoformat()}.jsonl"
@@ -1469,6 +1489,10 @@ class Engine:
             nyt = now_ny()
             if time.time() - started > 20 * 3600 and 240 <= nyt.hour * 60 + nyt.minute < 300:
                 restart(self, "하루 한 번 새로 시작 (새벽 4시 ET)")
+            try:
+                self.desk()
+            except Exception:
+                traceback.print_exc()
             build_live(self)
             m = now_ny().hour * 60 + now_ny().minute
             regular = is_trading_day(now_ny().date()) and 565 <= m < close_min(now_ny().date()) + 2
