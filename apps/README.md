@@ -3,6 +3,7 @@
 | 앱 | 파일 | 포트 |
 |---|---|---|
 | This is not AI 허브 (모든 앱·사이트·자동 업데이트·저장소 한눈에) | `hub.py` | 8500 |
+| 주식 데스크 (주식 앱 다섯 개를 한 창에서 탭으로: 트레이딩 · 어닝 · 가상 트레이더 · 전설 5인 · 예측. 꺼진 앱은 탭을 누르면 켜짐) | `hub.py`의 `/stocks` 화면 | 8500/stocks |
 | 트레이딩 데스크 (단타 보조) | `trading_app.py` | 8501 |
 | 어닝 대시보드 | `earnings_app.py` | 8502 |
 | 어닝 예측 기록·채점 (발표 전 예측 자동 저장 → 발표 후 적중률, 대시보드 '예측 적중률' 화면) | `earnings_track.py` (허브·대시보드가 백그라운드로 실행) | - |
@@ -10,6 +11,7 @@
 | 가상 트레이더 백테스트·튜닝 (과거 5분봉으로 같은 판단 코드 재생) | `traders_lab.py` (명령줄) | - |
 | 가상 트레이더 뉴스 해석 (Alpaca 실시간 뉴스 → 규칙·테마 지도로 종목별 호재/악재) | `traders_news.py` (테마 지도는 직접 수정 가능) | - |
 | 스윙·추세형 백테스트 (일봉, 돌파·눌림목·추세 눌림·모멘텀을 관심종목·나스닥100으로 검증, `long` 10년 돌쇠 · `trio` 네 명 규칙 비교) | `swing_lab.py` (명령줄) | - |
+| 월가 전설 5인 (버핏·멍거·그레이엄·린치·드러켄밀러의 기준을 규칙으로 옮겨 관심종목 50개 + 직접 넣은 티커마다 사자/중립/팔자와 이유, Yahoo 재무·일봉, 6시간마다 갱신, Claude API 없음) | `legends.py` + `legends.html` | 8504 |
 | SI Forecast Desk (16개 종목 실시간 예측, `~/Desktop/stock-forecast-intraday`의 `start_live.sh`로 실행) | 별도 폴더 | 8765 |
 | 포트폴리오 사이트 미리보기 | `site/` | 8766 |
 
@@ -32,3 +34,5 @@ Mac 앱 다시 만들기 (경로를 옮겼거나 아이콘을 바꿨을 때): `.
 - 실시간 데이터: `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` 환경변수가 있으면 Alpaca(무료 IEX 실시간), 없으면 Yahoo.
 - 텔레그램 알림: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 - Mac 앱으로 실행할 때 환경변수는 `~/.trading_desk.env`에 `export 이름=값`으로 적어 두면 전달됩니다.
+- 월가 전설 5인의 판정 기준은 `legends.py`의 `buffett()` … `druckenmiller()` 숫자를 고치면 바뀝니다. 직접 넣은 티커는 `apps/journal/legends_extra.json`, 받아 둔 데이터는 `apps/journal/legends_cache.json`.
+- 주식 데스크에 탭을 추가하려면 `hub.py`의 `LOCAL`에서 그 앱에 `tab="탭 이름"`만 붙이면 됩니다. 각 앱은 그대로 따로 돌고, 주식 데스크는 그 화면을 한 창에 끼워 보여 줄 뿐입니다.

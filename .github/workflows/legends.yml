@@ -1,0 +1,44 @@
+name: Update Wall Street Legends
+
+# Every 3 hours: score the watchlist with the five investors' rules and publish one JSON file.
+on:
+  schedule:
+    - cron: '47 */3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['apps/legends.py', 'apps/earnings_app.py', '.github/workflows/legends.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: legends
+  cancel-in-progress: false
+
+jobs:
+  legends:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install yfinance==1.7.0
+
+      # Exits non-zero (and publishes nothing) when Yahoo returns too few tickers, so the last good file stays.
+      - run: python apps/legends.py --out out
+
+      - name: Publish to the legends-data branch (single commit, force-pushed)
+        working-directory: out
+        run: |
+          rm -rf .git
+          git init -q -b legends-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add legends.json
+          git commit -q -m "legends $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" legends-data

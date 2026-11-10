@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>월가 전설 5인</title>
+<style>
+/* 색·종이·손글씨는 서버가 끼워 넣는 apps/notebook.css 가 덮어씀. 여기 값은 그 파일이 없을 때의 기본값. */
+:root{
+  --bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--sub:#6e6e73;--mute:#8e8e93;--line:rgba(0,0,0,.08);--soft:rgba(0,0,0,.04);
+  --accent:#0071e3;--ink:#1d1d1f;--pill:#e8e8ed;--shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+  --hand:inherit;--sketch:14px;--sketch2:14px;
+  --up:#1f8a4c;--down:#d03b3b;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--up:#30d158;--down:#ff6961}}
+:root[data-theme="dark"]{--up:#30d158;--down:#ff6961}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Helvetica Neue",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 28px 48px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:38px;line-height:1.05}
+.date{color:var(--sub);margin-top:14px;font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--sub)}
+button,input{font:inherit;color:inherit}
+.btn{appearance:none;border:1.5px solid var(--line);background:var(--card);border-radius:var(--sketch);padding:8px 14px;cursor:pointer;font-weight:600;box-shadow:var(--shadow)}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.ask{display:flex;gap:8px;align-items:center}
+.ask input{width:150px;border:1.5px solid var(--line);background:var(--card);border-radius:var(--sketch2);padding:8px 12px;text-transform:uppercase;outline:none}
+.ask input::placeholder{text-transform:none;color:var(--mute)}
+.ask input:focus{border-color:var(--accent)}
+.msg{font-size:13px;color:var(--down);min-height:18px;margin:-12px 0 8px;text-align:right}
+
+/* 한눈에: 세 덩어리 */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.tile{appearance:none;text-align:left;border:1.5px solid var(--line);background:var(--card);border-radius:var(--sketch);padding:14px 16px;cursor:pointer;box-shadow:var(--shadow);min-width:0}
+.tile.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 9%,var(--card))}
+.tile .l{font-size:13px;color:var(--sub);font-weight:600}
+.tile .v{font-size:34px;font-weight:700;line-height:1.1;color:var(--c);margin-top:2px}
+.tile .v small{font-size:14px;font-weight:500;color:var(--sub);margin-left:4px}
+.tile .s{font-size:12px;color:var(--sub);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.buy{--c:var(--up)}.sell{--c:var(--down)}.mix{--c:var(--sub)}
+.note{font-size:12.5px;color:var(--sub);margin-bottom:14px}
+
+/* 표 */
+.sheet{background:var(--card);border:1.5px solid var(--line);border-radius:var(--sketch2);box-shadow:var(--shadow);overflow:hidden}
+.row{display:grid;grid-template-columns:minmax(150px,1.5fr) repeat(5,minmax(0,1fr)) 96px;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.row.head{border-top:0;font-size:12px;font-weight:600;color:var(--sub);padding:10px 16px}
+.row.head div:not(:first-child){text-align:center}
+.row.item{cursor:pointer}
+.row.item:hover{background:var(--soft)}
+.stock{min-width:0}
+.stock .sym{font-weight:700;font-size:15px}
+.stock .px{font-size:12.5px;margin-left:6px}
+.stock .nm{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:block;text-align:center;font-size:13px;font-weight:650;padding:5px 0;border-radius:980px;background:var(--pill);color:var(--sub)}
+.chip.사자{background:color-mix(in srgb,var(--up) 16%,transparent);color:var(--up)}
+.chip.팔자{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down)}
+.chip.보류{background:none;border:1px dashed var(--line);color:var(--mute);font-weight:500}
+.cons{text-align:center;font-weight:700;font-size:13px;color:var(--c)}
+.cons small{display:block;font-weight:500;font-size:11.5px;color:var(--sub)}
+.detail{padding:6px 16px 18px;border-top:1px dashed var(--line);background:var(--soft)}
+.people{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:10px}
+.who{background:var(--card);border:1.5px solid var(--line);border-top:4px solid var(--c);border-radius:12px;padding:12px;min-width:0}
+.who .n{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.who .n b{font-family:var(--hand);font-size:24px;line-height:1;color:var(--ink);white-space:nowrap;letter-spacing:-.04em}
+.who .n .chip{padding:3px 10px;flex:none}
+.who .motto{font-size:11.5px;color:var(--mute);margin-top:4px}
+.who .line{font-size:13.5px;font-weight:600;margin-top:10px;line-height:1.4}
+.who ul{list-style:none;padding:0;margin-top:8px;font-size:12.5px;color:var(--sub)}
+.who li{display:flex;gap:6px;padding:3px 0;line-height:1.35}
+.who li i{font-style:normal;font-weight:700;flex:none;width:12px;text-align:center}
+.who li.p i{color:var(--up)}.who li.m i{color:var(--down)}.who li.z i{color:var(--mute)}
+.who.사자{--c:var(--up)}.who.팔자{--c:var(--down)}.who.중립,.who.보류{--c:var(--line)}
+.metrics{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:10px;font-size:12px;color:var(--sub);align-items:center}
+.metrics span{background:var(--pill);border-radius:980px;padding:3px 10px}
+.metrics b{color:var(--text);font-weight:600}
+.metrics .rm{margin-left:auto;border:0;background:none;color:var(--down);cursor:pointer;font-size:12px;text-decoration:underline}
+.empty{padding:40px 16px;text-align:center;color:var(--sub)}
+.foot{font-size:12px;color:var(--mute);margin-top:16px;line-height:1.6}
+.short{display:none}
+@media (max-width:1000px){.people{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){
+  .wrap{padding:20px 16px 40px}h1{font-size:30px}
+  .row{grid-template-columns:minmax(76px,1.2fr) repeat(5,minmax(0,1fr));gap:4px;padding:10px 10px}
+  .row>.cons,.row.head>div:last-child{display:none}
+  .stock .nm,.stock .px{display:none}
+  .chip{font-size:12px}.long{display:none}.short{display:inline}
+  .people{grid-template-columns:1fr}
+  .who .long{display:inline}.who .short{display:none}
+  .tile .v{font-size:26px}.tile{padding:10px 12px}
+  .ask input{width:120px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>월가 전설 5인</h1>
+      <div class="date" id="date">불러오는 중…</div>
+    </div>
+    <form class="ask" id="ask">
+      <input id="sym" placeholder="티커 (예: COST)" maxlength="12" autocomplete="off" spellcheck="false">
+      <button class="btn pri" id="askbtn">물어보기</button>
+      <button class="btn" type="button" id="refresh">새로고침</button>
+    </form>
+  </header>
+  <div class="msg" id="msg"></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="note" id="note"></div>
+  <div class="sheet" id="sheet"><div class="empty">불러오는 중…</div></div>
+  <div class="foot">
+    실제 인물의 의견이 아니라, 다섯 사람의 알려진 투자 기준을 숫자 규칙으로 옮긴 것입니다 (기준은 <code>apps/legends.py</code>에서 수정).
+    데이터는 Yahoo Finance이며 틀리거나 늦을 수 있습니다. 매매 권유가 아닙니다 — 판단은 본인 몫.
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let D = null, filter = '전체', open = null;
+const CLS = {'사자 우세':'buy', '팔자 우세':'sell', '엇갈림':'mix'};
+const SHORT = {'사자':'사', '팔자':'팔', '중립':'중', '보류':'–'};
+const RANK = {'사자 우세':0, '엇갈림':1, '팔자 우세':2};
+
+const money = x => x == null ? '-' : '$' + x.toLocaleString('en-US', {maximumFractionDigits: x >= 1000 ? 0 : 2, minimumFractionDigits: x >= 1000 ? 0 : 2});
+const pc = (x, d = 0) => x == null ? null : (x * 100).toFixed(d) + '%';
+const sg = (x, d = 1) => x == null ? '' : (x >= 0 ? '+' : '') + (x * 100).toFixed(d) + '%';
+const chip = v => `<span class="chip ${v}"><span class="long">${v}</span><span class="short">${SHORT[v]}</span></span>`;
+
+function tiles(rows) {
+  const groups = [['사자 우세', '3명 이상이 사자'], ['엇갈림', '의견이 갈림'], ['팔자 우세', '3명 이상이 팔자']];
+  $('tiles').innerHTML = groups.map(([k, s]) => {
+    const g = rows.filter(r => r.cons === k);
+    const names = g.slice(0, 6).map(r => r.sym).join(' · ');
+    return `<button class="tile ${CLS[k]} ${filter === k ? 'on' : ''}" data-f="${k}">
+      <div class="l">${k}</div><div class="v num">${g.length}<small>종목</small></div>
+      <div class="s">${names || s}</div></button>`;
+  }).join('');
+}
+
+function metrics(r) {
+  const m = r.m, items = [
+    ['ROE', pc(m.roe)], ['영업이익률', pc(m.om)], ['PER', m.pe && m.pe.toFixed(0) + '배'], ['예상 PER', m.fpe && m.fpe.toFixed(0) + '배'],
+    ['PBR', m.pb && m.pb.toFixed(1) + '배'], ['PEG', m.peg && m.peg.toFixed(1)], ['이익 성장', m.eg != null ? sg(m.eg, 0) : null],
+    ['매출 성장', m.rg != null ? sg(m.rg, 0) : null], ['부채비율', m.de != null ? m.de.toFixed(0) + '%' : null],
+    ['6개월', m.r6 != null ? sg(m.r6, 0) : null], ['고점 대비', m.off_hi != null ? sg(m.off_hi, 0) : null],
+  ].filter(i => i[1]);
+  return `<div class="metrics">${items.map(([k, v]) => `<span>${k} <b class="num">${v}</b></span>`).join('')}
+    ${r.extra ? `<button class="rm" data-rm="${esc(r.sym)}">목록에서 빼기</button>` : ''}</div>`;
+}
+
+function detail(r) {
+  return `<div class="detail"><div class="people">${D.legends.map(L => {
+    const x = r.v[L.key];
+    return `<div class="who ${x.v}"><div class="n"><b>${L.name}</b>${chip(x.v)}</div>
+      <div class="motto">${esc(L.motto)}</div><div class="line">${esc(x.line)}</div>
+      <ul>${x.why.map(w => `<li class="${w.p > 0 ? 'p' : w.p < 0 ? 'm' : 'z'}"><i>${w.p > 0 ? '+' : w.p < 0 ? '−' : '·'}</i><span>${esc(w.t)}</span></li>`).join('')}</ul></div>`;
+  }).join('')}</div>${metrics(r)}</div>`;
+}
+
+function render() {
+  if (!D) return;
+  const rows = D.rows.slice().sort((a, b) => RANK[a.cons] - RANK[b.cons] || (b.buys - b.sells) - (a.buys - a.sells) || a.sym.localeCompare(b.sym));
+  tiles(rows);
+  const when = D.updated ? new Date(D.updated * 1000).toLocaleString('ko-KR', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
+  $('date').textContent = D.loading ? (rows.length ? `${when} 기준 · 새로 받는 중…` : '처음 데이터를 받는 중… (10초쯤)') : D.error ? `오류: ${D.error}` : `${when} 기준 · ${rows.length}종목 · 6시간마다 갱신`;
+  $('refresh').disabled = D.loading;
+  $('note').textContent = D.spy_up === false ? '지금 S&P500이 200일선 아래 — 드러켄밀러는 모든 종목에 감점을 줍니다.' :
+    filter === '전체' ? '줄을 누르면 다섯 사람의 이유가 펼쳐집니다. 위 숫자를 누르면 그 묶음만 봅니다.' : `${filter}만 보는 중 — 다시 누르면 전체.`;
+  const show = rows.filter(r => filter === '전체' || r.cons === filter);
+  if (!rows.length) { $('sheet').innerHTML = `<div class="empty">${D.loading ? '불러오는 중…' : '데이터가 없습니다. 새로고침을 눌러 보세요.'}</div>`; return; }
+  $('sheet').innerHTML = `<div class="row head"><div>종목</div>${D.legends.map(L => `<div>${L.name}</div>`).join('')}<div>종합</div></div>` +
+    show.map(r => `<div class="row item" data-sym="${esc(r.sym)}">
+      <div class="stock"><span class="sym">${esc(r.sym)}</span><span class="px num">${money(r.price)} <span class="${r.chg >= 0 ? 'up' : 'down'}">${sg(r.chg)}</span></span>
+        <div class="nm">${esc(r.name)}</div></div>
+      ${D.legends.map(L => `<div>${chip(r.v[L.key].v)}</div>`).join('')}
+      <div class="cons ${CLS[r.cons]}">${r.cons}<small class="num">사자 ${r.buys} · 팔자 ${r.sells}</small></div>
+    </div>${open === r.sym ? detail(r) : ''}`).join('');
+}
+
+async function load() {
+  try { D = await (await fetch('/api/data')).json(); render(); } catch (e) { $('date').textContent = '서버에 연결할 수 없습니다'; }
+  setTimeout(load, D && D.loading ? 2000 : 60000);
+}
+
+$('tiles').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; filter = filter === b.dataset.f ? '전체' : b.dataset.f; render(); };
+$('sheet').onclick = async e => {
+  const rm = e.target.closest('[data-rm]');
+  if (rm) { await fetch('/api/remove?sym=' + encodeURIComponent(rm.dataset.rm), {method: 'POST'}); open = null; D = await (await fetch('/api/data')).json(); render(); return; }
+  const row = e.target.closest('.row.item'); if (!row) return;
+  open = open === row.dataset.sym ? null : row.dataset.sym; render();
+};
+$('refresh').onclick = async () => { await fetch('/api/refresh', {method: 'POST'}); D.loading = true; render(); setTimeout(load, 1500); };
+$('ask').onsubmit = async e => {
+  e.preventDefault();
+  const sym = $('sym').value.trim().toUpperCase(); if (!sym) return;
+  $('msg').textContent = ''; $('askbtn').disabled = true; $('askbtn').textContent = '묻는 중…';
+  try {
+    const r = await (await fetch('/api/add?sym=' + encodeURIComponent(sym), {method: 'POST'})).json();
+    if (r.error) $('msg').textContent = r.error;
+    else { $('sym').value = ''; filter = '전체'; open = r.sym; D = await (await fetch('/api/data')).json(); render();
+      document.querySelector(`[data-sym="${CSS.escape(r.sym)}"]`)?.scrollIntoView({block: 'center', behavior: 'smooth'}); }
+  } catch (err) { $('msg').textContent = '서버에 연결할 수 없습니다'; }
+  $('askbtn').disabled = false; $('askbtn').textContent = '물어보기';
+};
+load();
+</script>
+</body>
+</html>

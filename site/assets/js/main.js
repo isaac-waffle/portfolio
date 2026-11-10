@@ -59,7 +59,7 @@
 
   /* ---------- seeded helpers for project art ---------- */
   function rng(s) { return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
-  var C = { ink: "#1d1d1f", ink2: "#424245", ink3: "#86868b", ink4: "#d2d2d7", line: "#f0f0f3", line2: "#e3e3e8", acc: "#1d1d1f", up: "#34c759", dn: "#ff3b30", blue: "#1d1d1f", bg: "#f5f5f7", panel: "#ffffff" };
+  var C = { ink: "#171a2b", ink2: "#474b63", ink3: "#74788f", ink4: "#cfc8b6", line: "#ece7da", line2: "#dcd6c6", acc: "#2b44b0", up: "#2a9d6a", dn: "#d9534a", blue: "#2b44b0", bg: "#f1eee5", panel: "#fffdf8" };
   function grid() { return ""; }
   function walk(r, n, y0, vol) { var y = y0, out = []; for (var i = 0; i < n; i++) { y += (r() - 0.5) * vol; out.push(y); } return out; }
   function poly(xs, ys) { return xs.map(function (x, i) { return (i ? "L" : "M") + x.toFixed(1) + "," + ys[i].toFixed(1); }).join(""); }
@@ -187,6 +187,23 @@
     }
   };
 
+  ART.legends = function () {
+    var w = 640, h = 360, r = rng(41), s = '<svg viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMidYMid slice"><rect width="' + w + '" height="' + h + '" fill="' + C.bg + '"/>';
+    var cols = ["Buffett", "Munger", "Graham", "Lynch", "Druck."], tks = ["NVDA", "MSFT", "AAPL", "META", "INTC", "TSLA", "MU"];
+    s += '<g font-family="-apple-system,Inter,sans-serif" font-weight="600" font-size="11">';
+    cols.forEach(function (c, j) { s += '<text x="' + (190 + j * 88) + '" y="52" fill="' + C.ink3 + '" text-anchor="middle">' + c + "</text>"; });
+    tks.forEach(function (t, i) {
+      var yy = 84 + i * 38;
+      s += '<text x="60" y="' + (yy + 4) + '" fill="' + C.ink + '">' + t + "</text>";
+      cols.forEach(function (_, j) {
+        var v = r(), k = v > 0.58 ? ["BUY", C.up] : v < 0.3 ? ["SELL", C.dn] : ["HOLD", C.ink3];
+        s += '<rect x="' + (156 + j * 88) + '" y="' + (yy - 12) + '" width="68" height="24" rx="12" fill="' + k[1] + '" opacity="' + (k[0] === "HOLD" ? ".14" : ".2") + '"/>';
+        s += '<text x="' + (190 + j * 88) + '" y="' + (yy + 4) + '" fill="' + (k[0] === "HOLD" ? C.ink2 : k[1]) + '" text-anchor="middle">' + k[0] + "</text>";
+      });
+    });
+    return s + "</g></svg>";
+  };
+
   /* ---------- project content ---------- */
   var P = [
     { id: "lab", art: "lab", chip: "Live", live: true, meta: "2026 · Forecasting · MLOps",
@@ -285,6 +302,26 @@
       ],
       links: [["Try the live demo", "demos/earnings.html", true], ["View the code", "https://github.com/isaac-waffle/portfolio/tree/main/earnings"]] },
 
+    { id: "legends", art: "legends", chip: "Live demo", live: true, meta: "2026 · Equity research · Rule engine",
+      title: "Wall Street Legends",
+      blurb: "Five famous investors' published criteria as explicit scoring rules, applied to a 50-stock watchlist: buy, hold or sell, with the numbers behind each call.",
+      tags: ["Python", "yfinance", "Rule engine", "GitHub Actions", "Static JSON API", "i18n"],
+      sum: "When a stock drops I want several disciplined second opinions, not one. Instead of asking a language model to role-play, I wrote each investor's criteria as a small scoring function, so every verdict is reproducible and traceable to a number.",
+      kpis: [["5", "investor rule sets"], ["50", "stocks scored"], ["3 h", "refresh"], ["0", "LLM calls"]],
+      cols: [
+        ["Rules", ["<b>Buffett:</b> return on equity, operating margin, low debt, free cash flow and a sensible P/E.",
+          "<b>Munger:</b> quality first, then inversion: the debt, liquidity and cash burn that could kill the company.",
+          "<b>Graham:</b> P/E under 15, P/B under 1.5, the Graham number and balance-sheet strength.",
+          "<b>Lynch:</b> the PEG ratio, earnings and revenue growth, plus a stock-type label.",
+          "<b>Druckenmiller:</b> 50/200-day trend, 6-month return, strength against the S&amp;P 500 and the market regime."]],
+        ["Engineering", ["One Python module holds the rules and serves both a local app and this site's data export, so the logic lives in one place.",
+          "A GitHub Actions job scores the watchlist every three hours and force-pushes one JSON file to a data branch; a failed run keeps the last good file.",
+          "Every reason is written in English and Korean at the source."]],
+        ["What it shows", ["The five disagree by design: Graham rejects most growth stocks, Lynch accepts them when growth pays for the price, and Druckenmiller only follows the trend.",
+          "Rules have limits: they see ratios, not the business. The page says so, and it is not investment advice."]]
+      ],
+      links: [["Try the live demo", "demos/legends.html", true], ["View the code", "https://github.com/isaac-waffle/portfolio/blob/main/apps/legends.py"]] },
+
     { id: "pnl", art: "pnl", chip: "Live demo", live: true, meta: "2026 · Finance tooling · Client-side",
       title: "DEGIRO P&L Analyzer",
       blurb: "Drop in a brokerage transaction export and get realised profit and loss by day, week, month and stock, computed entirely in your browser.",
@@ -347,16 +384,26 @@
   var pc = document.getElementById("projCount"); if (pc) pc.textContent = P.length;
   var arrow = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
   var grid_ = $("#workGrid");
-  grid_.innerHTML = P.map(function (p) {
+  /* Korean text for a project comes from i18n.js (matched by id); values, tags and link targets stay as written above. */
+  function loc(p) {
+    var k = window.I18N && window.I18N.lang === "ko" && window.I18N.P[p.id];
+    if (!k) return p;
+    return { id: p.id, art: p.art, live: p.live, size: p.size, tags: p.tags, chip: k.chip, meta: k.meta, title: k.title, blurb: k.blurb, sum: k.sum,
+      kpis: p.kpis && p.kpis.map(function (x, i) { return [x[0], k.kpis[i]]; }), cols: k.cols,
+      links: p.links.map(function (l, i) { return [k.links[i], l[1], l[2], l[3]]; }) };
+  }
+  function drawGrid() { grid_.innerHTML = P.map(loc).map(function (p) {
     return '<button type="button" class="proj reveal ' + (p.size || "") + '" data-p="' + p.id + '" aria-haspopup="dialog">' +
       '<div class="vis"><span class="chip' + (p.live ? " live" : "") + '">' + (p.live ? '<span class="dot"></span>' : "") + esc(p.chip) + "</span>" + ART[p.art]() + "</div>" +
       '<div class="body"><div class="meta">' + esc(p.meta) + "</div><h3>" + esc(p.title) + "</h3><p>" + esc(p.blurb) + "</p>" +
       '<span class="more">Read case study ' + arrow + "</span></div></button>";
-  }).join("");
+  }).join(""); }
+  drawGrid();
 
   var dlg = $("#caseDlg");
   function openCase(id) {
     var p = P.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+    p = loc(p);
     var h = '<div class="cv">' + ART[p.art]() + '<button class="x" type="button" aria-label="Close" data-close><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.6"><path d="M2 2l10 10M12 2L2 12"/></svg></button></div>';
     h += '<div class="cb"><div class="meta mono" style="font-size:12px;color:var(--ink-3)">' + esc(p.meta) + '</div><h3 id="caseTitle">' + esc(p.title) + '</h3><p class="sum">' + esc(p.sum) + "</p>";
     if (p.kpis) h += '<div class="kpis">' + p.kpis.map(function (k) { return "<div><b>" + esc(k[0]) + "</b><span>" + esc(k[1]) + "</span></div>"; }).join("") + "</div>";
@@ -376,5 +423,23 @@
     d.addEventListener("click", function (e) { if (e.target === d || e.target.closest("[data-close]")) d.close(); });
   });
 
+  /* ---------- live tools: one-line summary on the Wall Street Legends card ---------- */
+  var legData = null;
+  function drawLeg() {
+    var el = $("#legLive"); if (!el || !legData) return;
+    var n = function (k) { return legData.rows.filter(function (r) { return r.cons === k; }).length; };
+    var ko = window.I18N && window.I18N.lang === "ko";
+    el.textContent = ko ? "지금: 사자 우세 " + n("사자 우세") + " · 엇갈림 " + n("엇갈림") + " · 팔자 우세 " + n("팔자 우세")
+      : "Now: " + n("사자 우세") + " mostly buy · " + n("엇갈림") + " split · " + n("팔자 우세") + " mostly sell";
+    el.hidden = false;
+  }
+  if ($("#legLive") && window.fetch) {
+    fetch("https://raw.githubusercontent.com/isaac-waffle/portfolio/legends-data/legends.json", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .catch(function () { return fetch("data/legends-sample.json").then(function (r) { return r.json(); }); })
+      .then(function (d) { if (d && d.rows) { legData = d; drawLeg(); } }).catch(function () {});
+  }
+
+  if (window.I18N) window.I18N.onChange(function () { if (dlg.open) dlg.close(); drawGrid(); drawLeg(); window.observeReveal(); });
   window.observeReveal();
 })();

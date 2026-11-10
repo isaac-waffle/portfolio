@@ -34,14 +34,17 @@ PYTHON = str(ROOT / ".venv" / "bin" / "python")
 PHOTODIARY = ROOT / "PhotoDiary"
 FORECAST = Path.home() / "Desktop" / "stock-forecast-intraday"  # SI Forecast Desk (별도 폴더 — 화면 live/index.html에 공책 테마만 입힘, 원본은 index.html.before-notebook)
 
+# tab 이 있는 앱은 '주식 데스크'(/stocks) 화면에 그 이름의 탭으로 들어감 — 주식 앱을 새로 만들면 tab 만 붙이면 됨
 LOCAL = [
-    dict(key="trading", name="트레이딩 데스크", port=8501, icon="chart", color="#ff9500",
+    dict(key="trading", name="트레이딩 데스크", port=8501, icon="chart", color="#ff9500", tab="트레이딩",
          cmd=[STREAMLIT, "run", "apps/trading_app.py"]),
-    dict(key="earnings", name="어닝 대시보드", port=8502, icon="calendar", color="#ff3b30",
+    dict(key="earnings", name="어닝 대시보드", port=8502, icon="calendar", color="#ff3b30", tab="어닝",
          cmd=[STREAMLIT, "run", "apps/earnings_app.py"]),
-    dict(key="traders", name="가상 트레이더", port=8503, icon="traders", color="#34c759",
+    dict(key="traders", name="가상 트레이더", port=8503, icon="traders", color="#34c759", tab="가상 트레이더",
          cmd=[PYTHON, "apps/traders.py"], agent="com.isaac-waffle.traders"),  # apps/traders_service.sh install 이면 launchd로
-    dict(key="forecast", name="SI Forecast Desk", port=8765, icon="crystal", color="#af52de",
+    dict(key="legends", name="월가 전설 5인", port=8504, icon="legends", color="#5856d6", tab="전설 5인",
+         cmd=[PYTHON, "apps/legends.py"]),
+    dict(key="forecast", name="SI Forecast Desk", port=8765, icon="crystal", color="#af52de", tab="예측",
          cmd=["zsh", "start_live.sh"], stop=["zsh", "stop_live.sh"], cwd=FORECAST, wait=120),
     dict(key="site", name="포트폴리오 미리보기", port=8766, icon="globe", color="#007aff",
          cmd=["python3", "-m", "http.server", "8766", "--directory", "site"]),
@@ -226,11 +229,20 @@ def traders_info() -> str:
         return "공격형·밸런스형·방어형 모의 단타 ($20,000씩)"
 
 
+def legends_info() -> str:
+    try:
+        rows = json.loads((APPS / "journal" / "legends_cache.json").read_text())["rows"]
+        n = lambda k: sum(r["cons"] == k for r in rows)
+        return f"사자 우세 {n('사자 우세')} · 엇갈림 {n('엇갈림')} · 팔자 우세 {n('팔자 우세')}"
+    except Exception:
+        return "버핏·멍거·그레이엄·린치·드러켄밀러의 사자/팔자"
+
+
 def local() -> dict:
-    sub = {"traders": traders_info(), "trading": trading_info(), "earnings": _cache["earn"] or "미국 어닝 캘린더 · 종목별 분석",
+    sub = {"traders": traders_info(), "legends": legends_info(), "trading": trading_info(), "earnings": _cache["earn"] or "미국 어닝 캘린더 · 종목별 분석",
            "forecast": forecast_info(), "site": "site/ 폴더를 내 컴퓨터에서 미리 보기"}
     apps = [dict(key=a["key"], name=a["name"], port=a["port"], icon=a["icon"], color=a["color"],
-                 up=is_up(a["port"]), sub=sub[a["key"]],
+                 up=is_up(a["port"]), sub=sub.get(a["key"], ""), tab=a.get("tab", ""),
                  ok=a.get("cwd", ROOT).exists()) for a in LOCAL]
     return dict(apps=apps, photodiary=(PHOTODIARY / "PhotoDiary.xcodeproj").exists())
 
@@ -261,6 +273,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             self._send(200, notebook(PAGE).encode(), "text/html; charset=utf-8")
+        elif self.path == "/stocks":  # 주식 데스크 — 주식 앱들을 한 창에서 탭으로
+            self._send(200, notebook(STOCKS).encode(), "text/html; charset=utf-8")
         elif self.path == "/api/local":
             self._json(local())
         elif self.path.startswith("/api/remote"):
@@ -401,7 +415,10 @@ async function post(path, btn){
 }
 
 function drawLocal(){
-  document.getElementById('apps').innerHTML = L.apps.map(a => row(icon(a.icon), a.name, a.sub,
+  const stocks = L.apps.filter(a => a.tab);
+  document.getElementById('apps').innerHTML = row(icon('stocks'), '주식 데스크', `한 창에서 탭으로 — ${stocks.map(a => a.tab).join(' · ')}`,
+    status(stocks.some(a => a.up) ? 'ok' : '', `${stocks.filter(a => a.up).length}/${stocks.length} 실행 중`),
+    `<a class="btn primary" href="/stocks">열기</a>`) + L.apps.map(a => row(icon(a.icon), a.name, a.sub,
     status(a.up ? 'ok' : '', a.up ? '실행 중' : '꺼짐'),
     a.up ? go(`http://localhost:${a.port}`) + `<button class="btn quiet" onclick="post('/api/stop/${a.key}',this)">끄기</button>`
          : a.ok ? `<button class="btn" onclick="post('/api/start/${a.key}',this)">켜기</button>` : '')).join('');
@@ -450,6 +467,104 @@ document.getElementById('refresh').onclick = () => { document.getElementById('su
 clock(); setInterval(clock, 30000);
 loadLocal(); loadRemote(false);
 setInterval(loadLocal, 5000); setInterval(() => loadRemote(false), 300000);
+</script>
+</body>
+</html>
+"""
+
+
+STOCKS = r"""<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>주식 데스크</title>
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--sub:#6e6e73;--line:rgba(0,0,0,.08);--pill:#e8e8ed;--ink:#1d1d1f;
+  --green:#34c759;--gray:#c7c7cc;--hand:inherit;--sketch:10px}
+@media (prefers-color-scheme:dark){:root{--green:#30d158;--gray:#48484a}}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;
+  font:14px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Helvetica Neue",sans-serif}
+.bar{flex:none;display:flex;align-items:center;gap:14px;padding:8px 16px;background:var(--card);border-bottom:2px solid var(--ink)}
+.home{color:var(--sub);text-decoration:none;font-size:13px;white-space:nowrap;flex:none}
+.home:hover{color:var(--ink)}
+.title{font-family:var(--hand);font-size:26px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap;flex:none}
+.tabs{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{appearance:none;display:flex;align-items:center;gap:7px;border:1.5px solid transparent;background:none;color:var(--sub);
+  font:500 14px/1 inherit;padding:8px 14px;border-radius:var(--sketch);cursor:pointer;white-space:nowrap;flex:none}
+.tabs button:hover{background:var(--pill)}
+.tabs button.on{border-color:var(--ink);color:var(--ink);font-weight:700;background:var(--pill)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--gray);flex:none}
+.dot.ok{background:var(--green)}
+.pop{color:var(--sub);font-size:13px;text-decoration:none;white-space:nowrap;flex:none}
+.pop:hover{color:var(--ink)}
+.stage{flex:1;min-height:0;position:relative}
+.stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+.msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--sub);font-size:15px;padding:24px}
+.msg b{display:block;font-family:var(--hand);font-size:30px;color:var(--ink);margin-bottom:6px}
+@media (max-width:640px){.title,.pop{display:none}.bar{gap:8px;padding:6px 10px}.tabs button{padding:8px 10px}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <a class="home" href="/">← 허브</a>
+  <div class="title">주식 데스크</div>
+  <div class="tabs" id="tabs"></div>
+  <a class="pop" id="pop" target="_blank" rel="noopener">새 창으로</a>
+</div>
+<div class="stage" id="stage"><div class="msg" id="msg">불러오는 중…</div></div>
+<script>
+const $ = id => document.getElementById(id);
+const frames = {};
+let apps = [], cur = null;
+const remember = k => { try { localStorage.setItem('stocks.tab', k); } catch (e) {} };
+const recall = () => { try { return localStorage.getItem('stocks.tab'); } catch (e) { return null; } };
+const say = (title, text) => { $('msg').innerHTML = `<div><b>${title}</b>${text}</div>`; $('msg').style.display = 'grid'; };
+
+function drawTabs(){
+  $('tabs').innerHTML = apps.map(a => `<button data-k="${a.key}" class="${a.key === cur ? 'on' : ''}" title="${a.name}">` +
+    `<span class="dot ${a.up ? 'ok' : ''}"></span>${a.tab}</button>`).join('');
+}
+async function refresh(){
+  apps = (await (await fetch('/api/local')).json()).apps.filter(a => a.tab);
+  drawTabs();
+}
+async function show(k){
+  cur = k; remember(k); history.replaceState(null, '', '#' + k); drawTabs();
+  Object.values(frames).forEach(f => f.style.display = 'none');
+  let a = apps.find(x => x.key === k);
+  $('pop').href = `http://localhost:${a.port}`;
+  if (!a.up){                                   // 꺼져 있으면 켜고 나서 보여 줌
+    if (frames[k]){ frames[k].remove(); delete frames[k]; }
+    say(a.name, '켜는 중… 처음에는 몇 초 걸립니다');
+    try {
+      const r = await fetch('/api/start/' + k, {method: 'POST', headers: {'X-ARK': '1'}});
+      apps = (await r.json()).apps.filter(x => x.tab);
+    } catch (e) {}
+    a = apps.find(x => x.key === k);
+    if (cur !== k) return drawTabs();           // 기다리는 사이 다른 탭으로 갔으면 그쪽을 그대로 둠
+    drawTabs();
+    if (!a.up) return say(a.name, '켜지 못했습니다. 허브에서 다시 켜 보거나 ~/Library/Logs 의 로그를 확인하세요.');
+  }
+  if (!frames[k]){
+    const f = document.createElement('iframe');
+    f.src = `http://localhost:${a.port}`; f.title = a.name;
+    $('stage').appendChild(f); frames[k] = f;
+  }
+  $('msg').style.display = 'none';
+  frames[k].style.display = 'block';
+}
+$('tabs').onclick = e => { const b = e.target.closest('[data-k]'); if (b && b.dataset.k !== cur) show(b.dataset.k); };
+(async () => {
+  await refresh();
+  if (!apps.length) return say('주식 데스크', '등록된 주식 앱이 없습니다.');
+  const want = location.hash.slice(1) || recall();
+  show((apps.find(a => a.key === want) || apps.find(a => a.up) || apps[0]).key);
+  setInterval(refresh, 5000);
+})();
 </script>
 </body>
 </html>
