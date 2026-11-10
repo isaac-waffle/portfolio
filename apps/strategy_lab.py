@@ -4,7 +4,7 @@
 
 ETF 전략 (2007~, 자산배분·추세추종 — CTA/은행 리스크 프리미아 데스크가 하는 것)
   faber      Faber GTAA: 5개 자산을 10개월선 위일 때만 20%씩 보유
-  tsmom      시계열 모멘텀(Moskowitz·Ooi·Pedersen, AQR): 12개월 수익률 플러스인 자산만, 변동성 역가중
+  tsmom      시계열 모멘텀(Moskowitz·Ooi·Pedersen, AQR): 1·3·6·12개월 수익률이 플러스인 만큼 보유, 변동성 역가중 (tsmom12 = 12개월만)
   dual       Antonacci 듀얼 모멘텀(GEM): 미국 vs 해외 주식 중 강한 쪽, 둘 다 단기채보다 못하면 채권
   ma200      SPY 200일선 위에서만 보유 (Paul Tudor Jones의 '200일선 아래는 안 산다')
   voltgt     변동성 타기팅: 최근 20일 변동성이 클수록 SPY 비중을 줄임 (목표 연 10%)
@@ -18,6 +18,7 @@ ETF 전략 (2007~, 자산배분·추세추종 — CTA/은행 리스크 프리미
   lowvol     저변동성: 60일 변동성 하위 10종목, 매월
   rev5       단기 반전(스탯아브의 기본형): 5일 수익률 하위 10종목, 매주
   minervini  Minervini 트렌드 템플릿: 50>150>200일선·200일선 상승·52주 고점 25% 이내·저점 대비 +30% 통과 종목 중 상대강도 상위 10, 매주
+  mom12v·minerviniv  위 둘에 변동성 스케일링(Barroso·Santa-Clara)을 얹은 것 — 수익은 줄지만 낙폭이 크게 줄어듦
   ep         에피소딕 피벗(Qullamaggie)·실적 후 표류: 갭 +8% 이상·거래량 3배·고가권 마감 → 다음 날 시가 매수, 20일 보유
   nightmom   종목 오버나이트(Lou·Polk·Skouras): 모멘텀 상위 10종목을 종가 매수·시가 매도
 
@@ -98,6 +99,12 @@ def stat(r: pd.Series, a: str, b: str) -> dict | None:
                 dd=float((eq / eq.cummax() - 1).min()), expo=float((x != 0).mean()))
 
 
+def volscale(W: pd.DataFrame, F: dict, target=0.20) -> pd.DataFrame:
+    """변동성 스케일링(Barroso·Santa-Clara 2015): 전략 자체의 최근 60일 변동성이 목표(연 20%)보다 크면 그만큼 비중을 줄임. 레버리지는 안 씀."""
+    rv = bt(W, F, "open").rolling(60).std() * np.sqrt(252)
+    return W.mul((target / rv).clip(upper=1).fillna(1), axis=0)
+
+
 def rsi(c: pd.Series, n: int) -> pd.Series:
     d = c.diff()
     return 100 - 100 / (1 + d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean() / (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean())
@@ -114,6 +121,10 @@ def etf_strategies(E: dict) -> dict:
     a10 = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"]
     vol = C[a10].pct_change().rolling(60).std() * np.sqrt(252)
     w = ((C[a10].shift(21) / C[a10].shift(252) - 1) > 0) * (0.10 / vol).clip(upper=1) / len(a10) * 2
+    out["tsmom12"] = (hold(w.div(w.sum(1).clip(lower=1), axis=0), me), "open")
+    # 강화: 1·3·6·12개월 추세를 평균 (한 기간에만 기대지 않음 — CTA들이 쓰는 앙상블). 2020년 −5% → +5%, 장기 낙폭 −22% → −14%
+    sig = sum(((C[a10] / C[a10].shift(n) - 1) > 0).astype(float) for n in (21, 63, 126, 252)) / 4
+    w = sig * (0.10 / vol).clip(upper=1) / len(a10) * 2
     out["tsmom"] = (hold(w.div(w.sum(1).clip(lower=1), axis=0), me), "open")
     r12 = C / C.shift(252) - 1
     best = np.where(r12["SPY"] > r12["EFA"], "SPY", "EFA")
@@ -173,13 +184,16 @@ def stock_strategies(S: dict) -> dict:
     ev = liquid.shift(1).fillna(False) & (gap >= 0.08) & (V >= 3 * V.rolling(50).mean().shift(1)) & ((C - L) / (H - L) >= 0.5)
     w = ev.astype(float).rolling(20, min_periods=1).max() * 0.1
     out["ep"] = (w.div((w.sum(1) / 1.0).clip(lower=1), axis=0), "open")
+    out["mom12v"] = (volscale(out["mom12"][0], S), "open")
+    out["minerviniv"] = (volscale(out["minervini"][0], S), "open")
     out["nightmom"] = (hold(topn(C.shift(21) / C.shift(252) - 1, 10, liquid), me), "night")
     eq = liquid.astype(float)
     out["전 종목 균등 보유"] = (hold(eq.div(eq.sum(1).clip(lower=1), axis=0), me), "open")
     return out
 
 
-KO = {"faber": "Faber 10개월선 자산배분", "tsmom": "시계열 모멘텀 (추세추종)", "dual": "듀얼 모멘텀 (Antonacci)", "ma200": "SPY 200일선 필터",
+KO = {"faber": "Faber 10개월선 자산배분", "tsmom": "추세추종 (1·3·6·12개월)", "tsmom12": "추세추종 (12개월만)",
+      "mom12v": "12개월 모멘텀 + 변동성 조절", "minerviniv": "Minervini + 변동성 조절", "dual": "듀얼 모멘텀 (Antonacci)", "ma200": "SPY 200일선 필터",
       "voltgt": "변동성 타기팅", "tom": "월말·월초 효과", "ibs": "IBS 평균회귀 (QQQ)", "rsi2": "Connors RSI(2) (SPY)", "night": "오버나이트 (SPY)",
       "mom12": "12개월 모멘텀 상위 10", "hi52": "52주 신고가 근접 10", "lowvol": "저변동성 10", "rev5": "5일 반전 10",
       "minervini": "Minervini 트렌드 템플릿", "ep": "에피소딕 피벗 (갭+거래량)", "nightmom": "모멘텀 종목 오버나이트"}
