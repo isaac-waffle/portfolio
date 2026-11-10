@@ -8,7 +8,7 @@
 
 규칙 (안전장치)
   · 모의계좌 전용 — 주소가 paper-api로 고정이고, 키가 모의계좌용(PK…)이 아니면 거부. 실전 전환은 이 파일에 없음.
-  · 현금만 — 총 보유 ≤ 계좌의 95%, 공매도·레버리지 없음.
+  · 현금만 — 총 보유 ≤ 계좌의 95%, 공매도·레버리지 없음. 전략이 안 쓰는 현금은 초단기 국채 ETF(BIL)에 둠.
   · 지정가만 — 매수는 전일 종가 +2%, 매도는 −2% 안에서만 체결 (갭이 그보다 크면 안 사고 다음 날 다시 판단).
   · 주문 한 건 ≤ 계좌의 30%, 하루 주문 ≤ 60건.
   · 고점 대비 −15%면 신규 매수 중단(매도만). journal/paper/STOP 파일이 있으면 아무 주문도 안 냄.
@@ -35,10 +35,11 @@ warnings.filterwarnings("ignore")
 BASE = "https://paper-api.alpaca.markets"  # 모의계좌 고정
 OUT = T.APPS / "journal" / "paper"
 SLEEVES = {  # 검증 통과 전략 → 계좌에서 맡는 몫
-    "tsmom": ("etf", 0.2), "voltgt": ("etf", 0.2), "mom12": ("stock", 0.2), "minervini": ("stock", 0.2), "ep": ("stock", 0.2),
+    "tsmom": ("etf", 0.2), "voltgt": ("etf", 0.2), "mom12v": ("stock", 0.2), "minerviniv": ("stock", 0.2), "ep": ("stock", 0.2),
 }
 MAX_GROSS, MAX_ORDER, MAX_ORDERS, LIMIT_BAND, DD_HALT = 0.95, 0.30, 60, 0.02, 0.15
-ETFS = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "SHY", "GLD", "DBC", "VNQ", "LQD"]
+ETFS = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "SHY", "GLD", "DBC", "VNQ", "LQD", "BIL"]
+PARK, PARK_TO = "BIL", 0.90  # 전략들이 안 쓰는 현금은 초단기 국채 ETF에 (계좌의 90%까지)
 
 
 def hdr() -> dict:
@@ -123,6 +124,10 @@ def targets(E: dict, S: dict, day: dt.date) -> tuple[pd.Series, dict]:
         w = w[w > 1e-6]
         per[name] = {s: round(float(x), 4) for s, x in w.items()}
         total = total.add(w * share, fill_value=0)
+    idle = PARK_TO - float(total.sum())
+    if idle > 0.01 and PARK in E["Close"].columns:
+        total[PARK] = total.get(PARK, 0.0) + idle
+        per["현금 대기"] = {PARK: round(idle, 4)}
     return total.sort_values(ascending=False), per
 
 
@@ -143,7 +148,7 @@ def plan(tgt: pd.Series, px: pd.Series, equity: float, held: dict, buys_ok: bool
             continue  # 자잘한 비중 조정은 건너뜀 (전량 매도는 항상 실행)
         if diff > 0 and not buys_ok:
             continue
-        if abs(diff) * px[s] > MAX_ORDER * equity:
+        if abs(diff) * px[s] > MAX_ORDER * equity and s != PARK:  # 현금 대기용 국채 ETF는 한도 예외
             note("skip", f"{s}: 주문 금액이 계좌의 {MAX_ORDER:.0%}를 넘어 건너뜀", sym=s)
             continue
         side = "buy" if diff > 0 else "sell"
@@ -193,7 +198,7 @@ def run(send: bool, force: bool):
     orders = plan(tgt, px, equity, held, buys_ok)
     print(f"\n신호일 {day} · 계좌 ${equity:,.0f} · 목표 총 비중 {min(tgt.sum(), MAX_GROSS):.0%} ({len(tgt)}종목)")
     for name, w in per.items():
-        print(f"  {L.KO[name]:24s} {', '.join(f'{s} {x:.0%}' for s, x in sorted(w.items(), key=lambda kv: -kv[1])) or '현금'}")
+        print(f"  {L.KO.get(name, name):24s} {', '.join(f'{s} {x:.0%}' for s, x in sorted(w.items(), key=lambda kv: -kv[1])) or '현금'}")
     print(f"\n주문 {len(orders)}건:")
     for o in orders:
         print(f"  {'매수' if o['side'] == 'buy' else '매도'} {o['sym']:5s} {o['qty']:4d}주  지정가 {o['limit']:.2f} (전일 종가 {o['ref']:.2f}, 목표 {o['weight']:.1%})")
