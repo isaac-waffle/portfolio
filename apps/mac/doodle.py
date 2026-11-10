@@ -179,6 +179,16 @@ def traders(p: Pen):
     p.line([(800, 290), (880, 315), (802, 345)], width=6)
 
 
+def legends(p: Pen):
+    p.ellipse(510, 590, 150, 165)                                                        # 얼굴
+    p.ellipse(448, 570, 50, 44, width=6)                                                 # 동그란 안경
+    p.ellipse(574, 570, 50, 44, width=6)
+    p.line([(498, 568), (524, 568)], width=6)
+    p.line([(452, 672), (512, 698), (572, 670)], width=6)                                # 웃는 입
+    p.line([(318, 440), (705, 428)], width=9)                                            # 중절모 챙
+    p.line([(398, 436), (392, 262), (632, 255), (638, 430)])                             # 모자
+
+
 def crystal(p: Pen):
     p.ellipse(512, 440, 200, 190)
     p.ellipse(512, 440, 196, 188, amp=7)
@@ -248,8 +258,8 @@ def branch(p: Pen):
 SUBJECTS = {"robot": (robot, 11), "person": (person, 5), "cat": (cat, 3), "house": (house, 8), "chart": (chart, 21),
             "calendar": (calendar, 22), "traders": (traders, 23), "crystal": (crystal, 24), "globe": (globe, 25),
             "camera": (camera, 26), "flask": (flask, 27), "moneybag": (moneybag, 28), "rocket": (rocket, 29),
-            "cycle": (cycle, 30), "branch": (branch, 31)}
-HUB = ["chart", "calendar", "traders", "crystal", "globe", "camera", "person", "flask", "moneybag", "house", "rocket",
+            "cycle": (cycle, 30), "branch": (branch, 31), "legends": (legends, 32)}
+HUB = ["chart", "calendar", "traders", "legends", "crystal", "globe", "camera", "person", "flask", "moneybag", "house", "rocket",
        "cycle", "branch"]
 
 

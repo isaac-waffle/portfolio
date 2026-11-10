@@ -41,6 +41,8 @@ LOCAL = [
          cmd=[STREAMLIT, "run", "apps/earnings_app.py"]),
     dict(key="traders", name="가상 트레이더", port=8503, icon="traders", color="#34c759",
          cmd=[PYTHON, "apps/traders.py"], agent="com.isaac-waffle.traders"),  # apps/traders_service.sh install 이면 launchd로
+    dict(key="legends", name="월가 전설 5인", port=8504, icon="legends", color="#5856d6",
+         cmd=[PYTHON, "apps/legends.py"]),
     dict(key="forecast", name="SI Forecast Desk", port=8765, icon="crystal", color="#af52de",
          cmd=["zsh", "start_live.sh"], stop=["zsh", "stop_live.sh"], cwd=FORECAST, wait=120),
     dict(key="site", name="포트폴리오 미리보기", port=8766, icon="globe", color="#007aff",
