@@ -189,6 +189,13 @@ def legends(p: Pen):
     p.line([(398, 436), (392, 262), (632, 255), (638, 430)])                             # 모자
 
 
+def stocks(p: Pen):
+    for x, top, bot, y0, y1 in ((330, 520, 700, 450, 770), (510, 380, 560, 300, 640), (690, 250, 430, 190, 520)):   # 봉 세 개, 오른쪽 위로
+        p.line([(x, y0), (x + 3, y1)], width=6)                                         # 꼬리
+        p.line([(x - 48, top), (x + 50, top + 4), (x + 46, bot), (x - 50, bot - 3), (x - 48, top)])                    # 몸통
+    p.scribble(645, 258, 738, 424, n=6)                                                  # 마지막 봉은 색칠
+
+
 def crystal(p: Pen):
     p.ellipse(512, 440, 200, 190)
     p.ellipse(512, 440, 196, 188, amp=7)
@@ -258,8 +265,8 @@ def branch(p: Pen):
 SUBJECTS = {"robot": (robot, 11), "person": (person, 5), "cat": (cat, 3), "house": (house, 8), "chart": (chart, 21),
             "calendar": (calendar, 22), "traders": (traders, 23), "crystal": (crystal, 24), "globe": (globe, 25),
             "camera": (camera, 26), "flask": (flask, 27), "moneybag": (moneybag, 28), "rocket": (rocket, 29),
-            "cycle": (cycle, 30), "branch": (branch, 31), "legends": (legends, 32)}
-HUB = ["chart", "calendar", "traders", "legends", "crystal", "globe", "camera", "person", "flask", "moneybag", "house", "rocket",
+            "cycle": (cycle, 30), "branch": (branch, 31), "legends": (legends, 32), "stocks": (stocks, 33)}
+HUB = ["chart", "calendar", "traders", "legends", "stocks", "crystal", "globe", "camera", "person", "flask", "moneybag", "house", "rocket",
        "cycle", "branch"]
 
 
