@@ -1,6 +1,7 @@
 """월가 전설 5인 — 버핏·멍거·그레이엄·린치·드러켄밀러의 알려진 기준을 규칙으로 옮겨, 종목마다 사자/중립/팔자와 이유를 보여 줌.
 
     .venv/bin/python apps/legends.py [--open]      → http://localhost:8504
+    python apps/legends.py --out DIR               → DIR/legends.json (포트폴리오 사이트의 demos/legends.html 이 읽는 파일)
 
 - 종목: 어닝 대시보드와 같은 관심종목 50개(WATCHLIST) + 화면에서 직접 넣은 티커(apps/journal/legends_extra.json)
 - 데이터: Yahoo Finance (재무 요약 + 1년 일봉). 6시간마다 새로 받고 apps/journal/legends_cache.json 에 저장
@@ -149,38 +150,44 @@ def facts(sym: str, info: dict, closes: list[float], spy: list[float]) -> dict:
 
 
 # ───────────────────────── 다섯 사람의 규칙 ─────────────────────────
+# 이유 문구는 한국어(로컬 화면)와 영어(포트폴리오 사이트)를 나란히 적음: c.add(점수, 한국어, 영어)
 pct = lambda x: f"{x * 100:.0f}%"
 LEGENDS = [
-    dict(key="buffett", name="버핏", full="워런 버핏", motto="좋은 사업을 적당한 가격에, 오래"),
-    dict(key="munger", name="멍거", full="찰리 멍거", motto="훌륭한 기업만. 망하는 길부터 피한다"),
-    dict(key="graham", name="그레이엄", full="벤저민 그레이엄", motto="싸게 사서 안전마진을 확보한다"),
-    dict(key="lynch", name="린치", full="피터 린치", motto="성장에 비해 싼 주식 (PEG)"),
-    dict(key="druck", name="드러켄밀러", full="스탠리 드러켄밀러", motto="추세와 유동성을 따라 크게, 틀리면 바로 손절"),
+    dict(key="buffett", name="버핏", full="워런 버핏", motto="좋은 사업을 적당한 가격에, 오래",
+         name_en="Buffett", full_en="Warren Buffett", motto_en="A good business at a sensible price, held for years"),
+    dict(key="munger", name="멍거", full="찰리 멍거", motto="훌륭한 기업만. 망하는 길부터 피한다",
+         name_en="Munger", full_en="Charlie Munger", motto_en="Only great companies. First avoid what kills you"),
+    dict(key="graham", name="그레이엄", full="벤저민 그레이엄", motto="싸게 사서 안전마진을 확보한다",
+         name_en="Graham", full_en="Benjamin Graham", motto_en="Buy cheap, with a margin of safety"),
+    dict(key="lynch", name="린치", full="피터 린치", motto="성장에 비해 싼 주식 (PEG)",
+         name_en="Lynch", full_en="Peter Lynch", motto_en="Growth at a reasonable price (PEG)"),
+    dict(key="druck", name="드러켄밀러", full="스탠리 드러켄밀러", motto="추세와 유동성을 따라 크게, 틀리면 바로 손절",
+         name_en="Druckenmiller", full_en="Stanley Druckenmiller", motto_en="Ride trend and liquidity, cut losers fast"),
 ]
 
 
 class Card:
-    """한 사람의 채점표 — add(점수, 이유)로 쌓고 verdict()로 판정."""
+    """한 사람의 채점표 — add(점수, 한국어 이유, 영어 이유)로 쌓고 verdict()로 판정."""
 
     def __init__(self):
         self.items = []
 
-    def add(self, pts: int, text: str):
-        self.items.append((pts, text))
+    def add(self, pts: int, ko: str, en: str):
+        self.items.append((pts, ko, en))
 
     def verdict(self, buy: int, sell: int, need: int = 3) -> dict:
-        score = sum(p for p, _ in self.items)
+        score = sum(i[0] for i in self.items)
         if len(self.items) < need:
-            v, line = "보류", "판단할 숫자가 부족함"
+            v, line, line_en = "보류", "판단할 숫자가 부족함", "Not enough data to judge"
         else:
             v = "사자" if score >= buy else "팔자" if score <= sell else "중립"
             side = [i for i in self.items if (i[0] > 0) == (v != "팔자") and i[0]] or self.items
-            line = max(side, key=lambda i: abs(i[0]))[1]
-        return dict(v=v, score=score, line=line, why=[dict(p=p, t=t) for p, t in self.items])
+            _, line, line_en = max(side, key=lambda i: abs(i[0]))
+        return dict(v=v, score=score, line=line, line_en=line_en, why=[dict(p=p, t=t, e=e) for p, t, e in self.items])
 
 
-def fixed(v: str, line: str) -> dict:
-    return dict(v=v, score=0, line=line, why=[dict(p=-1 if v == "팔자" else 0, t=line)])
+def fixed(v: str, ko: str, en: str) -> dict:
+    return dict(v=v, score=0, line=ko, line_en=en, why=[dict(p=-1 if v == "팔자" else 0, t=ko, e=en)])
 
 
 def eff_pe(f):
@@ -190,100 +197,100 @@ def eff_pe(f):
 def buffett(f) -> dict:
     c = Card()
     if (x := f["roe"]) is not None:
-        if x >= .20: c.add(2, f"ROE {pct(x)} — 주주 돈을 굴리는 솜씨가 뛰어남")
-        elif x >= .15: c.add(1, f"ROE {pct(x)} — 괜찮은 자본 수익률")
-        elif x < 0: c.add(-2, f"ROE {pct(x)} — 자본을 까먹는 중")
-        elif x < .08: c.add(-1, f"ROE {pct(x)} — 은행 이자보다 조금 나은 수준")
-        else: c.add(0, f"ROE {pct(x)} — 평범")
+        if x >= .20: c.add(2, f"ROE {pct(x)} — 주주 돈을 굴리는 솜씨가 뛰어남", f"ROE {pct(x)} — excellent return on shareholders' money")
+        elif x >= .15: c.add(1, f"ROE {pct(x)} — 괜찮은 자본 수익률", f"ROE {pct(x)} — decent return on equity")
+        elif x < 0: c.add(-2, f"ROE {pct(x)} — 자본을 까먹는 중", f"ROE {pct(x)} — destroying capital")
+        elif x < .08: c.add(-1, f"ROE {pct(x)} — 은행 이자보다 조금 나은 수준", f"ROE {pct(x)} — barely better than a savings account")
+        else: c.add(0, f"ROE {pct(x)} — 평범", f"ROE {pct(x)} — ordinary")
     if (x := f["om"]) is not None:
-        if x >= .25: c.add(2, f"영업이익률 {pct(x)} — 가격 결정력, 해자가 보임")
-        elif x >= .15: c.add(1, f"영업이익률 {pct(x)} — 준수")
-        elif x < 0: c.add(-2, f"영업이익률 {pct(x)} — 본업에서 돈을 못 범")
-        elif x < .05: c.add(-1, f"영업이익률 {pct(x)} — 해자가 얕음")
-        else: c.add(0, f"영업이익률 {pct(x)} — 평범")
+        if x >= .25: c.add(2, f"영업이익률 {pct(x)} — 가격 결정력, 해자가 보임", f"Operating margin {pct(x)} — pricing power, a visible moat")
+        elif x >= .15: c.add(1, f"영업이익률 {pct(x)} — 준수", f"Operating margin {pct(x)} — solid")
+        elif x < 0: c.add(-2, f"영업이익률 {pct(x)} — 본업에서 돈을 못 범", f"Operating margin {pct(x)} — the core business loses money")
+        elif x < .05: c.add(-1, f"영업이익률 {pct(x)} — 해자가 얕음", f"Operating margin {pct(x)} — a shallow moat")
+        else: c.add(0, f"영업이익률 {pct(x)} — 평범", f"Operating margin {pct(x)} — ordinary")
     if (x := f["de"]) is not None and f["sector"] != "Financial Services":
-        if x < 50: c.add(1, f"부채비율 {x:.0f}% — 빚이 적어 불황에도 버팀")
-        elif x > 300: c.add(-2, f"부채비율 {x:.0f}% — 빚이 너무 많음")
-        elif x > 150: c.add(-1, f"부채비율 {x:.0f}% — 빚 부담")
-        else: c.add(0, f"부채비율 {x:.0f}% — 무난")
+        if x < 50: c.add(1, f"부채비율 {x:.0f}% — 빚이 적어 불황에도 버팀", f"Debt/equity {x:.0f}% — little debt, survives a downturn")
+        elif x > 300: c.add(-2, f"부채비율 {x:.0f}% — 빚이 너무 많음", f"Debt/equity {x:.0f}% — far too much debt")
+        elif x > 150: c.add(-1, f"부채비율 {x:.0f}% — 빚 부담", f"Debt/equity {x:.0f}% — heavy debt load")
+        else: c.add(0, f"부채비율 {x:.0f}% — 무난", f"Debt/equity {x:.0f}% — acceptable")
     if (x := f["fcf"]) is not None:
-        if x <= 0: c.add(-1, "잉여현금흐름이 마이너스 — 주주에게 돌아올 현금이 없음")
-        elif (y := f["fcfy"]) is not None and y >= .04: c.add(2, f"잉여현금 수익률 {y * 100:.1f}% — 현금을 넉넉히 벌어 줌")
-        else: c.add(1, "잉여현금흐름 플러스")
+        if x <= 0: c.add(-1, "잉여현금흐름이 마이너스 — 주주에게 돌아올 현금이 없음", "Negative free cash flow — no cash left for owners")
+        elif (y := f["fcfy"]) is not None and y >= .04: c.add(2, f"잉여현금 수익률 {y * 100:.1f}% — 현금을 넉넉히 벌어 줌", f"Free-cash-flow yield {y * 100:.1f}% — throws off plenty of cash")
+        else: c.add(1, "잉여현금흐름 플러스", "Positive free cash flow")
     if (x := eff_pe(f)) is not None:
-        if x <= 15: c.add(2, f"PER {x:.0f}배 — 가격이 적당함")
-        elif x <= 25: c.add(1, f"PER {x:.0f}배 — 좋은 사업이라면 낼 만한 값")
-        elif x > 40: c.add(-2, f"PER {x:.0f}배 — 너무 비쌈, 기다린다")
-        elif x > 30: c.add(-1, f"PER {x:.0f}배 — 비싼 편")
-        else: c.add(0, f"PER {x:.0f}배 — 싸지는 않음")
+        if x <= 15: c.add(2, f"PER {x:.0f}배 — 가격이 적당함", f"P/E {x:.0f} — a sensible price")
+        elif x <= 25: c.add(1, f"PER {x:.0f}배 — 좋은 사업이라면 낼 만한 값", f"P/E {x:.0f} — fair for a good business")
+        elif x > 40: c.add(-2, f"PER {x:.0f}배 — 너무 비쌈, 기다린다", f"P/E {x:.0f} — too expensive, wait")
+        elif x > 30: c.add(-1, f"PER {x:.0f}배 — 비싼 편", f"P/E {x:.0f} — on the expensive side")
+        else: c.add(0, f"PER {x:.0f}배 — 싸지는 않음", f"P/E {x:.0f} — not cheap")
     if (x := f["eps"]) is not None and x < 0:
-        c.add(-1 if f["fpe"] else -2, "최근 1년 적자 — 이익을 예측하기 어려운 사업")
+        c.add(-1 if f["fpe"] else -2, "최근 1년 적자 — 이익을 예측하기 어려운 사업", "Loss over the last year — earnings are hard to predict")
     return c.verdict(5, 0)
 
 
 def munger(f) -> dict:
     c = Card()
     if (x := f["roe"]) is not None:
-        if x >= .20: c.add(2, f"ROE {pct(x)} — 훌륭한 기업의 조건")
-        elif x >= .12: c.add(1, f"ROE {pct(x)} — 괜찮음")
-        elif x < .05: c.add(-1, f"ROE {pct(x)} — 훌륭한 기업이 아님")
-        else: c.add(0, f"ROE {pct(x)} — 평범")
+        if x >= .20: c.add(2, f"ROE {pct(x)} — 훌륭한 기업의 조건", f"ROE {pct(x)} — the mark of a great business")
+        elif x >= .12: c.add(1, f"ROE {pct(x)} — 괜찮음", f"ROE {pct(x)} — decent")
+        elif x < .05: c.add(-1, f"ROE {pct(x)} — 훌륭한 기업이 아님", f"ROE {pct(x)} — not a great business")
+        else: c.add(0, f"ROE {pct(x)} — 평범", f"ROE {pct(x)} — ordinary")
     if (x := f["gm"]) is not None:
-        if x >= .50: c.add(2, f"매출총이익률 {pct(x)} — 경쟁자가 못 따라오는 사업")
-        elif x >= .35: c.add(1, f"매출총이익률 {pct(x)} — 준수")
-        elif x < .20: c.add(-1, f"매출총이익률 {pct(x)} — 가격 경쟁에 시달리는 사업")
-        else: c.add(0, f"매출총이익률 {pct(x)} — 평범")
+        if x >= .50: c.add(2, f"매출총이익률 {pct(x)} — 경쟁자가 못 따라오는 사업", f"Gross margin {pct(x)} — competitors can't match it")
+        elif x >= .35: c.add(1, f"매출총이익률 {pct(x)} — 준수", f"Gross margin {pct(x)} — solid")
+        elif x < .20: c.add(-1, f"매출총이익률 {pct(x)} — 가격 경쟁에 시달리는 사업", f"Gross margin {pct(x)} — stuck in a price war")
+        else: c.add(0, f"매출총이익률 {pct(x)} — 평범", f"Gross margin {pct(x)} — ordinary")
     if (x := f["pm"]) is not None:
-        if x >= .20: c.add(1, f"순이익률 {pct(x)}")
-        elif x < 0: c.add(-2, f"순이익률 {pct(x)} — 돈을 잃는 회사는 보지 않는다")
+        if x >= .20: c.add(1, f"순이익률 {pct(x)}", f"Net margin {pct(x)}")
+        elif x < 0: c.add(-2, f"순이익률 {pct(x)} — 돈을 잃는 회사는 보지 않는다", f"Net margin {pct(x)} — I don't look at companies that lose money")
     if (x := f["rg"]) is not None:
-        if x >= .10: c.add(1, f"매출 {x * 100:+.0f}% — 계속 크는 중")
-        elif x < 0: c.add(-1, f"매출 {x * 100:+.0f}% — 줄어드는 사업")
+        if x >= .10: c.add(1, f"매출 {x * 100:+.0f}% — 계속 크는 중", f"Revenue {x * 100:+.0f}% — still growing")
+        elif x < 0: c.add(-1, f"매출 {x * 100:+.0f}% — 줄어드는 사업", f"Revenue {x * 100:+.0f}% — a shrinking business")
     # 뒤집어 보기: 무엇이 이 회사를 죽일 수 있나
     if (x := f["de"]) is not None and x > 200 and f["sector"] != "Financial Services":
-        c.add(-2, f"부채비율 {x:.0f}% — 망하는 길 1번은 빚")
+        c.add(-2, f"부채비율 {x:.0f}% — 망하는 길 1번은 빚", f"Debt/equity {x:.0f}% — debt is the first way to go broke")
     if (x := f["cr"]) is not None and x < 1:
-        c.add(-1, f"유동비율 {x:.1f} — 단기 빚이 현금보다 많음")
+        c.add(-1, f"유동비율 {x:.1f} — 단기 빚이 현금보다 많음", f"Current ratio {x:.1f} — short-term debts exceed liquid assets")
     if (x := f["fcf"]) is not None and x < 0:
-        c.add(-1, "현금이 계속 빠져나감 — 남의 돈에 기대야 하는 사업")
+        c.add(-1, "현금이 계속 빠져나감 — 남의 돈에 기대야 하는 사업", "Burning cash — depends on other people's money")
     if (x := eff_pe(f)) is not None:
-        if x <= 30: c.add(1, f"PER {x:.0f}배 — 공정한 가격")
-        elif x > 60: c.add(-2, f"PER {x:.0f}배 — 아무리 좋아도 이 값은 아님")
-        elif x > 40: c.add(-1, f"PER {x:.0f}배 — 비쌈")
+        if x <= 30: c.add(1, f"PER {x:.0f}배 — 공정한 가격", f"P/E {x:.0f} — a fair price")
+        elif x > 60: c.add(-2, f"PER {x:.0f}배 — 아무리 좋아도 이 값은 아님", f"P/E {x:.0f} — no business is worth this much")
+        elif x > 40: c.add(-1, f"PER {x:.0f}배 — 비쌈", f"P/E {x:.0f} — expensive")
     return c.verdict(5, 0)
 
 
 def graham(f) -> dict:
     c = Card()
     if (x := f["pe"]) is not None:
-        if x <= 15: c.add(2, f"PER {x:.0f}배 — 기준(15배) 이내")
-        elif x <= 20: c.add(1, f"PER {x:.0f}배 — 기준을 조금 넘음")
-        elif x > 50: c.add(-2, f"PER {x:.0f}배 — 투기 영역")
-        elif x > 30: c.add(-1, f"PER {x:.0f}배 — 비쌈")
-        else: c.add(0, f"PER {x:.0f}배 — 기준(15배) 초과")
+        if x <= 15: c.add(2, f"PER {x:.0f}배 — 기준(15배) 이내", f"P/E {x:.0f} — within my limit of 15")
+        elif x <= 20: c.add(1, f"PER {x:.0f}배 — 기준을 조금 넘음", f"P/E {x:.0f} — slightly over my limit")
+        elif x > 50: c.add(-2, f"PER {x:.0f}배 — 투기 영역", f"P/E {x:.0f} — speculative territory")
+        elif x > 30: c.add(-1, f"PER {x:.0f}배 — 비쌈", f"P/E {x:.0f} — expensive")
+        else: c.add(0, f"PER {x:.0f}배 — 기준(15배) 초과", f"P/E {x:.0f} — over my limit of 15")
     elif f["eps"] is not None and f["eps"] <= 0:
-        c.add(-2, "최근 1년 적자 — 이익이 없으면 가치를 잴 수 없음")
+        c.add(-2, "최근 1년 적자 — 이익이 없으면 가치를 잴 수 없음", "Loss over the last year — no earnings, no way to value it")
     if (x := f["pb"]) is not None and x > 0:
-        if x <= 1.5: c.add(2, f"PBR {x:.1f}배 — 자산 가치에 가까움")
-        elif x <= 3: c.add(1, f"PBR {x:.1f}배")
-        elif x > 15: c.add(-2, f"PBR {x:.0f}배 — 장부 가치의 {x:.0f}배를 냄")
-        elif x > 8: c.add(-1, f"PBR {x:.0f}배 — 자산에 비해 비쌈")
-        else: c.add(0, f"PBR {x:.1f}배 — 기준(1.5배) 초과")
+        if x <= 1.5: c.add(2, f"PBR {x:.1f}배 — 자산 가치에 가까움", f"P/B {x:.1f} — close to asset value")
+        elif x <= 3: c.add(1, f"PBR {x:.1f}배", f"P/B {x:.1f}")
+        elif x > 15: c.add(-2, f"PBR {x:.0f}배 — 장부 가치의 {x:.0f}배를 냄", f"P/B {x:.0f} — paying {x:.0f}x book value")
+        elif x > 8: c.add(-1, f"PBR {x:.0f}배 — 자산에 비해 비쌈", f"P/B {x:.0f} — expensive against assets")
+        else: c.add(0, f"PBR {x:.1f}배 — 기준(1.5배) 초과", f"P/B {x:.1f} — over my limit of 1.5")
     if f["eps"] and f["eps"] > 0 and f["bv"] and f["bv"] > 0 and f["price"]:
         gn = math.sqrt(22.5 * f["eps"] * f["bv"])  # 그레이엄 수
         gap = f["price"] / gn
-        if gap <= 1: c.add(2, f"적정가(그레이엄 수) ${gn:,.0f} 아래 — 안전마진 {pct(1 - gap)}")
-        elif gap > 4: c.add(-2, f"적정가(그레이엄 수) ${gn:,.0f}의 {gap:.1f}배 — 안전마진 없음")
-        elif gap > 2: c.add(-1, f"적정가(그레이엄 수) ${gn:,.0f}의 {gap:.1f}배")
-        else: c.add(0, f"적정가(그레이엄 수) ${gn:,.0f}보다 {pct(gap - 1)} 비쌈")
+        if gap <= 1: c.add(2, f"적정가(그레이엄 수) ${gn:,.0f} 아래 — 안전마진 {pct(1 - gap)}", f"Below the Graham number ${gn:,.0f} — {pct(1 - gap)} margin of safety")
+        elif gap > 4: c.add(-2, f"적정가(그레이엄 수) ${gn:,.0f}의 {gap:.1f}배 — 안전마진 없음", f"{gap:.1f}x the Graham number ${gn:,.0f} — no margin of safety")
+        elif gap > 2: c.add(-1, f"적정가(그레이엄 수) ${gn:,.0f}의 {gap:.1f}배", f"{gap:.1f}x the Graham number ${gn:,.0f}")
+        else: c.add(0, f"적정가(그레이엄 수) ${gn:,.0f}보다 {pct(gap - 1)} 비쌈", f"{pct(gap - 1)} above the Graham number ${gn:,.0f}")
     if (x := f["cr"]) is not None:
-        if x >= 2: c.add(1, f"유동비율 {x:.1f} — 재무가 튼튼함")
-        elif x < 1: c.add(-1, f"유동비율 {x:.1f} — 단기 지급 능력 부족")
+        if x >= 2: c.add(1, f"유동비율 {x:.1f} — 재무가 튼튼함", f"Current ratio {x:.1f} — a strong balance sheet")
+        elif x < 1: c.add(-1, f"유동비율 {x:.1f} — 단기 지급 능력 부족", f"Current ratio {x:.1f} — weak short-term liquidity")
     if (x := f["de"]) is not None and f["sector"] != "Financial Services":
-        if x < 50: c.add(1, f"부채비율 {x:.0f}% — 보수적")
-        elif x > 150: c.add(-1, f"부채비율 {x:.0f}% — 과함")
+        if x < 50: c.add(1, f"부채비율 {x:.0f}% — 보수적", f"Debt/equity {x:.0f}% — conservative")
+        elif x > 150: c.add(-1, f"부채비율 {x:.0f}% — 과함", f"Debt/equity {x:.0f}% — excessive")
     if f["div"]:
-        c.add(1, f"배당 {f['div']:.1f}% 지급")
+        c.add(1, f"배당 {f['div']:.1f}% 지급", f"Pays a {f['div']:.1f}% dividend")
     return c.verdict(5, 0, need=2)
 
 
@@ -291,28 +298,29 @@ def lynch(f) -> dict:
     c = Card()
     eg = f["eg"]
     if f["eps"] is not None and f["eps"] < 0:
-        kind = "턴어라운드 후보" if f["feps"] and f["feps"] > 0 else "적자 기업"
-        c.add(0 if f["feps"] and f["feps"] > 0 else -1, f"분류: {kind} — 흑자 전환을 숫자로 확인하고 산다")
+        turn = bool(f["feps"] and f["feps"] > 0)
+        c.add(0 if turn else -1, f"분류: {'턴어라운드 후보' if turn else '적자 기업'} — 흑자 전환을 숫자로 확인하고 산다",
+              f"Type: {'turnaround candidate' if turn else 'loss-maker'} — wait until the numbers show the turn")
     elif eg is not None:
-        kind = "고성장주" if eg >= .20 else "대형 우량주" if eg >= .10 else "저성장주"
-        c.add(0, f"분류: {kind}")
+        ko, en = ("고성장주", "fast grower") if eg >= .20 else ("대형 우량주", "stalwart") if eg >= .10 else ("저성장주", "slow grower")
+        c.add(0, f"분류: {ko}", f"Type: {en}")
     if (x := f["peg"]) is not None and x > 0:
-        if x <= 1: c.add(3, f"PEG {x:.1f} — 성장에 비해 쌈 (1 이하면 매력)")
-        elif x <= 1.5: c.add(2, f"PEG {x:.1f} — 성장 대비 합리적")
-        elif x > 3: c.add(-2, f"PEG {x:.1f} — 성장을 한참 앞서간 가격")
-        elif x > 2: c.add(-1, f"PEG {x:.1f} — 성장 대비 비쌈")
-        else: c.add(0, f"PEG {x:.1f} — 제값")
+        if x <= 1: c.add(3, f"PEG {x:.1f} — 성장에 비해 쌈 (1 이하면 매력)", f"PEG {x:.1f} — cheap for its growth (under 1 is attractive)")
+        elif x <= 1.5: c.add(2, f"PEG {x:.1f} — 성장 대비 합리적", f"PEG {x:.1f} — reasonable for its growth")
+        elif x > 3: c.add(-2, f"PEG {x:.1f} — 성장을 한참 앞서간 가격", f"PEG {x:.1f} — the price is far ahead of the growth")
+        elif x > 2: c.add(-1, f"PEG {x:.1f} — 성장 대비 비쌈", f"PEG {x:.1f} — expensive for its growth")
+        else: c.add(0, f"PEG {x:.1f} — 제값", f"PEG {x:.1f} — fully priced")
     if eg is not None:
-        if eg >= .25: c.add(2, f"이익 {eg * 100:+.0f}% — 빠르게 크는 중")
-        elif eg >= .10: c.add(1, f"이익 {eg * 100:+.0f}%")
-        elif eg < 0: c.add(-1, f"이익 {eg * 100:+.0f}% — 줄고 있음")
-        else: c.add(0, f"이익 {eg * 100:+.0f}% — 느린 성장")
+        if eg >= .25: c.add(2, f"이익 {eg * 100:+.0f}% — 빠르게 크는 중", f"Earnings {eg * 100:+.0f}% — growing fast")
+        elif eg >= .10: c.add(1, f"이익 {eg * 100:+.0f}%", f"Earnings {eg * 100:+.0f}%")
+        elif eg < 0: c.add(-1, f"이익 {eg * 100:+.0f}% — 줄고 있음", f"Earnings {eg * 100:+.0f}% — shrinking")
+        else: c.add(0, f"이익 {eg * 100:+.0f}% — 느린 성장", f"Earnings {eg * 100:+.0f}% — slow growth")
     if (x := f["rg"]) is not None:
-        if x >= .15: c.add(1, f"매출 {x * 100:+.0f}% — 이야기가 숫자로 확인됨")
-        elif x < 0: c.add(-1, f"매출 {x * 100:+.0f}% — 줄고 있음")
+        if x >= .15: c.add(1, f"매출 {x * 100:+.0f}% — 이야기가 숫자로 확인됨", f"Revenue {x * 100:+.0f}% — the story shows up in the numbers")
+        elif x < 0: c.add(-1, f"매출 {x * 100:+.0f}% — 줄고 있음", f"Revenue {x * 100:+.0f}% — shrinking")
     if (x := f["de"]) is not None and f["sector"] != "Financial Services":
-        if x < 80: c.add(1, f"부채비율 {x:.0f}% — 빚 걱정 없음")
-        elif x > 200: c.add(-1, f"부채비율 {x:.0f}% — 빚 많은 회사는 한 번 삐끗하면 끝")
+        if x < 80: c.add(1, f"부채비율 {x:.0f}% — 빚 걱정 없음", f"Debt/equity {x:.0f}% — no debt worries")
+        elif x > 200: c.add(-1, f"부채비율 {x:.0f}% — 빚 많은 회사는 한 번 삐끗하면 끝", f"Debt/equity {x:.0f}% — one stumble can finish an indebted company")
     return c.verdict(4, 0)
 
 
@@ -320,37 +328,41 @@ def druckenmiller(f) -> dict:
     c, p = Card(), f["price"]
     if p and f["ma200"]:
         x = p / f["ma200"] - 1
-        c.add(2 if x > 0 else -2, f"200일선 {'위' if x > 0 else '아래'} {abs(x) * 100:.0f}% — 큰 추세가 {'살아 있음' if x > 0 else '꺾임'}")
+        up = x > 0
+        c.add(2 if up else -2, f"200일선 {'위' if up else '아래'} {abs(x) * 100:.0f}% — 큰 추세가 {'살아 있음' if up else '꺾임'}",
+              f"{abs(x) * 100:.0f}% {'above' if up else 'below'} the 200-day average — the major trend is {'intact' if up else 'broken'}")
     if p and f["ma50"]:
         x = p / f["ma50"] - 1
-        c.add(1 if x > 0 else -1, f"50일선 {'위' if x > 0 else '아래'} {abs(x) * 100:.0f}%")
+        up = x > 0
+        c.add(1 if up else -1, f"50일선 {'위' if up else '아래'} {abs(x) * 100:.0f}%", f"{abs(x) * 100:.0f}% {'above' if up else 'below'} the 50-day average")
     if (x := f["r6"]) is not None:
-        if x >= .20: c.add(1, f"6개월 {x * 100:+.0f}% — 돈이 몰리는 종목")
-        elif x <= -.20: c.add(-1, f"6개월 {x * 100:+.0f}% — 돈이 빠지는 종목")
-        else: c.add(0, f"6개월 {x * 100:+.0f}%")
+        if x >= .20: c.add(1, f"6개월 {x * 100:+.0f}% — 돈이 몰리는 종목", f"{x * 100:+.0f}% in 6 months — money is flowing in")
+        elif x <= -.20: c.add(-1, f"6개월 {x * 100:+.0f}% — 돈이 빠지는 종목", f"{x * 100:+.0f}% in 6 months — money is flowing out")
+        else: c.add(0, f"6개월 {x * 100:+.0f}%", f"{x * 100:+.0f}% in 6 months")
     if (x := f["rs3"]) is not None:
-        if x >= .05: c.add(1, f"3개월 S&P500보다 {x * 100:+.0f}%p — 시장을 이김")
-        elif x <= -.05: c.add(-1, f"3개월 S&P500보다 {x * 100:+.0f}%p — 시장에 짐")
+        if x >= .05: c.add(1, f"3개월 S&P500보다 {x * 100:+.0f}%p — 시장을 이김", f"{x * 100:+.0f} pts vs the S&P 500 over 3 months — beating the market")
+        elif x <= -.05: c.add(-1, f"3개월 S&P500보다 {x * 100:+.0f}%p — 시장에 짐", f"{x * 100:+.0f} pts vs the S&P 500 over 3 months — lagging the market")
     if (x := f["off_hi"]) is not None:
-        if x >= -.10: c.add(1, f"52주 고점에서 {x * 100:.0f}% — 고점 근처")
-        elif x <= -.35: c.add(-1, f"52주 고점에서 {x * 100:.0f}% — 떨어지는 칼")
+        if x >= -.10: c.add(1, f"52주 고점에서 {x * 100:.0f}% — 고점 근처", f"{x * 100:.0f}% from the 52-week high — near the highs")
+        elif x <= -.35: c.add(-1, f"52주 고점에서 {x * 100:.0f}% — 떨어지는 칼", f"{x * 100:.0f}% from the 52-week high — a falling knife")
     if (x := f["eg"]) is not None:
-        if x >= .25: c.add(1, f"이익 {x * 100:+.0f}% — 실적이 주가를 밀어 줌")
-        elif x < 0: c.add(-1, f"이익 {x * 100:+.0f}% — 실적이 꺾임")
+        if x >= .25: c.add(1, f"이익 {x * 100:+.0f}% — 실적이 주가를 밀어 줌", f"Earnings {x * 100:+.0f}% — results are driving the stock")
+        elif x < 0: c.add(-1, f"이익 {x * 100:+.0f}% — 실적이 꺾임", f"Earnings {x * 100:+.0f}% — results have rolled over")
     if f["spy_up"] is False:
-        c.add(-1, "S&P500이 200일선 아래 — 시장 전체가 약세, 판을 줄일 때")
+        c.add(-1, "S&P500이 200일선 아래 — 시장 전체가 약세, 판을 줄일 때", "S&P 500 below its 200-day average — weak market, time to cut size")
     return c.verdict(4, -2, need=2)
 
 
 def judge(f: dict) -> dict:
     if f["kind"] == "CRYPTOCURRENCY":
-        v = dict(buffett=fixed("팔자", "아무것도 만들어 내지 않는 자산 — 다음 사람이 더 비싸게 사 주길 바랄 뿐"),
-                 munger=fixed("팔자", "가치를 따질 근거가 없는 자산은 쳐다보지 않는다"),
-                 graham=fixed("팔자", "내재가치를 계산할 수 없음 — 투자가 아니라 투기"),
-                 lynch=fixed("보류", "이익도 성장률도 없어 내 방식으로는 잴 수 없음"))
+        v = dict(buffett=fixed("팔자", "아무것도 만들어 내지 않는 자산 — 다음 사람이 더 비싸게 사 주길 바랄 뿐", "An asset that produces nothing — you just hope the next buyer pays more"),
+                 munger=fixed("팔자", "가치를 따질 근거가 없는 자산은 쳐다보지 않는다", "I don't look at assets with nothing to value"),
+                 graham=fixed("팔자", "내재가치를 계산할 수 없음 — 투자가 아니라 투기", "No intrinsic value to compute — speculation, not investment"),
+                 lynch=fixed("보류", "이익도 성장률도 없어 내 방식으로는 잴 수 없음", "No earnings or growth rate — my method can't measure it"))
     elif f["kind"] != "EQUITY" or f["price"] is None:
-        why = "가격 데이터를 못 받음" if f["price"] is None else "개별 기업이 아니라 재무 기준을 적용할 수 없음"
-        v = {k: fixed("보류", why) for k in ("buffett", "munger", "graham", "lynch")}
+        ko, en = ("가격 데이터를 못 받음", "No price data") if f["price"] is None else \
+            ("개별 기업이 아니라 재무 기준을 적용할 수 없음", "Not a single company, so the financial tests don't apply")
+        v = {k: fixed("보류", ko, en) for k in ("buffett", "munger", "graham", "lynch")}
     else:
         v = dict(buffett=buffett(f), munger=munger(f), graham=graham(f), lynch=lynch(f))
     v["druck"] = druckenmiller(f)
@@ -493,7 +505,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, b"not found", "text/plain")
 
 
+def export(out: Path) -> int:
+    """포트폴리오 사이트용 — 관심종목 판정을 out/legends.json 으로 저장 (GitHub Actions 의 legends.yml 이 3시간마다 실행)."""
+    rows, spy_up = build(watchlist())
+    if sum(r["price"] is not None for r in rows) < len(rows) // 2:
+        print("too few tickers came back from Yahoo; keeping the previous file", file=sys.stderr)
+        return 1
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "legends.json").write_text(json.dumps(dict(updated=time.time(), spy_up=spy_up, legends=LEGENDS, rows=rows),
+                                                 ensure_ascii=False, separators=(",", ":")))
+    print(f"wrote {out / 'legends.json'} ({len(rows)} tickers)")
+    return 0
+
+
 def main():
+    if "--out" in sys.argv:
+        sys.exit(export(Path(sys.argv[sys.argv.index("--out") + 1])))
     threading.Thread(target=keeper, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     if "--open" in sys.argv:

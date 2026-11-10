@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wall Street Legends — Isaac Kim</title>
+<meta name="description" content="Five famous investors' published criteria, turned into explicit rules and applied to a 50-stock watchlist: buy, hold or sell, with the reasons. Refreshed every three hours.">
+<meta property="og:title" content="Wall Street Legends — five investors, one watchlist">
+<meta property="og:description" content="Buffett, Munger, Graham, Lynch and Druckenmiller as explicit rules: buy, hold or sell for 50 stocks, with reasons.">
+<meta property="og:type" content="website">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Noto+Serif+KR:wght@600&display=swap">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
+<style>
+:root{
+  --bg:#f7f5ef; --surface:#fffdf8; --cell:#f1eee5; --ink:#171a2b; --ink-2:#474b63; --ink-3:#74788f; --line:#e4dfd2;
+  --accent:#2b44b0; --accent-soft:rgba(43,68,176,.09); --up:#18794e; --up-soft:rgba(24,121,78,.12); --down:#c8372d; --down-soft:rgba(200,55,45,.11);
+  --f-display:"Fraunces","Noto Serif KR",Georgia,serif;
+  --f-body:"Inter",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12141c; --surface:#1a1d28; --cell:#222634; --ink:#eceef6; --ink-2:#b9bdd0; --ink-3:#8b90a8; --line:#2c3142;
+  --accent:#93a7ff; --accent-soft:rgba(147,167,255,.13); --up:#4cc38a; --up-soft:rgba(76,195,138,.15); --down:#ff7b72; --down-soft:rgba(255,123,114,.14);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12141c; --surface:#1a1d28; --cell:#222634; --ink:#eceef6; --ink-2:#b9bdd0; --ink-3:#8b90a8; --line:#2c3142;
+  --accent:#93a7ff; --accent-soft:rgba(147,167,255,.13); --up:#4cc38a; --up-soft:rgba(76,195,138,.15); --down:#ff7b72; --down-soft:rgba(255,123,114,.14);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button,input{font:inherit;color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(16px,4vw,40px)}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0}
+.back{font-size:14px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.back:hover{color:var(--accent)}
+.seg{display:inline-flex;padding:3px;border-radius:999px;background:var(--cell);border:1px solid var(--line)}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-3);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+.hero{padding:28px 0 26px}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--accent);letter-spacing:.02em;text-transform:uppercase}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up);flex:none}
+.dot.off{background:var(--ink-3)}
+h1{font-family:var(--f-display);font-weight:600;font-size:clamp(36px,6vw,60px);line-height:1.05;letter-spacing:-.02em;margin:10px 0 12px}
+.lede{font-size:clamp(16px,1.6vw,18px);color:var(--ink-2);max-width:62ch;margin:0}
+.status{font-size:13px;color:var(--ink-3);margin-top:14px}
+
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.tile{appearance:none;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:18px;padding:16px 18px;cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.tile:hover{border-color:var(--c)}
+.tile.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 8%,var(--surface))}
+.tile .l{font-size:13px;font-weight:600;color:var(--ink-2)}
+.tile .v{font-family:var(--f-display);font-size:44px;font-weight:600;line-height:1.05;color:var(--c);margin-top:2px}
+.tile .v small{font-family:var(--f-body);font-size:14px;font-weight:500;color:var(--ink-3);margin-left:6px}
+.tile .s{font-size:12.5px;color:var(--ink-3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.buy{--c:var(--up)}.sell{--c:var(--down)}.mix{--c:var(--ink-2)}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.hint{font-size:13px;color:var(--ink-3)}
+.find{width:190px;max-width:100%;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:14px;outline:none}
+.find:focus{border-color:var(--accent)}
+
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.row{display:grid;grid-template-columns:minmax(150px,1.5fr) repeat(5,minmax(0,1fr)) 104px;gap:8px;align-items:center;padding:11px 18px;border-top:1px solid var(--line)}
+.row.head{border-top:0;font-size:12px;font-weight:600;color:var(--ink-3);background:var(--cell)}
+.row.head div:not(:first-child){text-align:center}
+.row.item{cursor:pointer;width:100%;text-align:left;background:none;border-left:0;border-right:0;border-bottom:0}
+.row.item:hover{background:var(--accent-soft)}
+.stock{min-width:0}
+.stock .sym{font-weight:700;font-size:15px}
+.stock .px{font-size:12.5px;margin-left:6px;color:var(--ink-2)}
+.stock .nm{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:block;text-align:center;font-size:13px;font-weight:600;padding:5px 0;border-radius:999px;background:var(--cell);color:var(--ink-3)}
+.chip.b{background:var(--up-soft);color:var(--up)}
+.chip.s{background:var(--down-soft);color:var(--down)}
+.chip.p{background:none;border:1px dashed var(--line);font-weight:500}
+.cons{text-align:center;font-weight:700;font-size:13px;color:var(--c)}
+.cons small{display:block;font-weight:500;font-size:11.5px;color:var(--ink-3)}
+.detail{padding:8px 18px 20px;border-top:1px dashed var(--line);background:var(--cell)}
+.people{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:10px}
+.who{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:14px;padding:14px;min-width:0}
+.who.b{--c:var(--up)}.who.s{--c:var(--down)}.who.h,.who.p{--c:var(--line)}
+.who .n{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.who .n b{font-family:var(--f-display);font-size:19px;font-weight:600;line-height:1.1}
+.who .n .chip{padding:3px 10px;flex:none}
+.who .motto{font-size:11.5px;color:var(--ink-3);margin-top:4px;line-height:1.35}
+.who .line{font-size:13.5px;font-weight:600;margin-top:10px;line-height:1.4}
+.who ul{list-style:none;padding:0;margin:8px 0 0;font-size:12.5px;color:var(--ink-2)}
+.who li{display:flex;gap:6px;padding:3px 0;line-height:1.35}
+.who li i{font-style:normal;font-weight:700;flex:none;width:12px;text-align:center;color:var(--ink-3)}
+.who li.pl i{color:var(--up)}.who li.mi i{color:var(--down)}
+.metrics{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:12px;font-size:12px;color:var(--ink-3)}
+.metrics span{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.metrics b{color:var(--ink);font-weight:600}
+.empty{padding:44px 16px;text-align:center;color:var(--ink-3)}
+
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:28px}
+.how div{border:1px solid var(--line);border-radius:18px;padding:18px;background:var(--surface)}
+.how h3{font-family:var(--f-display);font-size:19px;font-weight:600;margin:0 0 6px}
+.how p{margin:0;font-size:13.5px;color:var(--ink-2)}
+.foot{font-size:12.5px;color:var(--ink-3);margin:22px 0 48px;line-height:1.6}
+.foot a{color:var(--ink-2);font-weight:500}
+.short{display:none}
+@media (max-width:1000px){.people{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){
+  .row{grid-template-columns:minmax(64px,1.1fr) repeat(5,minmax(0,1fr));gap:4px;padding:10px 10px}
+  .row>.cons,.row.head>div:last-child{display:none}
+  .stock .nm,.stock .px{display:none}
+  .chip{font-size:12px}.row .long{display:none}.row .short{display:inline}
+  .row.head{font-size:11px}
+  .people,.how{grid-template-columns:1fr}
+  .tile{padding:12px 12px}.tile .v{font-size:32px}.tile .v small{display:none}
+  .find{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../" id="back">‹ Isaac Kim</a>
+    <div class="seg" role="group" aria-label="Language">
+      <button type="button" id="lang-en" aria-pressed="true">English</button>
+      <button type="button" id="lang-ko" aria-pressed="false">한국어</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <span class="kicker"><span class="dot off" id="dot"></span><span data-t="kicker"></span></span>
+    <h1 data-t="title"></h1>
+    <p class="lede" data-t="lede"></p>
+    <div class="status num" id="status"></div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+  <div class="bar">
+    <span class="hint" id="hint"></span>
+    <input class="find" id="find" type="search" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="sheet" id="sheet"><div class="empty">…</div></div>
+
+  <div class="how">
+    <div><h3 data-t="h1"></h3><p data-t="p1"></p></div>
+    <div><h3 data-t="h2"></h3><p data-t="p2"></p></div>
+    <div><h3 data-t="h3"></h3><p data-t="p3"></p></div>
+  </div>
+  <p class="foot"><span data-t="foot"></span>
+    <a href="../lab.html">Forecast Lab</a> · <a href="earnings.html">Earnings Desk</a> ·
+    <a href="https://github.com/isaac-waffle/portfolio/blob/main/apps/legends.py" target="_blank" rel="noopener" data-t="code"></a></p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var qs = new URLSearchParams(location.search);
+  var LIVE = qs.get("data") || "https://raw.githubusercontent.com/isaac-waffle/portfolio/legends-data/legends.json";
+  var SAMPLE = "../data/legends-sample.json";
+
+  var T = {
+    en: {
+      kicker: "Live · refreshed every 3 hours", title: "Wall Street Legends",
+      lede: "What would five famous investors say about each stock on my watchlist? I turned their published criteria into explicit, scoreable rules. Each one returns buy, hold or sell, and shows exactly which numbers led there.",
+      buyL: "Mostly buy", mixL: "Split", sellL: "Mostly sell", buyS: "3 or more say buy", mixS: "no majority", sellS: "3 or more say sell", stocks: "stocks",
+      hintAll: "Select a row to see each investor's reasons. Select a number above to filter.", hintF: "Showing “{f}” only. Select it again to show all.",
+      find: "Find a ticker", stock: "Stock", consensus: "Consensus", buy: "Buy", hold: "Hold", sell: "Sell", pass: "Pass",
+      tally: "{b} buy · {s} sell", none: "No stock matches.", loading: "Loading…",
+      asof: "Data as of {t} (your local time) · {n} stocks", sample: "Live feed unreachable. Showing a bundled snapshot from {t}.",
+      weak: "The S&P 500 is below its 200-day average, so Druckenmiller marks every stock down.",
+      m: { roe: "ROE", om: "Op. margin", pe: "P/E", fpe: "Fwd P/E", pb: "P/B", peg: "PEG", eg: "Earnings growth", rg: "Revenue growth", de: "Debt/equity", r6: "6 months", off_hi: "From high" },
+      h1: "Rules, not opinions", p1: "Each investor is a short scoring function over public fundamentals and prices: return on equity, margins, debt, valuation, growth and trend. No language model is involved, so every verdict can be traced to a number.",
+      h2: "They disagree on purpose", p2: "Graham wants a P/E under 15 and rejects most growth stocks. Lynch pays up when growth justifies it. Druckenmiller ignores valuation and follows the trend. The disagreement is the useful part.",
+      h3: "Runs unattended", p3: "A scheduled GitHub Actions job pulls data from Yahoo Finance every three hours, scores the 50-stock watchlist and publishes one JSON file that this static page reads.",
+      foot: "These are simplified rules inspired by each investor's public writing. They are not the real people's views and not investment advice. Data can be late or wrong. ", code: "View the rules (code)", doc: "Wall Street Legends — Isaac Kim"
+    },
+    ko: {
+      kicker: "실시간 · 3시간마다 갱신", title: "월가 전설 5인",
+      lede: "유명한 투자자 다섯 명이라면 내 관심종목을 각각 어떻게 볼까요? 이들이 책과 주주서한에서 밝힌 기준을 점수 규칙으로 옮겼습니다. 한 명씩 사자·중립·팔자를 내고, 어떤 숫자 때문인지 그대로 보여 줍니다.",
+      buyL: "사자 우세", mixL: "엇갈림", sellL: "팔자 우세", buyS: "3명 이상이 사자", mixS: "의견이 갈림", sellS: "3명 이상이 팔자", stocks: "종목",
+      hintAll: "줄을 누르면 다섯 사람의 이유가 펼쳐집니다. 위 숫자를 누르면 그 묶음만 봅니다.", hintF: "“{f}”만 보는 중입니다. 다시 누르면 전체가 나옵니다.",
+      find: "티커 찾기", stock: "종목", consensus: "종합", buy: "사자", hold: "중립", sell: "팔자", pass: "보류",
+      tally: "사자 {b} · 팔자 {s}", none: "맞는 종목이 없습니다.", loading: "불러오는 중…",
+      asof: "{t} 기준 (내 시간대) · {n}종목", sample: "실시간 데이터를 받지 못해 {t}에 저장한 표본을 보여 줍니다.",
+      weak: "지금 S&P500이 200일선 아래라서 드러켄밀러는 모든 종목에 감점을 줍니다.",
+      m: { roe: "ROE", om: "영업이익률", pe: "PER", fpe: "예상 PER", pb: "PBR", peg: "PEG", eg: "이익 성장", rg: "매출 성장", de: "부채비율", r6: "6개월", off_hi: "고점 대비" },
+      h1: "의견이 아니라 규칙", p1: "각 투자자는 공개된 재무와 주가로 점수를 매기는 짧은 함수입니다. 자기자본이익률, 이익률, 부채, 가치평가, 성장, 추세를 봅니다. 언어 모델을 쓰지 않아서 모든 판정을 숫자까지 거슬러 올라갈 수 있습니다.",
+      h2: "일부러 엇갈립니다", p2: "그레이엄은 PER 15배 아래만 사서 성장주 대부분을 거절합니다. 린치는 성장이 받쳐 주면 비싸도 삽니다. 드러켄밀러는 가치평가를 보지 않고 추세를 따릅니다. 이 차이가 쓸모 있는 부분입니다.",
+      h3: "혼자 돌아갑니다", p3: "GitHub Actions 예약 작업이 3시간마다 Yahoo Finance에서 데이터를 받아 관심종목 50개를 채점하고, 이 정적 페이지가 읽는 JSON 파일 하나를 올립니다.",
+      foot: "각 투자자의 공개된 글을 참고해 단순화한 규칙입니다. 실제 인물의 의견이 아니며 투자 조언도 아닙니다. 데이터는 늦거나 틀릴 수 있습니다. ", code: "규칙 코드 보기", doc: "월가 전설 5인 — Isaac Kim"
+    }
+  };
+  var lang = "en";
+  try { var q = qs.get("lang") || localStorage.getItem("site-lang") || localStorage.getItem("earn-lang"); lang = q === "ko" ? "ko" : "en"; } catch (e) {}
+  var t = function (k) { return T[lang][k]; };
+  var fill = function (s, o) { return s.replace(/\{(\w+)\}/g, function (_, k) { return o[k]; }); };
+
+  var D = null, sample = false, filter = "", open = "", query = "";
+  var V = { "사자": ["b", "buy"], "중립": ["h", "hold"], "팔자": ["s", "sell"], "보류": ["p", "pass"] };
+  var CONS = { "사자 우세": ["buy", "buyL", "buyS"], "엇갈림": ["mix", "mixL", "mixS"], "팔자 우세": ["sell", "sellL", "sellS"] };
+  var RANK = { "사자 우세": 0, "엇갈림": 1, "팔자 우세": 2 };
+
+  var money = function (x) { return x == null ? "–" : "$" + x.toLocaleString("en-US", { maximumFractionDigits: x >= 1000 ? 0 : 2, minimumFractionDigits: x >= 1000 ? 0 : 2 }); };
+  var sg = function (x, d) { return (x >= 0 ? "+" : "") + (x * 100).toFixed(d == null ? 1 : d) + "%"; };
+  var chip = function (v) {
+    var c = V[v] || V["보류"], label = t(c[1]);
+    return '<span class="chip ' + c[0] + '"><span class="long">' + label + '</span><span class="short">' + (c[0] === "p" ? "–" : lang === "ko" ? label.charAt(0) : label.charAt(0)) + "</span></span>";
+  };
+
+  function metrics(r) {
+    var m = r.m, L = t("m"), x = lang === "ko" ? "배" : "x";
+    var items = [["roe", m.roe != null && (m.roe * 100).toFixed(0) + "%"], ["om", m.om != null && (m.om * 100).toFixed(0) + "%"],
+      ["pe", m.pe && m.pe.toFixed(0) + x], ["fpe", m.fpe && m.fpe.toFixed(0) + x], ["pb", m.pb && m.pb.toFixed(1) + x], ["peg", m.peg && m.peg.toFixed(1)],
+      ["eg", m.eg != null && sg(m.eg, 0)], ["rg", m.rg != null && sg(m.rg, 0)], ["de", m.de != null && m.de.toFixed(0) + "%"],
+      ["r6", m.r6 != null && sg(m.r6, 0)], ["off_hi", m.off_hi != null && sg(m.off_hi, 0)]].filter(function (i) { return i[1]; });
+    return '<div class="metrics">' + items.map(function (i) { return "<span>" + L[i[0]] + ' <b class="num">' + i[1] + "</b></span>"; }).join("") + "</div>";
+  }
+  function detail(r) {
+    var en = lang === "en";
+    return '<div class="detail"><div class="people">' + D.legends.map(function (L) {
+      var x = r.v[L.key], c = (V[x.v] || V["보류"])[0];
+      return '<div class="who ' + c + '"><div class="n"><b>' + esc(en ? L.name_en : L.name) + "</b>" + chip(x.v) + "</div>" +
+        '<div class="motto">' + esc(en ? L.motto_en : L.motto) + '</div><div class="line">' + esc(en ? x.line_en : x.line) + "</div><ul>" +
+        x.why.map(function (w) { return '<li class="' + (w.p > 0 ? "pl" : w.p < 0 ? "mi" : "") + '"><i>' + (w.p > 0 ? "+" : w.p < 0 ? "−" : "·") + "</i><span>" + esc(en ? w.e : w.t) + "</span></li>"; }).join("") +
+        "</ul></div>";
+    }).join("") + "</div>" + metrics(r) + "</div>";
+  }
+
+  function render() {
+    document.documentElement.lang = lang; document.title = t("doc");
+    $("lang-en").setAttribute("aria-pressed", lang === "en"); $("lang-ko").setAttribute("aria-pressed", lang === "ko");
+    document.querySelectorAll("[data-t]").forEach(function (el) { el.textContent = t(el.getAttribute("data-t")); });
+    $("find").placeholder = t("find"); $("find").setAttribute("aria-label", t("find"));
+    if (!D) { $("sheet").innerHTML = '<div class="empty">' + t("loading") + "</div>"; return; }
+    var rows = D.rows.slice().sort(function (a, b) { return RANK[a.cons] - RANK[b.cons] || (b.buys - b.sells) - (a.buys - a.sells) || a.sym.localeCompare(b.sym); });
+    var when = new Date(D.updated * 1000).toLocaleString(lang === "ko" ? "ko-KR" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    $("dot").className = "dot" + (sample ? " off" : "");
+    $("status").textContent = fill(t(sample ? "sample" : "asof"), { t: when, n: rows.length });
+    $("tiles").innerHTML = Object.keys(CONS).map(function (k) {
+      var c = CONS[k], g = rows.filter(function (r) { return r.cons === k; });
+      return '<button type="button" class="tile ' + c[0] + (filter === k ? " on" : "") + '" data-f="' + k + '" aria-pressed="' + (filter === k) + '">' +
+        '<div class="l">' + t(c[1]) + '</div><div class="v num">' + g.length + "<small>" + t("stocks") + "</small></div>" +
+        '<div class="s">' + (g.slice(0, 6).map(function (r) { return esc(r.sym); }).join(" · ") || t(c[2])) + "</div></button>";
+    }).join("");
+    $("hint").textContent = D.spy_up === false ? t("weak") : filter ? fill(t("hintF"), { f: t(CONS[filter][1]) }) : t("hintAll");
+    var show = rows.filter(function (r) { return (!filter || r.cons === filter) && (!query || r.sym.indexOf(query) === 0 || String(r.name).toUpperCase().indexOf(query) >= 0); });
+    var en = lang === "en";
+    $("sheet").innerHTML = '<div class="row head"><div>' + t("stock") + "</div>" + D.legends.map(function (L) { return "<div>" + esc(en ? L.name_en : L.name) + "</div>"; }).join("") + "<div>" + t("consensus") + "</div></div>" +
+      (show.length ? show.map(function (r) {
+        var c = CONS[r.cons];
+        return '<button type="button" class="row item" data-sym="' + esc(r.sym) + '" aria-expanded="' + (open === r.sym) + '">' +
+          '<div class="stock"><span class="sym">' + esc(r.sym) + '</span><span class="px num">' + money(r.price) + (r.chg != null ? ' <span class="' + (r.chg >= 0 ? "up" : "down") + '">' + sg(r.chg) + "</span>" : "") + "</span>" +
+          '<div class="nm">' + esc(r.name) + "</div></div>" + D.legends.map(function (L) { return "<div>" + chip(r.v[L.key].v) + "</div>"; }).join("") +
+          '<div class="cons ' + c[0] + '">' + t(c[1]) + '<small class="num">' + fill(t("tally"), { b: r.buys, s: r.sells }) + "</small></div></button>" +
+          (open === r.sym ? detail(r) : "");
+      }).join("") : '<div class="empty">' + t("none") + "</div>");
+  }
+
+  function setLang(l) { lang = l; try { localStorage.setItem("site-lang", l); localStorage.setItem("earn-lang", l); } catch (e) {} render(); }
+  $("lang-en").onclick = function () { setLang("en"); };
+  $("lang-ko").onclick = function () { setLang("ko"); };
+  $("tiles").onclick = function (e) { var b = e.target.closest("[data-f]"); if (!b) return; filter = filter === b.getAttribute("data-f") ? "" : b.getAttribute("data-f"); render(); };
+  $("sheet").onclick = function (e) { var r = e.target.closest(".row.item"); if (!r) return; var s = r.getAttribute("data-sym"); open = open === s ? "" : s; render(); };
+  $("find").oninput = function () { query = this.value.trim().toUpperCase(); render(); };
+
+  var ok = function (d) { return d && d.rows && d.rows.length && d.legends; };
+  render();
+  fetch(LIVE, { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) { if (!ok(d)) throw 0; D = d; render(); })
+    .catch(function () {
+      return fetch(SAMPLE).then(function (r) { return r.json(); }).then(function (d) { D = d; sample = true; render(); });
+    }).catch(function () { $("sheet").innerHTML = '<div class="empty">' + t("none") + "</div>"; });
+})();
+</script>
+</body>
+</html>

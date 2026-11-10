@@ -9,9 +9,9 @@ forecast once its bar closes.
 ```
 site/                 static site deployed to GitHub Pages
   index.html          single-page portfolio
-  assets/             css, js, images
-  demos/              in-browser demos (DEGIRO P&L Analyzer, Woning Scout, Earnings Desk)
-  data/               bundled forecast snapshot (fallback if the live feed is unreachable)
+  assets/             css, js, images (home.css = home page look, i18n.js = Korean text for the EN/KO switch)
+  demos/              in-browser demos (DEGIRO P&L Analyzer, Woning Scout, Earnings Desk, Wall Street Legends)
+  data/               bundled forecast and legends snapshots (fallback if a live feed is unreachable)
 forecast/
   forecast.py         data → features → walk-forward → live forecast → forward-test scoring
 earnings/
@@ -21,11 +21,15 @@ earnings/
   deploy.yml          deploys site/ on push to main
   forecast.yml        runs forecast.py every 15 min in US market hours, force-pushes JSON to the `data` branch
   earnings.yml        runs earnings.py every 3 hours, force-pushes JSON to the `earnings-data` branch
+  legends.yml         runs apps/legends.py --out every 3 hours, force-pushes JSON to the `legends-data` branch
 ```
 
 The lab reads `https://raw.githubusercontent.com/isaac-waffle/portfolio/data/forecast.json`;
 the Earnings Desk reads `calendar.json` and `t/<TICKER>.json` from the `earnings-data` branch
 (`demos/earnings.html?data=<path>` points it at a local build instead).
+Wall Street Legends reads `legends.json` from the `legends-data` branch; its rules live in one file,
+`apps/legends.py`, which also runs the local app. The home page and Wall Street Legends default to English
+and switch to Korean (`?lang=ko`, remembered per browser).
 
 Run locally:
 
