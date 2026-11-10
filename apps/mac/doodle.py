@@ -196,6 +196,14 @@ def stocks(p: Pen):
     p.scribble(645, 258, 738, 424, n=6)                                                  # 마지막 봉은 색칠
 
 
+def radar(p: Pen):
+    p.ellipse(510, 520, 270, 270)                                                        # 레이더 화면
+    p.ellipse(510, 520, 150, 150, width=5)
+    p.line([(510, 520), (700, 330)], width=8)                                            # 돌아가는 바늘
+    p.ellipse(430, 420, 16, 16, width=9)                                                 # 잡힌 점
+    p.ellipse(620, 610, 14, 14, width=9)
+
+
 def crystal(p: Pen):
     p.ellipse(512, 440, 200, 190)
     p.ellipse(512, 440, 196, 188, amp=7)
@@ -265,8 +273,8 @@ def branch(p: Pen):
 SUBJECTS = {"robot": (robot, 11), "person": (person, 5), "cat": (cat, 3), "house": (house, 8), "chart": (chart, 21),
             "calendar": (calendar, 22), "traders": (traders, 23), "crystal": (crystal, 24), "globe": (globe, 25),
             "camera": (camera, 26), "flask": (flask, 27), "moneybag": (moneybag, 28), "rocket": (rocket, 29),
-            "cycle": (cycle, 30), "branch": (branch, 31), "legends": (legends, 32), "stocks": (stocks, 33)}
-HUB = ["chart", "calendar", "traders", "legends", "stocks", "crystal", "globe", "camera", "person", "flask", "moneybag", "house", "rocket",
+            "cycle": (cycle, 30), "branch": (branch, 31), "legends": (legends, 32), "stocks": (stocks, 33), "radar": (radar, 34)}
+HUB = ["chart", "calendar", "traders", "legends", "stocks", "radar", "crystal", "globe", "camera", "person", "flask", "moneybag", "house", "rocket",
        "cycle", "branch"]
 
 

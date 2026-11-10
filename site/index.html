@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="assets/css/style.css?v=23">
-<link rel="stylesheet" href="assets/css/home.css?v=4">
+<link rel="stylesheet" href="assets/css/home.css?v=5">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
 </head>
@@ -86,7 +86,7 @@
     <div class="wrap">
       <div class="sec-row">
         <h2 data-i18n="tools.h">Stock tools</h2>
-        <p data-i18n="tools.p">Three update themselves in the cloud. The fourth runs entirely in your browser.</p>
+        <p data-i18n="tools.p">Four update themselves in the cloud. The P&amp;L Analyzer runs entirely in your browser.</p>
       </div>
       <div class="tool-grid">
         <a class="tool" href="lab.html">
@@ -106,6 +106,12 @@
           <h3 data-i18n="tools.leg.h">Wall Street Legends</h3>
           <p data-i18n="tools.leg.p">Buffett, Munger, Graham, Lynch and Druckenmiller as explicit rules: buy, hold or sell for 50 stocks, with the reasons.</p>
           <span class="tool-live" id="legLive" hidden></span>
+          <span class="go" data-i18n="tools.open">Open</span>
+        </a>
+        <a class="tool" href="demos/radar.html">
+          <span class="tool-top"><span class="dot"></span><span data-i18n="tools.radar.when">Every 2 hours</span></span>
+          <h3 data-i18n="tools.radar.h">Market Radar</h3>
+          <p data-i18n="tools.radar.p">A heatmap, Reddit's most-mentioned tickers, unusual options volume and insider trades for the watchlist.</p>
           <span class="go" data-i18n="tools.open">Open</span>
         </a>
         <a class="tool" href="demos/pnl.html">
@@ -201,14 +207,14 @@
 <footer>
   <div class="wrap">
     <span>© <span id="yr">2026</span> Isaac Kim · Amsterdam</span>
-    <span><a href="lab.html">Forecast Lab</a> · <a href="demos/earnings.html">Earnings Desk</a> · <a href="demos/legends.html" data-i18n="tools.leg.h">Wall Street Legends</a> · <a href="demos/pnl.html" data-i18n="tools.pnl.h">P&amp;L Analyzer</a> · <a href="https://github.com/isaac-waffle/portfolio" target="_blank" rel="noopener" data-i18n="foot.src">Source</a></span>
+    <span><a href="lab.html">Forecast Lab</a> · <a href="demos/earnings.html">Earnings Desk</a> · <a href="demos/legends.html" data-i18n="tools.leg.h">Wall Street Legends</a> · <a href="demos/radar.html" data-i18n="tools.radar.h">Market Radar</a> · <a href="demos/pnl.html" data-i18n="tools.pnl.h">P&amp;L Analyzer</a> · <a href="https://github.com/isaac-waffle/portfolio" target="_blank" rel="noopener" data-i18n="foot.src">Source</a></span>
   </div>
 </footer>
 
 <dialog class="case" id="caseDlg" aria-labelledby="caseTitle"></dialog>
 
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})});</script>
-<script src="assets/js/i18n.js?v=3"></script>
+<script src="assets/js/i18n.js?v=4"></script>
 <script src="assets/js/main.js?v=23"></script>
 </body>
 </html>
