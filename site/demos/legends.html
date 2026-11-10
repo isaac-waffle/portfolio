@@ -11,14 +11,14 @@
 <link rel="icon" href="../assets/img/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Noto+Serif+KR:wght@600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LF9100HZBE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-LF9100HZBE');</script>
 <style>
 :root{
-  --bg:#f7f5ef; --surface:#fffdf8; --cell:#f1eee5; --ink:#171a2b; --ink-2:#474b63; --ink-3:#74788f; --line:#e4dfd2;
-  --accent:#2b44b0; --accent-soft:rgba(43,68,176,.09); --up:#18794e; --up-soft:rgba(24,121,78,.12); --down:#c8372d; --down-soft:rgba(200,55,45,.11);
-  --f-display:"Fraunces","Noto Serif KR",Georgia,serif;
+  --bg:#f6f7f9; --surface:#ffffff; --cell:#f1f4f8; --ink:#0f172a; --ink-2:#334155; --ink-3:#64748b; --line:#e2e8f0;
+  --accent:#1d3a8a; --accent-soft:rgba(29,58,138,.07); --up:#15803d; --up-soft:rgba(21,128,61,.11); --down:#c2362c; --down-soft:rgba(194,54,44,.10);
+  --f-display:"Inter",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
   --f-body:"Inter",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
   color-scheme:light;
 }
@@ -48,19 +48,19 @@ button,input{font:inherit;color:inherit}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 
 .hero{padding:28px 0 26px}
-.kicker{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--accent);letter-spacing:.02em;text-transform:uppercase}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--up);flex:none}
 .dot.off{background:var(--ink-3)}
-h1{font-family:var(--f-display);font-weight:600;font-size:clamp(36px,6vw,60px);line-height:1.05;letter-spacing:-.02em;margin:10px 0 12px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(32px,5vw,48px);line-height:1.1;letter-spacing:-.03em;margin:10px 0 12px}
 .lede{font-size:clamp(16px,1.6vw,18px);color:var(--ink-2);max-width:62ch;margin:0}
 .status{font-size:13px;color:var(--ink-3);margin-top:14px}
 
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
-.tile{appearance:none;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:18px;padding:16px 18px;cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.tile{appearance:none;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:16px 18px;cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
 .tile:hover{border-color:var(--c)}
 .tile.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 8%,var(--surface))}
 .tile .l{font-size:13px;font-weight:600;color:var(--ink-2)}
-.tile .v{font-family:var(--f-display);font-size:44px;font-weight:600;line-height:1.05;color:var(--c);margin-top:2px}
+.tile .v{font-family:var(--f-display);font-size:36px;font-weight:700;letter-spacing:-.03em;line-height:1.1;color:var(--c);margin-top:2px}
 .tile .v small{font-family:var(--f-body);font-size:14px;font-weight:500;color:var(--ink-3);margin-left:6px}
 .tile .s{font-size:12.5px;color:var(--ink-3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .buy{--c:var(--up)}.sell{--c:var(--down)}.mix{--c:var(--ink-2)}
@@ -70,7 +70,7 @@ h1{font-family:var(--f-display);font-weight:600;font-size:clamp(36px,6vw,60px);l
 .find{width:190px;max-width:100%;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:14px;outline:none}
 .find:focus{border-color:var(--accent)}
 
-.sheet{background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .row{display:grid;grid-template-columns:minmax(150px,1.5fr) repeat(5,minmax(0,1fr)) 104px;gap:8px;align-items:center;padding:11px 18px;border-top:1px solid var(--line)}
 .row.head{border-top:0;font-size:12px;font-weight:600;color:var(--ink-3);background:var(--cell)}
 .row.head div:not(:first-child){text-align:center}
@@ -88,10 +88,10 @@ h1{font-family:var(--f-display);font-weight:600;font-size:clamp(36px,6vw,60px);l
 .cons small{display:block;font-weight:500;font-size:11.5px;color:var(--ink-3)}
 .detail{padding:8px 18px 20px;border-top:1px dashed var(--line);background:var(--cell)}
 .people{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:10px}
-.who{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:14px;padding:14px;min-width:0}
+.who{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:10px;padding:14px;min-width:0}
 .who.b{--c:var(--up)}.who.s{--c:var(--down)}.who.h,.who.p{--c:var(--line)}
 .who .n{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
-.who .n b{font-family:var(--f-display);font-size:19px;font-weight:600;line-height:1.1}
+.who .n b{font-size:16px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
 .who .n .chip{padding:3px 10px;flex:none}
 .who .motto{font-size:11.5px;color:var(--ink-3);margin-top:4px;line-height:1.35}
 .who .line{font-size:13.5px;font-weight:600;margin-top:10px;line-height:1.4}
@@ -105,8 +105,8 @@ h1{font-family:var(--f-display);font-weight:600;font-size:clamp(36px,6vw,60px);l
 .empty{padding:44px 16px;text-align:center;color:var(--ink-3)}
 
 .how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:28px}
-.how div{border:1px solid var(--line);border-radius:18px;padding:18px;background:var(--surface)}
-.how h3{font-family:var(--f-display);font-size:19px;font-weight:600;margin:0 0 6px}
+.how div{border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--surface)}
+.how h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
 .how p{margin:0;font-size:13.5px;color:var(--ink-2)}
 .foot{font-size:12.5px;color:var(--ink-3);margin:22px 0 48px;line-height:1.6}
 .foot a{color:var(--ink-2);font-weight:500}
@@ -119,7 +119,7 @@ h1{font-family:var(--f-display);font-weight:600;font-size:clamp(36px,6vw,60px);l
   .chip{font-size:12px}.row .long{display:none}.row .short{display:inline}
   .row.head{font-size:11px}
   .people,.how{grid-template-columns:1fr}
-  .tile{padding:12px 12px}.tile .v{font-size:32px}.tile .v small{display:none}
+  .tile{padding:12px 12px}.tile .v{font-size:28px}.tile .v small{display:none}
   .find{width:100%}
 }
 </style>

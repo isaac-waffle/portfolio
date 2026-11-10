@@ -29,6 +29,7 @@
     "about.edu2": "산업공학 학사", "about.edu2s": "아주대학교, 2019",
     "about.thesis": "졸업 논문", "about.thesisT": "설명 가능한 AI와 계량경제학의 부분 효과 비교 ↗",
     "about.cert": "자격증", "about.skills": "기술", "about.langs": "언어", "about.langsV": "영어 (C1) · 한국어 (모국어) · 네덜란드어 (A2)",
+    "contact.label": "연락처", "contact.email": "이메일", "contact.loc": "거주지", "contact.locV": "네덜란드 암스테르담",
     "contact.h": "이야기 나눠요.", "contact.p": "네덜란드의 데이터 사이언스·분석 직무를 찾고 있습니다. 구직 비자(orientation year)를 보유해 낮은 고급 인력 연봉 기준이 적용됩니다.",
     "foot.src": "소스 코드"
   };
