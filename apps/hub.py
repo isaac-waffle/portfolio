@@ -34,7 +34,7 @@ PYTHON = str(ROOT / ".venv" / "bin" / "python")
 PHOTODIARY = ROOT / "PhotoDiary"
 FORECAST = Path.home() / "Desktop" / "stock-forecast-intraday"  # SI Forecast Desk (별도 폴더 — 화면 live/index.html에 공책 테마만 입힘, 원본은 index.html.before-notebook)
 
-# tab 이 있는 앱은 '주식 데스크'(/stocks) 화면에 그 이름의 탭으로 들어감 — 주식 앱을 새로 만들면 tab 만 붙이면 됨
+# tab 이 있는 앱은 '주식 데스크'(/stocks) 화면에 그 이름의 탭으로 들어감 — 주식 앱을 새로 만들면 tab 만 붙이면 됨 (path 는 그 앱 안에서 열 주소)
 LOCAL = [
     dict(key="trading", name="트레이딩 데스크", port=8501, icon="chart", color="#ff9500", tab="트레이딩",
          cmd=[STREAMLIT, "run", "apps/trading_app.py"]),
@@ -46,7 +46,7 @@ LOCAL = [
          cmd=[PYTHON, "apps/legends.py"]),
     dict(key="forecast", name="SI Forecast Desk", port=8765, icon="crystal", color="#af52de", tab="예측",
          cmd=["zsh", "start_live.sh"], stop=["zsh", "stop_live.sh"], cwd=FORECAST, wait=120),
-    dict(key="site", name="포트폴리오 미리보기", port=8766, icon="globe", color="#007aff",
+    dict(key="site", name="포트폴리오 미리보기", port=8766, icon="globe", color="#007aff", tab="손익", path="/demos/pnl.html",  # 주식 데스크에는 손익 분석기(일·주·월)로
          cmd=["python3", "-m", "http.server", "8766", "--directory", "site"]),
 ]
 WEB = [("포트폴리오", SITE, "자기소개 · 프로젝트"), ("Forecast Lab", SITE + "lab.html", "16개 종목 단기 예측과 채점"),
@@ -242,7 +242,7 @@ def local() -> dict:
     sub = {"traders": traders_info(), "legends": legends_info(), "trading": trading_info(), "earnings": _cache["earn"] or "미국 어닝 캘린더 · 종목별 분석",
            "forecast": forecast_info(), "site": "site/ 폴더를 내 컴퓨터에서 미리 보기"}
     apps = [dict(key=a["key"], name=a["name"], port=a["port"], icon=a["icon"], color=a["color"],
-                 up=is_up(a["port"]), sub=sub.get(a["key"], ""), tab=a.get("tab", ""),
+                 up=is_up(a["port"]), sub=sub.get(a["key"], ""), tab=a.get("tab", ""), path=a.get("path", ""),
                  ok=a.get("cwd", ROOT).exists()) for a in LOCAL]
     return dict(apps=apps, photodiary=(PHOTODIARY / "PhotoDiary.xcodeproj").exists())
 
@@ -536,7 +536,7 @@ async function show(k){
   cur = k; remember(k); history.replaceState(null, '', '#' + k); drawTabs();
   Object.values(frames).forEach(f => f.style.display = 'none');
   let a = apps.find(x => x.key === k);
-  $('pop').href = `http://localhost:${a.port}`;
+  $('pop').href = `http://localhost:${a.port}${a.path || ''}`;
   if (!a.up){                                   // 꺼져 있으면 켜고 나서 보여 줌
     if (frames[k]){ frames[k].remove(); delete frames[k]; }
     say(a.name, '켜는 중… 처음에는 몇 초 걸립니다');
@@ -551,7 +551,7 @@ async function show(k){
   }
   if (!frames[k]){
     const f = document.createElement('iframe');
-    f.src = `http://localhost:${a.port}`; f.title = a.name;
+    f.src = `http://localhost:${a.port}${a.path || ''}`; f.title = a.name;
     $('stage').appendChild(f); frames[k] = f;
   }
   $('msg').style.display = 'none';

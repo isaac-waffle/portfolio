@@ -37,6 +37,7 @@ html:lang(ko) .home{word-break:keep-all}
 .home .intro-grid{gap:64px}
 .home .intro .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 18px}
 .home .dot{background:var(--up);box-shadow:none;animation:none}
+.home .dot.off{background:var(--ink-4)}
 .home .name{font-weight:700;font-size:clamp(48px,6.4vw,76px);letter-spacing:-.04em;line-height:1.02;margin:0 0 20px}
 .home .pitch{font-size:clamp(18px,1.8vw,21px);line-height:1.5;color:var(--ink-2);font-weight:400;max-width:34ch;letter-spacing:-.005em;margin:0 0 30px}
 .home .pitch em{font-style:normal;color:var(--ink);font-weight:600}
@@ -77,12 +78,12 @@ html:lang(ko) .home{word-break:keep-all}
 .home .sec{padding:80px 0}
 .home .sec + .sec{border-top:1px solid var(--line)}
 .home .sec-row{margin-bottom:32px;align-items:baseline}
-.home .sec-row h2,.home .contact h2{font-weight:700;font-size:clamp(26px,3vw,32px);letter-spacing:-.03em;line-height:1.15;margin:0}
+.home .sec-row h2,.home .contact-sec h2{font-weight:700;font-size:clamp(26px,3vw,32px);letter-spacing:-.03em;line-height:1.15;margin:0}
 .home .sec-row p{font-size:15px;color:var(--ink-3)}
 
 /* live tools */
-.tool-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.tool{display:flex;flex-direction:column;gap:10px;padding:24px;border:1px solid var(--line);border-radius:var(--r);background:#fff;min-width:0;
+.tool-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.tool{display:flex;flex-direction:column;gap:10px;padding:22px;border:1px solid var(--line);border-radius:var(--r);background:#fff;min-width:0;
   transition:border-color .2s,box-shadow .2s}
 .tool:hover{border-color:var(--ink-4);box-shadow:0 8px 24px -16px rgba(15,23,42,.35)}
 .tool-top{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ink-3)}
@@ -91,7 +92,8 @@ html:lang(ko) .home{word-break:keep-all}
 .tool-live{font-size:12.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;padding:7px 10px;border-radius:6px;background:var(--panel-2);align-self:flex-start}
 .tool .go{margin-top:auto;padding-top:10px;font-size:14px;font-weight:600;color:var(--accent)}
 .tool .go::after{content:" →"}
-@media (max-width:900px){.tool-grid{grid-template-columns:1fr}}
+@media (max-width:1080px){.tool-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:620px){.tool-grid{grid-template-columns:1fr}}
 
 /* work */
 .home #work .work-grid{gap:16px}
@@ -135,10 +137,10 @@ html:lang(ko) .home{word-break:keep-all}
 .home .ul:hover{border-color:var(--accent);color:var(--accent)}
 
 /* contact */
-.home .contact{background:var(--panel-2)}
+.home .contact-sec{background:var(--panel-2)}
 .home .contact-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;align-items:start}
-.home .contact .label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px}
-.home .contact h2{margin:0 0 14px;font-size:clamp(30px,3.6vw,40px)}
+.home .contact-sec .label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px}
+.home .contact-sec h2{margin:0 0 14px;font-size:clamp(30px,3.6vw,40px)}
 .home .contact-text p:last-child{margin:0;color:var(--ink-2);font-size:15.5px;line-height:1.6;max-width:44ch}
 .contact-list{list-style:none;margin:0;padding:0;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .contact-list li + li{border-top:1px solid var(--line)}
