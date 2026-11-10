@@ -61,15 +61,14 @@ html:lang(ko) .home{word-break:keep-all}
   .home .intro{padding-top:88px}
   .home .intro-grid{gap:28px}
   .home .portrait{max-width:none}
-  .home .kpi-row{margin-top:40px;row-gap:0}
-  .home .kpi-row div{padding:16px 16px;border-left:0;border-top:1px solid var(--line)}
-  .home .kpi-row div:first-child{padding-left:16px}
-  .home .kpi-row div:nth-child(-n+3){border-top:0}
+  /* 3 columns, then 2: draw the dividers as 1px gaps so they stay right at any column count */
+  .home .kpi-row{margin-top:40px;gap:1px;background:var(--line)}
+  .home .kpi-row div,.home .kpi-row div:first-child{padding:16px;border:0;background:var(--bg)}
+  .home .kpi-row div:last-child{grid-column:span 2}
 }
 @media (max-width:560px){
   .home .kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .home .kpi-row div,.home .kpi-row div:first-child{padding:14px 0}
-  .home .kpi-row div:nth-child(3){border-top:1px solid var(--line)}
+  .home .kpi-row div,.home .kpi-row div:first-child{padding:14px 12px}
   .home .kpi-row div:last-child{grid-column:1 / -1}
   .home .kpi-row b{font-size:26px}
 }
