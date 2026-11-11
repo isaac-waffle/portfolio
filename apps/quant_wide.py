@@ -5,6 +5,8 @@
   .venv/bin/python apps/quant_wide.py run     # 백테스트 (학습/확인/시험)
 
 대상: NYSE·NASDAQ·AMEX 상장 주식 중 전일 기준 주가 $5 이상, 14일 평균 거래량 100만 주 이상, ATR $0.5 이상.
+결과(2026-11-11, 2024-01~2026-11): 둘째 봉 시가 진입 + 손절 0.1 ATR(논문 설정)은 비용 0이면 세 구간 모두 플러스(샤프 2.5/1.4/2.8)지만
+     편도 0.02%에서 확인 구간이 0 근처, 0.05%에서는 학습·확인이 마이너스 — 신호는 있고 체결 비용이 관건. 돌파 진입(break)은 5분봉으로는 불리하게 나옴.
 한계: 지금 상장된 종목만 받음(상장폐지 종목 빠짐). 같은 봉에서 진입가와 손절선에 다 닿으면 손절로 계산(보수적).
 """
 from __future__ import annotations
@@ -218,7 +220,8 @@ def panel():
     return days, B, rv, atr, last
 
 
-def orb(P, K=20, rvmin=1.0, stop=0.1, risk=0.01, lev=1.0, long_only=False, cost=0.0005):
+def orb(P, K=20, rvmin=1.0, stop=0.1, risk=0.01, lev=1.0, long_only=False, entry="open", cost=0.0005):
+    """entry=open: 둘째 봉 시가에 바로 진입(논문 방식 — 봉 안에서 진입·손절 순서가 분명함) / break: 첫 봉 고가·저가 돌파 시 진입."""
     days, B, rv, atr, last = P
     O, H, L, C = (B[:, :, :, i] for i in range(4))
     dirn = np.sign(C[:, :, 0] - O[:, :, 0])
@@ -230,6 +233,8 @@ def orb(P, K=20, rvmin=1.0, stop=0.1, risk=0.01, lev=1.0, long_only=False, cost=
     lvl = np.where(dirn > 0, H[:, :, 0], L[:, :, 0])
     sd = stop * atr
     ent, ex = np.full(pick.shape, np.nan), np.full(pick.shape, np.nan)
+    if entry == "open":
+        ent = np.where(pick & ~np.isnan(O[:, :, 1]), O[:, :, 1], np.nan)
     for t in range(1, NB):
         o, h, l = O[:, :, t], H[:, :, t], L[:, :, t]
         has = ~np.isnan(o)
@@ -237,7 +242,7 @@ def orb(P, K=20, rvmin=1.0, stop=0.1, risk=0.01, lev=1.0, long_only=False, cost=
         stp = ent - dirn * sd
         hit = live & np.where(dirn > 0, l <= stp, h >= stp)
         ex[hit] = np.where(dirn > 0, np.minimum(stp, o), np.maximum(stp, o))[hit]
-        if t < NB - 6:
+        if entry == "break" and t < NB - 6:
             trig = pick & has & np.isnan(ent) & np.where(dirn > 0, h >= lvl, l <= lvl)
             ent[trig] = np.where(dirn > 0, np.maximum(lvl, o), np.minimum(lvl, o))[trig]
             stp = ent - dirn * sd
@@ -256,8 +261,8 @@ def run():
     dts = pd.to_datetime(days)
     mask = {k: np.asarray((dts >= a) & (dts <= b)) for k, (a, b) in PERIODS.items()}
     print(f"{len(days)}거래일 ({days[0]} ~ {days[-1]}) · 하루 후보 평균 {np.mean((~np.isnan(P[2])).sum(0)):.0f}종목")
-    G = [dict(zip("K rvmin stop long_only lev".split(), v)) for v in
-         itertools.product([5, 10, 20], [1.0, 2.0, 3.0], [0.1, 0.25, 0.5, 1.0], [False, True], [1.0])]
+    G = [dict(zip("K rvmin stop long_only lev entry".split(), v)) for v in
+         itertools.product([5, 10, 20], [1.0, 2.0, 3.0], [0.1, 0.25, 0.5, 1.0], [False, True], [1.0], ["open", "break"])]
     rows = []
     for g in G:
         r, n = orb(P, **g)
@@ -271,7 +276,10 @@ def run():
     for c in (0.0002, 0.0):
         r, n = orb(P, **b["p"], cost=c)
         print(f"  학습 최고, 비용 {c * 100:.2f}%: " + " | ".join(f"{k} {stats(r, n, m)['ret'] * 100:+.1f}%" for k, m in mask.items()))
-    paper = dict(K=20, rvmin=1.0, stop=0.1, long_only=False, lev=4.0)
+    for e in ("open", "break"):
+        sub = [x for x in rows if x["p"]["entry"] == e]
+        print(f"  진입 {e}: 플러스 비율 " + " · ".join(f"{k} {np.mean([x[k]['ret'] > 0 for x in sub]) * 100:.0f}%" for k in mask))
+    paper = dict(K=20, rvmin=1.0, stop=0.1, long_only=False, lev=4.0, entry="open")
     for c in (0.0005, 0.0002, 0.0):
         r, n = orb(P, **paper, cost=c)
         print(f"  논문 설정(상위 20, 손절 0.1 ATR, 레버리지 4배), 비용 {c * 100:.2f}%: " + " | ".join(f"{k} {stats(r, n, m)['ret'] * 100:+.1f}% 샤프 {stats(r, n, m)['sharpe']:+.2f} 낙폭 {stats(r, n, m)['dd'] * 100:.0f}%" for k, m in mask.items()))
