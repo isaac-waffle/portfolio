@@ -3,6 +3,7 @@
   .venv/bin/python apps/paper_desk.py            # 계산만: 오늘 목표 비중과 낼 주문을 보여 줌 (주문 안 냄)
   .venv/bin/python apps/paper_desk.py --send     # 모의계좌에 주문 (같은 신호일에 두 번 내지 않음, --force로 다시)
   .venv/bin/python apps/paper_desk.py status     # 계좌·보유·SPY 대비 성적
+  (virtual '<json>' — 가상 트레이더 '알파'가 부르는 모드: Alpaca 접속 없이 같은 규칙으로 가상 계좌의 주문만 계산)
 
 하루 한 번, 장 마감 뒤 일봉이 올라오면 traders.py(항상 켜져 있는 서비스)가 --send로 실행함. 주문은 다음 개장 때 체결.
 
@@ -132,7 +133,10 @@ def targets(E: dict, S: dict, day: dt.date) -> tuple[pd.Series, dict]:
 
 
 # ───────────────────────── 주문 ─────────────────────────
-def plan(tgt: pd.Series, px: pd.Series, equity: float, held: dict, buys_ok: bool) -> list[dict]:
+def plan(tgt: pd.Series, px: pd.Series, equity: float, held: dict, buys_ok: bool, note=note, frac: bool = False) -> list[dict]:
+    """frac=True (가상 계좌 전용): 소수점 주식으로 계산하고, 건너뛰는 최소 주문 금액($300)을 계좌 크기에 맞춰 줄임 —
+    $20,000 계좌에서도 $100,000 계좌와 같은 비중이 나오게."""
+    min_usd = 300 * min(1.0, equity / 100_000) if frac else 300
     gross = float(tgt.sum())
     if gross > MAX_GROSS:
         tgt = tgt * MAX_GROSS / gross
@@ -142,9 +146,9 @@ def plan(tgt: pd.Series, px: pd.Series, equity: float, held: dict, buys_ok: bool
             if s in held:
                 note("skip", f"{s}: 보유 중이지만 가격 데이터가 없어 그대로 둠", sym=s)
             continue
-        want = int(tgt.get(s, 0.0) * equity / px[s])
-        diff = want - held.get(s, 0)
-        if diff == 0 or (want > 0 and abs(diff) * px[s] < max(300, 0.005 * equity)):
+        want = round(tgt.get(s, 0.0) * equity / px[s], 3) if frac else int(tgt.get(s, 0.0) * equity / px[s])
+        diff = round(want - held.get(s, 0), 3)
+        if diff == 0 or (want > 0 and abs(diff) * px[s] < max(min_usd, 0.005 * equity)):
             continue  # 자잘한 비중 조정은 건너뜀 (전량 매도는 항상 실행)
         if diff > 0 and not buys_ok:
             continue
@@ -225,6 +229,23 @@ def run(send: bool, force: bool):
     note("send", f"{day} 신호 → 모의계좌 주문 {ok}/{len(orders)}건 (매수 {sum(o['side'] == 'buy' for o in orders)}, 매도 {sum(o['side'] == 'sell' for o in orders)}), 계좌 ${equity:,.0f}")
 
 
+def virtual(arg: str):
+    """가상 트레이더 '알파'(traders.py)용 — Alpaca에 접속하지 않고, 같은 신호·같은 주문 규칙으로 가상 계좌의 주문 목록만 계산.
+    arg = {"day": 신호일, "equity": 계좌 평가액, "held": {종목: 주식 수}, "buys_ok": 신규 매수 가능 여부} → journal/paper/virtual.json"""
+    a = json.loads(arg)
+    day = dt.date.fromisoformat(a["day"])
+    E, S = fresh(day)
+    tgt, per = targets(E, S, day)
+    px = pd.concat([E["Close"].iloc[-1], S["Close"].iloc[-1]])
+    px = px[~px.index.duplicated()]
+    orders = plan(tgt, px, float(a["equity"]), {s: float(n) for s, n in a["held"].items()}, bool(a["buys_ok"]), note=lambda *_, **__: None, frac=True)
+    cap = min(1.0, MAX_GROSS / float(tgt.sum())) if tgt.sum() > 0 else 1.0
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "virtual.json").write_text(json.dumps(dict(day=day.isoformat(), orders=orders, sleeves=per, names=L.KO | {"현금 대기": "현금 대기 (BIL)"},
+                                                      targets={s: round(float(x) * cap, 4) for s, x in tgt.items()}), ensure_ascii=False, indent=1))
+    print(f"{day} 가상 계좌 주문 {len(orders)}건")
+
+
 def status():
     acct = api("GET", "/v2/account")
     st = state()
@@ -239,4 +260,4 @@ def status():
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    status() if "status" in a else run("--send" in a, "--force" in a)
+    virtual(a[1]) if a[:1] == ["virtual"] else status() if "status" in a else run("--send" in a, "--force" in a)
