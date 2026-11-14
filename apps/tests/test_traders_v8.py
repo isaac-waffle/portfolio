@@ -27,9 +27,17 @@ def data_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
-def bars(sym_open: dict) -> dict:
-    idx = pd.DatetimeIndex([pd.Timestamp("2026-11-13 09:30", tz=T.NY)])
-    return {s: pd.DataFrame(dict(Open=o, High=o, Low=o, Close=o, Volume=1000.0), index=idx) for s, o in sym_open.items()}
+def bars(sym_open: dict, later: dict | None = None) -> dict:
+    """09:30 봉(시가 = 값) + 선택적으로 09:31 봉 {종목: (시가, 고가, 저가)}."""
+    out = {}
+    for s, o in sym_open.items():
+        rows, idx = [dict(Open=o, High=o, Low=o, Close=o, Volume=1000.0)], [pd.Timestamp("2026-11-13 09:30", tz=T.NY)]
+        if later and s in later:
+            op, hi, lo = later[s]
+            rows.append(dict(Open=op, High=hi, Low=lo, Close=op, Volume=1000.0))
+            idx.append(pd.Timestamp("2026-11-13 09:31", tz=T.NY))
+        out[s] = pd.DataFrame(rows, index=pd.DatetimeIndex(idx))
+    return out
 
 
 # ── 번개: 10분 판단 ──
@@ -113,16 +121,32 @@ def test_desk_buys_at_the_open_inside_the_limit(data_dir):
     assert t.cash == pytest.approx(20_000 - 10 * 101.0 * (1 + T.SLIP))
 
 
-def test_desk_skips_a_buy_that_gaps_above_the_limit(data_dir):
+def test_desk_leaves_a_buy_working_when_the_open_gaps_above_the_limit(data_dir):
     t = desk([order("SPY", 10, 100.0, "buy")])
     t.at_open(NOW, bars({"SPY": 102.5}))
-    assert not t.pos and t.cash == 20_000 and t.orders["done"]
+    assert not t.pos and t.cash == 20_000 and not t.orders["done"]
 
 
-def test_desk_skips_a_sell_that_gaps_below_the_limit(data_dir):
+def test_desk_fills_a_gapped_buy_at_the_limit_when_price_comes_back(data_dir):
+    t = desk([order("SPY", 10, 100.0, "buy")])
+    b = bars({"SPY": 102.5}, {"SPY": (102.4, 102.6, 101.5)})
+    t.at_open(NOW, {"SPY": b["SPY"].iloc[:1]})
+    t.at_open(NOW.replace(minute=32), b)
+    assert t.pos["SPY"]["shares"] == 10 and t.pos["SPY"]["entry"] == pytest.approx(102.0 * (1 + T.SLIP)) and t.orders["done"]
+
+
+def test_desk_does_not_fill_the_same_order_twice(data_dir):
+    t = desk([order("SPY", 10, 100.0, "buy")])
+    b = bars({"SPY": 101.0}, {"SPY": (100.5, 100.6, 100.4)})
+    t.at_open(NOW, b)
+    t.at_open(NOW.replace(minute=32), b)
+    assert t.pos["SPY"]["shares"] == 10
+
+
+def test_desk_leaves_a_sell_working_when_the_open_gaps_below_the_limit(data_dir):
     t = desk(orders_sell=[order("SPY", 10, 100.0, "sell")], pos={"SPY": held(10, 95.0)})
     t.at_open(NOW, bars({"SPY": 97.0}))
-    assert t.pos["SPY"]["shares"] == 10
+    assert t.pos["SPY"]["shares"] == 10 and not t.orders["done"]
 
 
 def test_desk_trims_a_position_and_adds_to_another_at_average_cost(data_dir):
@@ -133,12 +157,12 @@ def test_desk_trims_a_position_and_adds_to_another_at_average_cost(data_dir):
     assert t.cash == pytest.approx(2_000 + 4 * 100.0 * (1 - T.SLIP) - 5 * 200.0 * (1 + T.SLIP))
 
 
-def test_desk_waits_for_missing_open_prices_then_gives_up_after_0945(data_dir):
-    t = desk([order("SPY", 10, 100.0, "buy")])
-    t.at_open(NOW, {})
-    assert not t.orders["done"]
-    t.at_open(NOW.replace(minute=46), {})
-    assert t.orders["done"] and not t.pos
+def test_desk_buys_wait_for_sell_prices_until_0945(data_dir):
+    t = desk([order("QQQ", 5, 200.0, "buy")], [order("SPY", 4, 100.0, "sell")], pos={"SPY": held(10, 95.0)})
+    t.at_open(NOW, bars({"QQQ": 200.0}))
+    assert "QQQ" not in t.pos
+    t.at_open(NOW.replace(minute=46), bars({"QQQ": 200.0}))
+    assert t.pos["QQQ"]["shares"] == 5 and not t.orders["done"]
 
 
 def test_desk_never_spends_more_cash_than_it_has(data_dir):
@@ -179,7 +203,19 @@ def test_stale_minute_bars_give_no_reading(data_dir):
     t = T.ScalpTrader("scalp", None)
     idx = pd.date_range("2026-11-13 09:30", periods=20, freq="1min", tz=T.NY)
     df = pd.DataFrame(dict(Open=100.0, High=100.0, Low=100.0, Close=100.0, Volume=1000.0), index=idx)
-    assert t.feats("AAA", {"AAA": dict(atr=2.0, pdc=98.0, dvol=5e7)}, {"AAA": df}, 600, dt.date(2026, 11, 13)) is None
+    a = {"AAA": dict(atr=2.0, pdc=98.0, dvol=5e7)}
+    assert t.feats("AAA", a, {"AAA": df}, 600, dt.date(2026, 11, 13)) is None
+    assert t.feats("AAA", a, {"AAA": df.iloc[:-1]}, 590, dt.date(2026, 11, 13)) is None  # 직전 1분봉이 아직 안 옴
+    assert t.feats("AAA", a, {"AAA": df}, 590, dt.date(2026, 11, 13)) is not None
+
+
+def test_scalp_fills_at_the_open_of_the_first_bar_after_the_decision(data_dir):
+    t = T.ScalpTrader("scalp", None)
+    idx = pd.date_range("2026-11-13 09:30", periods=12, freq="1min", tz=T.NY)
+    df = pd.DataFrame(dict(Open=np.arange(100.0, 112.0), High=200.0, Low=50.0, Close=150.0, Volume=1.0), index=idx)
+    day = dt.date(2026, 11, 13)
+    assert t.px_at("AAA", {"AAA": dict(last=150.0)}, {"AAA": df}, 580, day, 1.0) == 110.0
+    assert t.px_at("AAA", {"AAA": dict(last=150.0)}, {"AAA": df.iloc[:10]}, 580, day, 1.0) == 150.0
 
 
 # ── 알파: 계좌 크기가 달라도 같은 비중 ──

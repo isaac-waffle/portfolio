@@ -281,7 +281,8 @@ def fetch_vprof(tickers: list[str], today: dt.date) -> dict:
         m, day = mins(idx), np.array(idx.date)
         keep = (m >= 570) & (m < 960) & (day < today)
         tab = pd.DataFrame(dict(day=day[keep], bin=(m[keep] - 570) // 5, v=df["Volume"].to_numpy()[keep])).pivot_table(
-            index="day", columns="bin", values="v", aggfunc="sum").reindex(columns=range(78)).fillna(0).tail(14)
+            index="day", columns="bin", values="v", aggfunc="sum").reindex(columns=range(78))
+        tab = tab[tab.notna().sum(axis=1) >= 70].fillna(0).tail(14)  # 조기 폐장일은 뺌 (백테스트와 같게)
         if len(tab) >= 7:
             out[s] = tab.mean().to_numpy()
     return out
@@ -1412,39 +1413,43 @@ class DeskTrader(SwingTrader):
         return True
 
     def at_open(self, now: dt.datetime, bars: dict):
-        """매도 먼저, 그다음 매수. 시가가 지정가 밖이면 건너뜀. 09:45까지 시가 데이터가 없는 종목도 건너뜀."""
+        """Alpaca의 '당일 지정가 주문'처럼 체결: 시가가 지정가 안이면 시가에, 밖이면 장중에 가격이 지정가까지 돌아올 때 지정가에.
+        장 끝까지 안 닿으면 그 주문은 사라지고 장 마감 후 다시 판단. 매수는 매도의 시가가 확인된 뒤에 (현금 확보, 09:45까지만 기다림)."""
         o = self.orders
         if o.get("done") or o.get("for") != now.date().isoformat():
             return
-        late, waiting = now.hour * 60 + now.minute >= 585, False
+        late = now.hour * 60 + now.minute >= 585
         for side, xs in (("sell", o["sell"]), ("buy", o["buy"])):
             for x in xs:
-                if x.get("ok") is not None:
+                if x.get("ok"):
                     continue
-                b = self.first_bar(x["sym"], now, bars)
-                if b is None:
-                    if late:
-                        x["ok"] = False
-                        self.log("pass", f"{x['sym']} 시가 데이터가 없어 주문 건너뜀 — 오늘 장 마감 후 다시 판단.", sym=x["sym"])
-                    else:
-                        waiting = True
-                    continue
-                op = float(b["Open"])
-                if (side == "buy" and op > x["limit"]) or (side == "sell" and op < x["limit"]):
-                    x["ok"] = False
-                    self.log("pass", f"{x['sym']} 시가 {f2(op)}가 지정가 {f2(x['limit'])} 밖 (전일 종가 {f2(x['ref'])} 대비 갭 {pc(op / x['ref'] - 1)}) — "
-                                     f"{'안 삼' if side == 'buy' else '안 팖'}, 장 마감 후 다시 판단.", sym=x["sym"])
-                    continue
-                x["ok"] = True
-                if side == "sell" and x["sym"] in self.pos:
-                    have = self.pos[x["sym"]]["shares"]
-                    n = have if x["qty"] >= have - 0.0005 else x["qty"]
-                    self.sell(x["sym"], n, op, f"비중 조정 — {x['why']}", now, final=n == have)
-                elif side == "buy":
-                    self.fill_buy(x, op, now, b)
-            if waiting and side == "sell":
-                return  # 매도가 다 끝나야(현금 확보) 매수
-        o["done"] = not waiting
+                df = bars.get(x["sym"])
+                if df is not None:
+                    m = mins(df.index)
+                    df = df[(np.array(df.index.date) == now.date()) & (m >= 570) & (m < 960)]
+                    df = df[df.index > pd.Timestamp(x["seen"])] if x.get("seen") else df
+                for ts, b in (df.iterrows() if df is not None else ()):
+                    first, x["seen"] = not x.get("seen"), ts.isoformat()
+                    op = float(b["Open"])
+                    inside = op <= x["limit"] if side == "buy" else op >= x["limit"]
+                    touch = float(b["Low"]) <= x["limit"] if side == "buy" else float(b["High"]) >= x["limit"]
+                    if not (inside or touch):
+                        if first:
+                            self.log("pass", f"{x['sym']} 시가 {f2(op)}가 지정가 {f2(x['limit'])} 밖 (전일 종가 {f2(x['ref'])} 대비 갭 {pc(op / x['ref'] - 1)}) — "
+                                             f"오늘 장중에 지정가까지 오면 {'사고' if side == 'buy' else '팔고'}, 안 오면 장 마감 후 다시 판단.", sym=x["sym"])
+                        continue
+                    x["ok"] = True
+                    px = op if inside else x["limit"]
+                    if side == "sell" and x["sym"] in self.pos:
+                        have = self.pos[x["sym"]]["shares"]
+                        n = have if x["qty"] >= have - 0.0005 else x["qty"]
+                        self.sell(x["sym"], n, px, f"비중 조정 — {x['why']}", now, final=n == have)
+                    elif side == "buy":
+                        self.fill_buy(x, px, now, b)
+                    break
+            if side == "sell" and not late and any(not x.get("seen") for x in xs):
+                return
+        o["done"] = all(x.get("ok") for x in o["sell"] + o["buy"])
 
     def fill_buy(self, x: dict, op: float, now: dt.datetime, b):
         px = op * (1 + SLIP)
@@ -1509,7 +1514,7 @@ class ScalpTrader(Trader):
             return None
         m = mins(df.index)
         T_ = df[(np.array(df.index.date) == today) & (m >= 570) & (m < edge)]
-        if len(T_) < 5 or int(mins(T_.index)[-1]) < edge - 2:
+        if len(T_) < 5 or int(mins(T_.index)[-1]) < edge - 1:  # 직전 1분봉까지 와 있어야 10분이 다 찬 것 (백테스트는 항상 꽉 찬 10분)
             return None
         w = T_[mins(T_.index) >= edge - 10]
         if len(w) < 5:
@@ -1521,6 +1526,16 @@ class ScalpTrader(Trader):
         avg = float(prof[k] + prof[k + 1]) if prof is not None and k + 1 < len(prof) else 0.0
         return dict(sym=sym, last=last, r10=r10, z=r10 / (a["atr"] / a["pdc"] * K10), vw=last / float(vw.iloc[-1]) - 1, day=last / a["pdc"] - 1,
                     rv=float(w["Volume"].sum()) / avg if avg > 0 else np.nan, liquid=a["dvol"] >= self.P["min_dvol"] and a["pdc"] >= 5)
+
+    def px_at(self, sym: str, snaps: dict, bars: dict, edge: int, today: dt.date, default: float) -> float:
+        """판단 시각(edge) 이후 첫 1분봉의 시가 — 백테스트의 '다음 봉 시가 체결'에 맞춤. 그 봉이 아직 없으면 지금 가격."""
+        df = bars.get(sym)
+        if df is not None:
+            m = mins(df.index)
+            nxt = df[(np.array(df.index.date) == today) & (m >= edge) & (m < 960)]
+            if len(nxt):
+                return float(nxt["Open"].iloc[0])
+        return self.price(sym, snaps, default)
 
     def step(self, now: dt.datetime, snaps: dict, bars: dict, mk: dict, disc: dict, news=None):
         P, m, today = self.P, now.hour * 60 + now.minute, now.date()
@@ -1556,12 +1571,12 @@ class ScalpTrader(Trader):
                            why=f"10분 {pc(f['r10'], 2)} (z {f['z']:+.1f}, 필요 −{P['z_in']}) · 거래량 " + (f"{f['rv']:.1f}배" if ok(f["rv"]) else "자료 없음") + f" (필요 {P['rvol']:g}배)")
                       for f in near]
         if held and not keep:
-            self.sell(held, self.pos[held]["shares"], self.price(held, snaps, self.pos[held]["entry"]), why, now, final=True)
+            self.sell(held, self.pos[held]["shares"], self.px_at(held, snaps, bars, edge, today, self.pos[held]["entry"]), why, now, final=True)
         elif keep:
             return self.think("보유", f"{hm(edge)} ET 판단 — {why}.", f"keep{edge}", f"{held} 보유 — 10분 더")
         if pick and not self.pos and self.day["trades"] < P["max_trades"]:
             f, a = F[pick], snaps[pick]
-            px = a["last"] * (1 + SLIP)
+            px = self.px_at(pick, snaps, bars, edge, today, a["last"]) * (1 + SLIP)
             n = int((self.cash - self.fee) / px)
             if n >= 1:
                 txt = (f"오늘 {pc(f['day'])} 오르는 중 · VWAP 위에서 10분 새 {pc(f['r10'], 2)} 급락 (평소 10분 변동의 {-f['z']:.1f}배), "
@@ -1622,6 +1637,9 @@ class Engine:
         self.desk_day, self.desk_try = None, 0.0
         self.pub_at, self.pub_err = 0.0, ""
         self.cold_at = 0.0
+        self.trader_err: dict = {}
+        self.no_daily: set = set()
+        self.vprof_at = 0.0
         self.load_feed()
 
     def desk(self):
@@ -1648,7 +1666,10 @@ class Engine:
         now = now_ny()
         m = now.hour * 60 + now.minute
         busy = is_trading_day(now.date()) and 570 <= m < close_min(now.date()) + 60
+        stale = busy and (not self.last_fetch or (now - self.last_fetch).total_seconds() > 300)
         if (DATA / "NO_PUBLISH").exists() or not LIVE.get("traders") or time.time() - self.pub_at < (1800 if busy else 6 * 3600):
+            return
+        if self.error or not self.snaps or stale:  # 가격이 없거나 오래됐으면 틀린 숫자가 몇 시간 걸려 있게 되므로 다음 틱에
             return
         self.pub_at = time.time()
         try:
@@ -1711,14 +1732,25 @@ class Engine:
             self.daily = fetch_daily(uni)
             self.earn = fetch_earnings()
             self.daily_day = today
-            try:  # 번개(10분 단타)용: 종목별 '평소 이 시각 5분 거래량'
-                vp = fetch_vprof(MARKET + WATCHLIST, today)
-            except Exception:
-                traceback.print_exc()
-                vp = {}
             for t in self.T.values():
                 if isinstance(t, ScalpTrader):
-                    t.vprof = vp
+                    t.vprof = {}
+        scalpers = [t for t in self.T.values() if isinstance(t, ScalpTrader)]
+        if any(not t.vprof for t in scalpers) and time.time() - self.vprof_at > 3600:  # 번개용 '평소 이 시각 5분 거래량' — 실패하면 1시간 뒤 다시
+            self.vprof_at = time.time()
+            try:
+                vp = fetch_vprof(MARKET + WATCHLIST, today)
+            except Exception as e:
+                traceback.print_exc()
+                vp = {}
+                self.sys_log("system", f"평소 거래량 자료를 못 받음 ({type(e).__name__}) — 번개는 그동안 매수 안 함, 1시간 뒤 다시 시도")
+            for t in scalpers:
+                t.vprof = vp
+        miss = [s for s in self.universe() if s not in self.daily and s not in self.no_daily]
+        if miss:  # 오늘 일봉을 받은 뒤에 생긴 주문·보유 종목 (없으면 하루 종일 매수가로 평가됨)
+            got = fetch_daily(miss)
+            self.daily.update(got)
+            self.no_daily |= set(miss) - set(got)
         due = (m >= 540 and m < 900 and time.time() - self.disc_at > 1800) or (not self.disc and m >= 540 and time.time() - self.disc_at > 300)
         if due:
             self.disc_at = time.time()
@@ -1764,32 +1796,42 @@ class Engine:
 
         cm = close_min(today)
         for t in self.T.values():
-            if t.day.get("date") != today.isoformat():
-                t.new_day(today, snaps, bars)
-            if isinstance(t, SwingTrader):
-                t.run_tick(now, today, m, snaps, bars)
-            elif m < 570:
-                if not t.day["planned"] and m >= 480:
-                    t.plan(snaps, self.mk, self.disc, today, self.top_news())
-                left = 570 - m
-                t.think("준비", f"개장 전 준비 중 — 개장까지 {left // 60}시간 {left % 60}분 ({ams(570, today)} 암스테르담). "
-                                f"프리마켓 시장 점수 {self.mk['score']} ({self.mk['bias']}).", "pre",
-                        f"개장 전 준비 — {left // 60}시간 {left % 60}분 남음")
-            elif m < cm:
-                if not t.day["planned"]:
-                    t.plan(snaps, self.mk, self.disc, today, self.top_news())
-                t.step(now, snaps, bars, self.mk, self.disc, self.news)
-            else:
-                for s in list(t.pos):
-                    t.sell(s, t.pos[s]["shares"], t.price(s, snaps, t.pos[s]["entry"]), "장 마감 정리", now, final=True)
-                if not t.day["reviewed"]:
-                    t.review(snaps, self.mk, today)
-                t.think("마감", "오늘 장 끝. 회고를 남겼어 — 피드 맨 위를 봐.", "done", "오늘 장 끝 — 회고 남김")
-            if 570 <= m <= cm:
-                eq = t.equity(snaps)
-                if not t.curve or t.curve[-1][0] != hm(m):
-                    t.curve.append([hm(m), round(eq, 2)])
+            try:
+                self.run_trader(t, now, today, m, cm, snaps, bars)
+            except Exception as e:  # 한 명의 오류가 나머지와 저장을 막지 않게
+                traceback.print_exc()
+                err = f"{t.P['nick']} 오류 — {type(e).__name__}: {e}"
+                if err != self.trader_err.get(t.key):
+                    self.sys_log("system", err)
+                self.trader_err[t.key] = err
         self.save()
+
+    def run_trader(self, t, now: dt.datetime, today: dt.date, m: int, cm: int, snaps: dict, bars: dict):
+        if t.day.get("date") != today.isoformat():
+            t.new_day(today, snaps, bars)
+        if isinstance(t, SwingTrader):
+            t.run_tick(now, today, m, snaps, bars)
+        elif m < 570:
+            if not t.day["planned"] and m >= 480:
+                t.plan(snaps, self.mk, self.disc, today, self.top_news())
+            left = 570 - m
+            t.think("준비", f"개장 전 준비 중 — 개장까지 {left // 60}시간 {left % 60}분 ({ams(570, today)} 암스테르담). "
+                            f"프리마켓 시장 점수 {self.mk['score']} ({self.mk['bias']}).", "pre",
+                    f"개장 전 준비 — {left // 60}시간 {left % 60}분 남음")
+        elif m < cm:
+            if not t.day["planned"]:
+                t.plan(snaps, self.mk, self.disc, today, self.top_news())
+            t.step(now, snaps, bars, self.mk, self.disc, self.news)
+        else:
+            for s in list(t.pos):
+                t.sell(s, t.pos[s]["shares"], t.price(s, snaps, t.pos[s]["entry"]), "장 마감 정리", now, final=True)
+            if not t.day["reviewed"]:
+                t.review(snaps, self.mk, today)
+            t.think("마감", "오늘 장 끝. 회고를 남겼어 — 피드 맨 위를 봐.", "done", "오늘 장 끝 — 회고 남김")
+        if 570 <= m <= cm:
+            eq = t.equity(snaps)
+            if not t.curve or t.curve[-1][0] != hm(m):
+                t.curve.append([hm(m), round(eq, 2)])
 
     def pull_news(self, now: dt.datetime, today: dt.date):
         """새 뉴스를 받아 해석 → 시스템 기록 · 트레이더 반응 · 강한 직접 호재 종목은 후보에 추가."""
@@ -1975,7 +2017,7 @@ def history() -> dict:
         rows = [t for t in trades if t["trader"] == k]
         dd = [d for d in days if d["trader"] == k]
         curve = [dict(date=d["date"], equity=float(d["end_equity"])) for d in dd]
-        if k in live and today and (not curve or curve[-1]["date"] < today):
+        if k in live and today and is_trading_day(dt.date.fromisoformat(today)) and (not curve or curve[-1]["date"] < today):
             curve.append(dict(date=today, equity=live[k], live=True))  # 아직 마감 전인 오늘
         cash0 = P.get("cash", START_CASH)
         peak, mdd = cash0, 0.0
@@ -2074,16 +2116,17 @@ def publish_public(E: "Engine"):
     if not remote:
         raise RuntimeError("git origin 주소를 못 찾음")
     out = Path(tempfile.mkdtemp(prefix="traders-pub-"))
-    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("GIT_AUTHOR_", "GIT_COMMITTER_"))} | {"GIT_TERMINAL_PROMPT": "0"}
+    safe = ["-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"]  # 내 전역 git 설정(서명·훅)이 끼어들지 않게
     try:
         (out / "traders.json").write_bytes(_dumps(public_snapshot(E)))
         for args in (["init", "-q", "-b", "traders-data"], ["add", "traders.json"],
                      ["-c", "user.name=virtual-traders", "-c", "user.email=virtual-traders@users.noreply.github.com", "commit", "-q", "-m",
                       f"traders {dt.datetime.now(dt.timezone.utc):%Y-%m-%dT%H:%MZ}"],
                      ["push", "-q", "-f", remote, "traders-data"]):
-            r = subprocess.run(["git", *args], cwd=out, capture_output=True, text=True, timeout=90, env=env)
+            r = subprocess.run(["git", *safe, *args], cwd=out, capture_output=True, text=True, timeout=90, env=env)
             if r.returncode:
-                raise RuntimeError(f"git {args[0]}: {(r.stderr.strip().splitlines() or ['실패'])[-1][:160]}")
+                raise RuntimeError(f"git {next(a for a in args if a in ('init', 'add', 'commit', 'push'))}: {(r.stderr.strip().splitlines() or ['실패'])[-1][:160]}")
     finally:
         shutil.rmtree(out, ignore_errors=True)
 

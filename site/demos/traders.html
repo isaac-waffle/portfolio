@@ -116,7 +116,7 @@ td.wrapc{white-space:normal;min-width:220px;color:var(--sub)}
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
   var qs = new URLSearchParams(location.search);
-  var LIVE = qs.get("data") || "https://raw.githubusercontent.com/isaac-waffle/portfolio/traders-data/traders.json";
+  var LIVE = "https://raw.githubusercontent.com/isaac-waffle/portfolio/traders-data/traders.json";
   var SAMPLE = "../data/traders-sample.json";
 
   var T = {
@@ -171,13 +171,13 @@ td.wrapc{white-space:normal;min-width:220px;color:var(--sub)}
 
   function card(r) {
     var chips = r.pos.map(function (p) { return '<span class="chip">' + esc(p.sym) + ' <small class="num ' + cls(p.ret) + '">' + pc(p.ret) + "</small></span>"; }).join("") +
-      (r.n_pos > r.pos.length ? '<span class="chip"><small>' + fill(t("more"), { n: r.n_pos - r.pos.length }) + "</small></span>" : "");
-    var stats = [fill(t("closed"), { n: r.trades })];
+      (r.n_pos > r.pos.length ? '<span class="chip"><small>' + fill(t("more"), { n: (+r.n_pos || 0) - r.pos.length }) + "</small></span>" : "");
+    var stats = [fill(t("closed"), { n: +r.trades || 0 })];
     if (r.trades && r.win != null) stats.push(fill(t("winr"), { w: (r.win * 100).toFixed(0) + "%" }));
     if (r.mdd < 0) stats.push(fill(t("dd"), { d: pc(r.mdd) }));
     return '<div class="card" style="--c:' + esc(r.color) + '"><div class="who"><b>' + esc(ko("names", r.name, r.name)) + "</b><span>" + esc(ko("style", r.key, r.style)) + "</span></div>" +
       '<div class="big num ' + cls(r.ret) + '">' + pc(r.ret, 2) + ' <small>' + t("total") + '</small></div><div class="sub num">' + usd(r.equity) + ' · <span class="' + cls(r.day_ret) + '">' + pc(r.day_ret, 2) + "</span> " + t("today") + "</div>" +
-      '<div class="sub" style="margin-top:8px">' + (r.n_pos ? fill(t("holds"), { n: r.n_pos, c: (r.cash_w * 100).toFixed(0) + "%" }) : t("flat")) + "</div>" +
+      '<div class="sub" style="margin-top:8px">' + (r.n_pos ? fill(t("holds"), { n: +r.n_pos || 0, c: (r.cash_w * 100).toFixed(0) + "%" }) : t("flat")) + "</div>" +
       (chips ? '<div class="pos">' + chips + "</div>" : "") + '<div class="sub" style="margin-top:10px">' + stats.join(" · ") + "</div></div>";
   }
   function chart(rows) {
@@ -226,7 +226,7 @@ td.wrapc{white-space:normal;min-width:220px;color:var(--sub)}
     if (!D || !D.traders || !D.traders.length) { $("view").innerHTML = '<div class="empty">' + t(D ? "none" : "loading") + "</div>"; $("status").textContent = ""; return; }
     var when = new Date(D.updated * 1000).toLocaleString(lang === "ko" ? "ko-KR" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     $("dot").className = "dot" + (sample || D.state !== "Market open" ? " off" : "");
-    $("status").textContent = sample ? fill(t("sample"), { t: when }) : fill(t("asof"), { s: ko("state", D.state, D.state), t: when, r: D.rules });
+    $("status").textContent = sample ? fill(t("sample"), { t: when }) : fill(t("asof"), { s: esc(ko("state", D.state, D.state)), t: when, r: esc(D.rules) });
     var col = {}; D.traders.forEach(function (r) { col[r.key] = r.color; });
     $("view").innerHTML = '<div class="cards">' + D.traders.map(card).join("") + "</div>" +
       "<h2>" + t("curveH") + "</h2>" + chart(D.traders) + '<p class="note">' + t("curveNote") + "</p>" +

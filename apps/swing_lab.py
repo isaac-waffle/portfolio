@@ -471,7 +471,8 @@ def v8_main():
         b = ev(base, N)
         print(f"\n[{who}] 지금 규칙 · 나스닥100: {line(b)}")
         for name, P, uni in ([(f"변동성 조절 {v:.0%}", dict(base, vt=v), N) for v in (0.15, 0.20, 0.25)]
-                             + [("종가 체결", dict(base, exec="close"), N), ("후보군 = 관심종목+나스닥100", base, U)]):
+                             + ([] if base["mode"] == "rotation" else [("종가 체결", dict(base, exec="close"), N)])  # 월 1회 교체엔 해당 없음
+                             + [("후보군 = 관심종목+나스닥100", base, U)]):
             r = ev(P, uni)
             print(f"  {'통과' if better(r, b) else '탈락'}  {name:<22} {line(r)}")
         good = [P for P in grids[who] if better(ev(P, N), b)]
