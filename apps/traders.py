@@ -1,8 +1,10 @@
-"""가상 트레이더 3명 (공격형·밸런스형·방어형) — 미국 정규장 실시간 모의 단타.
+"""가상 트레이더 6명 — 미국 정규장 실시간 모의 매매 (롱만).
+  아이작·티모·차차·돌쇠  일봉 스윙 ($20,000씩, 매수 규칙이 제각각)
+  알파  Alpaca 모의계좌에 넣은 퀀트 데스크(paper_desk.py)와 같은 배분 ($20,000, 소수점 주식, 수수료 $0)
+  번개  10분마다 판단하는 단타 ($20,000, 15:50 ET 전량 정리)
 
 실행:  .venv/bin/python apps/traders.py [--open]      (localhost:8503, 허브에서 켜도 됨)
-각자 $20,000로 시작, 롱만, 매일 장 마감 10분 전 전량 청산. 규칙 기반으로 판단하고
-판단 근거를 한국어 '생각'으로 남김. 켜 두는 동안 맥이 잠들지 않게 caffeinate를 붙임.
+규칙 기반으로 판단하고 판단 근거를 한국어 '생각'으로 남김. 켜 두는 동안 맥이 잠들지 않게 caffeinate를 붙임.
 
 기록 (git 제외):  apps/journal/traders/
   state.json            현재 계좌·포지션 (재시작해도 이어감)
@@ -19,9 +21,11 @@ import math
 import errno
 import os
 import resource
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -66,7 +70,7 @@ APPS = Path(__file__).resolve().parent
 DATA = APPS / "journal" / "traders"
 PAGE = APPS / "traders.html"
 PORT = 8503
-RULES = "v7"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
+RULES = "v8"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
 # v3 (2026-10-26): 실시간 뉴스 반영 (traders_news.py) — 아직 백테스트로 검증 안 됨
 # v4 (2026-10-26): 2024.01~2026.10 Alpaca 5분봉으로 v1에서 재튜닝 (학습 24.01~25.06 · 확인 25.07~12 · 최종 시험 26.01~10).
 #     세 명 모두 v1·v2보다 덜 잃지만 여전히 손실 — 주로 거래를 크게 줄여서 좋아진 것 (lab/tune_2026-10-26_2024-01-02.json)
@@ -75,6 +79,8 @@ RULES = "v7"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버�
 # v6 (2026-10-26): 단타에 우위가 없어 아이작=모멘텀(매월 6개월 상위 5), 티모=돌파 8종목, 차차=돌파+SPY 50일선 필터로 전환
 # v7 (2026-10-28): 셋이 같은 돌파 규칙이라 같이 멈춰 있어서 매수 규칙을 나눔 (swing_lab.py trio, 2016~2026 나스닥100)
 #     티모=RSI(2) 과매도 눌림목(손절 없이 5종목 균등, 5일선 회복·5거래일 청산), 차차=20일선 지지 반등(변동성 낮은 순, SPY 200일선 필터)
+# v8 (2026-11-14): 알파(Alpaca 모의계좌 퀀트 데스크와 같은 배분)·번개(10분 단타, scalp_lab.py) 추가. 돌쇠는 후보를 관심종목+나스닥100으로 넓힘
+#     (swing_lab.py v8: 학습·확인 둘 다 좋아진 유일한 변경). 아이작·티모·차차는 후보 272개 중 통과한 변경이 없어 그대로.
 # v2 (2026-10-26): traders_lab 튜닝 (9월 학습 · 10월 확인 · 8월 최종 시험) — 아이작·티모만 변경, 차차는 8월에서 나빠져 유지
 START_CASH = 20_000.0
 FEE = 2.0  # 주문당 수수료 $ (매수 $2, 매도 $2)
@@ -96,6 +102,14 @@ CATEGORIES = {
 }
 CAT_OF = {s: c for c, ss in CATEGORIES.items() for s in ss}
 WATCHLIST = [s for ss in CATEGORIES.values() for s in ss]
+# 나스닥100 (2026년 구성 근사) — 관심종목처럼 '오를 걸 알고 고른' 목록이 아닌 넓은 후보군 (돌쇠·퀀트 데스크·백테스트 공용)
+NDX = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "AVGO", "TSLA", "COST", "NFLX", "AMD", "PEP", "ADBE", "CSCO", "TMUS",
+       "INTC", "QCOM", "TXN", "AMGN", "INTU", "AMAT", "ISRG", "HON", "BKNG", "CMCSA", "LRCX", "VRTX", "ADP", "MU", "PANW",
+       "ADI", "SBUX", "GILD", "MELI", "REGN", "KLAC", "MDLZ", "SNPS", "CDNS", "PYPL", "CRWD", "ASML", "MAR", "CTAS", "ORLY",
+       "CSX", "MRVL", "ABNB", "WDAY", "FTNT", "ROP", "NXPI", "ADSK", "PCAR", "CHTR", "CPRT", "MNST", "PAYX", "AEP", "ROST",
+       "KDP", "ODFL", "FAST", "EA", "DDOG", "KHC", "VRSK", "BKR", "EXC", "CTSH", "XEL", "GEHC", "IDXX", "CCEP", "TTWO",
+       "LULU", "ON", "CSGP", "ZS", "DXCM", "TEAM", "BIIB", "MDB", "WBD", "GFS", "ARM", "DASH", "PLTR", "APP", "AXON",
+       "MSTR", "SHOP", "TRI", "LIN", "AZN", "PDD"]
 MARKET = ["SPY", "QQQ", "IWM"]
 VIX = "^VIX"
 
@@ -105,10 +119,11 @@ HOLIDAYS = {dt.date(2026, 11, 26), dt.date(2026, 12, 25), dt.date(2027, 1, 1), d
             dt.date(2027, 7, 5), dt.date(2027, 9, 6), dt.date(2027, 11, 25), dt.date(2027, 12, 24)}
 EARLY = {dt.date(2026, 11, 27): 780, dt.date(2026, 12, 24): 780, dt.date(2027, 11, 26): 780}
 
-SETUP_KO = {"MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
+SETUP_KO = {"DESK": "퀀트 데스크 배분", "DIP10": "10분 눌림 반등", "MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
             "GAPFILL": "갭 메우기 반등", "FADE": "과매도 반등", "SQZ": "스퀴즈 발사", "PDL": "전일 고점 돌파"}
 
-SETUP_OF = {"breakout": "BRK", "pullback": "PB", "trendpull": "TP", "rotation": "MOM"}
+SETUP_OF = {"breakout": "BRK", "pullback": "PB", "trendpull": "TP", "rotation": "MOM", "desk": "DESK"}
+K10 = math.sqrt(10 / 390)  # 일봉 ATR% → 10분 변동폭 환산 (scalp_lab.py와 같은 값)
 # 분 단위는 ET 자정 기준 (570 = 09:30)
 TRADERS = {
     # v6: 단타 셋을 성격에 맞는 스윙으로 전환 (단타 v5 규칙은 traders_lab.DAY_RULES에 보관, 단타 기록은 그대로 남음)
@@ -125,8 +140,19 @@ TRADERS = {
                 motto="정배열 종목이 20일선까지 내려왔다 다시 오르면 산다. 변동성 낮은 종목부터, 50일선이 깨지거나 시장(SPY 200일선)이 꺾이면 정리."),
     "swing": dict(kind="swing", mode="breakout", name="스윙형", nick="돌쇠", color="#eda100",
                   risk=0.01, max_pos=5, max_trades=5, daily_loss=0.0, n=20, volr=1.5, stop_atr=2.0, trail_atr=3.5, exit_ma=20,
-                  min_dvol=2e7, min_rvol=0, cooldown=0,
-                  motto="20일 신고가를 거래량과 함께 돌파한 종목을 며칠~몇 주 들고 간다. 손절은 ATR, 수익은 추세가 꺾일 때까지."),
+                  min_dvol=2e7, min_rvol=0, cooldown=0, uni="wide",
+                  motto="20일 신고가를 거래량과 함께 돌파한 종목을 며칠~몇 주 들고 간다. 손절은 ATR, 수익은 추세가 꺾일 때까지. 관심종목 + 나스닥100에서 고른다."),
+    # v8: Alpaca 모의계좌에 넣은 퀀트 데스크(paper_desk.py)를 그대로 따라 하는 가상 계좌 — 같은 신호, 같은 주문 규칙, 수수료 $0.
+    #     시작 자금은 다른 트레이더와 같은 $20,000 (사용자 요청) — 비중이 Alpaca 계좌($100,000)와 같게 나오도록 소수점 주식으로 삼
+    "desk": dict(kind="swing", mode="desk", name="퀀트형", nick="알파", color="#7a5cd6", fee=0.0,
+                 risk=0.0, max_pos=60, max_trades=60, daily_loss=0.0, min_dvol=0, min_rvol=0, cooldown=0,
+                 motto="검증을 통과한 다섯 전략(추세추종·변동성 타기팅·12개월 모멘텀·Minervini·갭 피벗)을 20%씩 섞고 남는 돈은 초단기 국채(BIL)에. "
+                       "Alpaca 모의계좌에 넣은 퀀트 데스크와 같은 신호·같은 주문 규칙 (지정가 ±2%, 총 보유 95% 이하)."),
+    # v8: 10분마다 판단하는 단타 (scalp_lab.py — 학습에서 고르고 확인·시험에서도 플러스였던 유일한 규칙. 한 주에 한 번쯤만 삼)
+    "scalp": dict(kind="scalp", mode="scalp", name="단타형", nick="번개", color="#d6336c",
+                  risk=0.0, max_pos=1, max_trades=40, daily_loss=0.0, z_in=1.5, z_keep=1.0, rvol=3.0, min_dvol=2e7, min_rvol=0, cooldown=0,
+                  motto="10분마다 판단한다. 오늘 오르는 종목이 거래량 3배로 10분 급락하면 사고, 10분 뒤 다시 본다 — 버티면 10분 더, 꺾이면 판다. "
+                        "시장(SPY)이 VWAP 위일 때만, 한 번에 한 종목, 15:50 ET 전량 정리."),
 }
 
 LOCK = threading.RLock()
@@ -240,6 +266,24 @@ def fetch_daily(tickers: list[str]) -> dict:
         if df is not None:
             df.index = pd.DatetimeIndex([pd.Timestamp(x).date() for x in df.index])
             out[s] = df
+    return out
+
+
+def fetch_vprof(tickers: list[str], today: dt.date) -> dict:
+    """종목별 '평소 이 시각 5분 거래량' — 오늘 이전 14거래일의 5분봉 거래량을 시각별(09:30부터 78칸)로 평균. 7일 미만이면 뺌."""
+    d = yf.download(tickers, period="1mo", interval="5m", progress=False, group_by="ticker", auto_adjust=True, threads=True)
+    out = {}
+    for s in tickers:
+        df = _pick(d, s)
+        if df is None:
+            continue
+        idx = df.index.tz_convert(NY) if df.index.tz is not None else df.index.tz_localize("UTC").tz_convert(NY)
+        m, day = mins(idx), np.array(idx.date)
+        keep = (m >= 570) & (m < 960) & (day < today)
+        tab = pd.DataFrame(dict(day=day[keep], bin=(m[keep] - 570) // 5, v=df["Volume"].to_numpy()[keep])).pivot_table(
+            index="day", columns="bin", values="v", aggfunc="sum").reindex(columns=range(78)).fillna(0).tail(14)
+        if len(tab) >= 7:
+            out[s] = tab.mean().to_numpy()
     return out
 
 
@@ -513,7 +557,8 @@ class Trader:
     def __init__(self, key: str, st: dict | None):
         self.key, self.P = key, TRADERS[key]
         st = st or {}
-        self.cash = st.get("cash", START_CASH)
+        self.start_cash, self.fee = self.P.get("cash", START_CASH), self.P.get("fee", FEE)
+        self.cash = st.get("cash", self.start_cash)
         self.pos: dict = st.get("pos", {})
         self.day: dict = st.get("day", {})
         self.cool: dict = st.get("cool", {})
@@ -571,10 +616,10 @@ class Trader:
     # ── 매매 ──
     def buy(self, a: dict, s: dict, shares: int, score: float, mk: dict, src: str, now: dt.datetime):
         px = a["last"] * (1 + SLIP)
-        self.cash -= shares * px + FEE
+        self.cash -= shares * px + self.fee
         self.pos[a["sym"]] = dict(shares=shares, init=shares, entry=px, stop=s["stop"], stop0=s["stop"], t1=s["t1"],
                                   t2=s["t2"], setup=s["key"], src=src, opened=now.isoformat(), checked=a["t"],
-                                  half=False, realized=-FEE, sold=0, sold_val=0.0, mfe=px, mae=px,
+                                  half=False, realized=-self.fee, sold=0, sold_val=0.0, mfe=px, mae=px,
                                   why=s["why"], score=round(score), feat=dict(mkt_score=mk["score"], rvol=a["rvol"],
                                   rs=a["rs"], atr_pct=a["atr_pct"], gap=a["gap"]))
         self.day["trades"] += 1
@@ -586,13 +631,13 @@ class Trader:
     def sell(self, sym: str, shares: int, px: float, reason: str, now: dt.datetime, final: bool = False):
         p = self.pos[sym]
         fill = px * (1 - SLIP)
-        self.cash += shares * fill - FEE
+        self.cash += shares * fill - self.fee
         p["shares"] -= shares
         p["sold"] += shares
         p["sold_val"] += shares * fill
-        p["realized"] += shares * (fill - p["entry"]) - FEE
+        p["realized"] += shares * (fill - p["entry"]) - self.fee
         rps = p["entry"] - p["stop0"]
-        self.log("sell", f"{sym} {shares}주 매도 @ {f2(fill)} — {reason} ({money(shares * (fill - p['entry']))})",
+        self.log("sell", f"{sym} {shares:g}주 매도 @ {f2(fill)} — {reason} ({money(shares * (fill - p['entry']))})",
                  sym=sym, price=fill, shares=shares)
         if p["shares"] > 0 and not final:
             return
@@ -939,6 +984,15 @@ def prev_trading_day(d: dt.date) -> dt.date:
     return d
 
 
+MODE_TXT = {  # mode → (장 마감 후 보는 것, 장중 생각 꼬리말, 보유 중 한 줄)
+    "rotation": ("모멘텀 순위", " 손절 없이 매달 말에만 갈아탐.", "월말까지 그대로"),
+    "pullback": ("과매도 눌림(RSI 2)", " 손절 없이 장 마감 후 5일선 회복·보유 일수만 확인.", "반등 기다림"),
+    "trendpull": ("20일선 지지 반등", " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로.", "손절선만 감시"),
+    "breakout": ("돌파 신호", " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로.", "손절선만 감시"),
+    "desk": ("다섯 전략의 목표 비중", " 손절 없이 장 마감 후 목표 비중대로만 조정.", "목표 비중 유지"),
+}
+
+
 class SwingTrader(Trader):
     """돌파형 스윙 — swing_lab.py에서 검증한 규칙. 장 마감 후 일봉으로 신호 → 다음 날 시가 매매 → 장중엔 손절만 감시.
     단타 셋과 달리 포지션을 밤새 들고 감 (평균 10~15일)."""
@@ -959,6 +1013,25 @@ class SwingTrader(Trader):
                         halted="", planned=False, reviewed=False)
         self.curve = []
 
+    def pool(self) -> list[str]:
+        """매수 후보군 — 기본은 관심종목, uni="wide"(돌쇠)면 나스닥100까지."""
+        return WATCHLIST + [s for s in NDX if s not in CAT_OF] if self.P.get("uni") == "wide" else WATCHLIST
+
+    @staticmethod
+    def first_bar(sym: str, now: dt.datetime, bars: dict):
+        """오늘 정규장 첫 1분봉 (없으면 None)."""
+        df = bars.get(sym)
+        if df is None:
+            return None
+        m = mins(df.index)
+        t = df[(np.array(df.index.date) == now.date()) & (m >= 570) & (m < 960)]
+        return t.iloc[0] if len(t) else None
+
+    def pending(self) -> list[str]:
+        """아직 체결 안 된 시가 주문 종목 — 엔진이 이 종목들의 1분봉도 받아 오게."""
+        o = self.orders
+        return [] if o.get("done") else [x["sym"] for x in o.get("sell", []) + o.get("buy", [])]
+
     def held_txt(self, snaps: dict) -> str:
         if not self.pos:
             return "보유 없음"
@@ -978,7 +1051,7 @@ class SwingTrader(Trader):
 
     # ── 장 마감 후: 일봉 신호 ──
     def daily_bars(self, day: dt.date) -> dict | None:
-        syms = list(dict.fromkeys(WATCHLIST + list(self.pos) + ["SPY"]))
+        syms = list(dict.fromkeys(self.pool() + list(self.pos) + ["SPY"]))
         d = yf.download(syms, period="2y", interval="1d", progress=False, group_by="ticker", auto_adjust=True, threads=True)
         F = {}
         for s in syms:
@@ -1015,9 +1088,11 @@ class SwingTrader(Trader):
             self.log("think", f"시장 필터 꺼짐 ({mtxt}) — 신규 매수 없음" + (" · 보유 종목은 내일 시가에 전부 정리." if P.get("exit_mkt") and self.pos else "."))
         sells, cands, near = [], [], []
         stat = dict(trend=0, sig=0)
+        pool = set(self.pool())
         for s, df in F.items():
-            if s == "SPY" and s not in WATCHLIST:
+            if s not in self.pos and s not in pool:
                 continue
+            src = "관심종목" if s in CAT_OF else "나스닥100"
             c, v, lo = df["Close"], df["Volume"], df["Low"]
             last, prev = float(c.iloc[-1]), float(c.iloc[-2])
             atr = float(true_range(df).rolling(14).mean().iloc[-1])
@@ -1076,9 +1151,9 @@ class SwingTrader(Trader):
             stat["trend"] += trend
             if hit:
                 stat["sig"] += 1
-                cands.append(dict(sym=s, mom=score, atr=atr, close=last, why=why + mtag))
+                cands.append(dict(sym=s, mom=score, atr=atr, close=last, why=why + mtag, src=src))
             elif trend:
-                near.append(dict(sym=s, setup=SETUP_OF[mode], score=round(min(99, max(0, closeness))), ok=False, src="관심종목", why=gap_txt))
+                near.append(dict(sym=s, setup=SETUP_OF[mode], score=round(min(99, max(0, closeness))), ok=False, src=src, why=gap_txt))
         cands.sort(key=lambda x: -x["mom"])
         if not on:
             cands = []
@@ -1087,7 +1162,7 @@ class SwingTrader(Trader):
         self.orders = dict(**{"for": next_open(dt.datetime.combine(day, dt.time(17), NY)).date().isoformat()},
                            buy=buys, sell=sells, done=False)
         near.sort(key=lambda w: -w["score"])
-        self.watch = [dict(sym=b["sym"], setup=SETUP_OF[mode], score=100, ok=True, src="관심종목", why=b["why"]) for b in buys] + near[:5 - len(buys)]
+        self.watch = [dict(sym=b["sym"], setup=SETUP_OF[mode], score=100, ok=True, src=b["src"], why=b["why"]) for b in buys] + near[:5 - len(buys)]
         self.sig_day = day.isoformat()
         for x in sells:
             self.log("decide", f"{x['sym']} 내일 시가에 매도 — {x['why']}.", sym=x["sym"])
@@ -1099,7 +1174,7 @@ class SwingTrader(Trader):
             self.log("pass", f"신호는 더 있지만 자리가 없음 ({len(self.pos)}/{P['max_pos']}): "
                              + ", ".join(x["sym"] for x in skipped[:5]) + (" — 변동성 낮은 순으로 골랐어." if P.get("rank") == "lowvol" else " — 6개월 수익률 높은 순으로 골랐어."))
         if not buys and on:
-            self.log("think", f"오늘 매수 신호 없음 — 관심종목 {len(WATCHLIST)}개 중 추세 조건 통과 {stat['trend']}개, 신호 0개. "
+            self.log("think", f"오늘 매수 신호 없음 — 후보 {len(pool)}개 중 추세 조건 통과 {stat['trend']}개, 신호 0개. "
                               + ("가장 가까운 후보: " + " · ".join(f"{w['sym']} ({w['why']})" for w in near[:3]) if near else "추세 조건을 통과한 종목이 없어."))
         return True
 
@@ -1108,13 +1183,7 @@ class SwingTrader(Trader):
         o = self.orders
         if o.get("done") or o.get("for") != now.date().isoformat():
             return
-        def first_bar(sym):
-            df = bars.get(sym)
-            if df is None:
-                return None
-            m = mins(df.index)
-            t = df[(np.array(df.index.date) == now.date()) & (m >= 570) & (m < 960)]
-            return t.iloc[0] if len(t) else None
+        first_bar = lambda sym: self.first_bar(sym, now, bars)
         for x in o["sell"]:
             if x["sym"] in self.pos:
                 b = first_bar(x["sym"])
@@ -1132,17 +1201,17 @@ class SwingTrader(Trader):
             rot = self.P.get("mode") == "rotation"
             if rot or not self.P.get("stop_atr"):  # 모멘텀·눌림목: 종목당 1/N 비중, 손절 없음 (순위 밖 교체 / 5일선 회복·시간 청산)
                 stop = 0.0
-                shares = int(min(eq * x.get("w", 1 / self.P["max_pos"]), self.cash - FEE) / px)
+                shares = int(min(eq * x.get("w", 1 / self.P["max_pos"]), self.cash - self.fee) / px)
             else:
                 stop = px - self.P["stop_atr"] * x["atr"]
-                shares = int(min(eq * self.P["risk"] / (px - stop), eq / self.P["max_pos"] / px, (self.cash - FEE) / px))
+                shares = int(min(eq * self.P["risk"] / (px - stop), eq / self.P["max_pos"] / px, (self.cash - self.fee) / px))
             if shares < 1:
                 self.log("pass", f"{x['sym']} 살 현금이 부족해서 건너뜀.", sym=x["sym"])
                 continue
-            self.cash -= shares * px + FEE
+            self.cash -= shares * px + self.fee
             self.pos[x["sym"]] = dict(shares=shares, init=shares, entry=px, stop=stop, stop0=stop, t1=px, t2=px, hi=px,
-                                      setup=SETUP_OF[self.P.get("mode", "breakout")], src="관심종목", opened=now.isoformat(),
-                                      checked=(b.name - pd.Timedelta(minutes=1)).isoformat(), half=True, realized=-FEE,
+                                      setup=SETUP_OF[self.P.get("mode", "breakout")], src=x.get("src", "관심종목"), opened=now.isoformat(),
+                                      checked=(b.name - pd.Timedelta(minutes=1)).isoformat(), half=True, realized=-self.fee,
                                       sold=0, sold_val=0.0, mfe=px, mae=px, why=x["why"], score=100,
                                       feat=dict(mkt_score=np.nan, rvol=np.nan, rs=np.nan, atr_pct=x["atr"] / px if x["atr"] else np.nan, gap=np.nan))
             self.day["trades"] += 1
@@ -1190,23 +1259,18 @@ class SwingTrader(Trader):
             self.watch_stops(now, bars)
             mode = self.P.get("mode")
             rot = mode == "rotation"
-            what = {"rotation": "모멘텀 순위", "pullback": "과매도 눌림(RSI 2)", "trendpull": "20일선 지지 반등"}.get(mode, "돌파 신호")
+            what, tail, hold = MODE_TXT.get(mode, MODE_TXT["breakout"])
             body = f"보유: {self.held_txt(snaps)}." if self.pos else (
                 "보유 없음 — 장 마감 후 모멘텀 순위를 보고 내일 시가에 첫 편입." if rot else f"보유 없음 — 장 마감 후 {what}을 다시 볼게.")
-            tail = (" 손절 없이 매달 말에만 갈아탐." if rot else
-                    " 손절 없이 장 마감 후 5일선 회복·보유 일수만 확인." if not self.P.get("stop_atr") else
-                    " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로.")
             return self.think("보유" if self.pos else "관망", body + tail, "day" + ",".join(self.pos),
-                              (f"{len(self.pos)}종목 보유 — 월말까지 그대로" if rot else
-                               f"{len(self.pos)}종목 보유 — 반등 기다림" if not self.P.get("stop_atr") else f"{len(self.pos)}종목 보유 — 손절선만 감시")
-                              if self.pos else ("관망 — 장 마감 후 모멘텀 순위 점검" if rot else f"관망 — 장 마감 후 {what} 점검"))
+                              f"{len(self.pos)}종목 보유 — {hold}" if self.pos else f"관망 — 장 마감 후 {what} 점검")
         nxt = self.order_txt()
         self.think("보유" if self.pos else "마감", (f"장 끝 — 일봉 신호 점검 완료. 내일 {nxt}." if self.sig_day == today.isoformat() and nxt else
                    "장 끝 — 일봉 신호 점검 완료. 내일 시가 주문 없음." if self.sig_day == today.isoformat() else
                    "장 끝 — 오늘 일봉이 올라오면 신호를 점검할게.") + f" 보유: {self.held_txt(snaps)}.", "close" + str(self.sig_day) + nxt,
                    f"장 끝 — 내일 {nxt}" if self.sig_day == today.isoformat() and nxt else
                    (f"장 끝 — 주문 없음 · 가장 가까운 {near[0]['sym']}: {near[0]['why']}" if (near := [w for w in self.watch if not w.get("ok")])
-                    and self.P.get("mode") != "rotation" else "장 끝 — 내일 주문 없음") if self.sig_day == today.isoformat() else "장 끝 — 일봉 대기")
+                    and self.P.get("mode") not in ("rotation", "desk") else "장 끝 — 내일 주문 없음") if self.sig_day == today.isoformat() else "장 끝 — 일봉 대기")
 
     def review(self, snaps: dict, today: dt.date, *_):
         eq = self.equity(snaps)
@@ -1276,6 +1340,260 @@ class MomentumTrader(SwingTrader):
         return True
 
 
+class DeskTrader(SwingTrader):
+    """퀀트형 (알파) — Alpaca 모의계좌에 넣은 퀀트 데스크(paper_desk.py)를 가상 계좌로 그대로 따라 함.
+    장 마감 후 paper_desk.py virtual(Alpaca 접속 없이 같은 신호·같은 주문 규칙)로 주문 목록을 받아 다음 날 시가에 체결.
+    시작 자금 $20,000 — Alpaca 계좌($100,000)와 같은 비중이 되도록 소수점 주식(0.001주 단위)으로 삼.
+    지정가 ±2% 밖으로 갭이 나면 그 주문은 건너뛰고 다음 날 다시 판단. 고점 대비 −15%면 신규 매수 중단. 손절 없음."""
+    DD_HALT, RETRY = 0.15, 900
+
+    def __init__(self, key: str, st: dict | None):
+        super().__init__(key, st)
+        self.peak = (st or {}).get("peak", self.cash)
+        self.try_at = 0.0
+
+    def dump(self) -> dict:
+        return super().dump() | dict(peak=self.peak)
+
+    def held_txt(self, snaps: dict) -> str:
+        if not self.pos:
+            return "보유 없음"
+        val = {s: p["shares"] * self.price(s, snaps, p["entry"]) for s, p in self.pos.items()}
+        eq = self.cash + sum(val.values())
+        top = sorted(val, key=val.get, reverse=True)[:5]
+        return (" · ".join(f"{s} {val[s] / eq * 100:.0f}%" for s in top)
+                + (f" 외 {len(val) - 5}종목" if len(val) > 5 else "") + f" (현금 {self.cash / eq * 100:.0f}%)")
+
+    def order_txt(self) -> str:
+        o = self.orders
+        if o.get("done") or not (o["buy"] or o["sell"]):
+            return ""
+        return f"시가 지정가 주문 매도 {len(o['sell'])}건 · 매수 {len(o['buy'])}건"
+
+    def signals(self, day: dt.date, snaps: dict):
+        if time.time() - self.try_at < self.RETRY:
+            return False
+        self.try_at = time.time()
+        eq = self.equity(snaps)
+        self.peak = max(self.peak, eq)
+        buys_ok = eq >= self.peak * (1 - self.DD_HALT)
+        arg = json.dumps(dict(day=day.isoformat(), equity=eq, held={s: p["shares"] for s, p in self.pos.items()}, buys_ok=buys_ok))
+        try:
+            r = subprocess.run([sys.executable, str(APPS / "paper_desk.py"), "virtual", arg], capture_output=True, text=True,
+                               timeout=900, cwd=str(APPS))
+            v = json.loads((APPS / "journal" / "paper" / "virtual.json").read_text()) if r.returncode == 0 else {}
+        except Exception as e:
+            self.log("think", f"퀀트 데스크 계산 실패 ({type(e).__name__}) — 15분 뒤 다시.")
+            return False
+        if r.returncode == 2 or v.get("day") != day.isoformat():  # 2 = 그날 일봉이 아직 안 올라옴
+            if r.returncode not in (0, 2):
+                self.log("think", f"퀀트 데스크 계산 오류({r.returncode}): {(r.stderr.strip().splitlines() or ['출력 없음'])[-1][:160]} — 15분 뒤 다시.")
+            return False
+        sleeves, ko = v.get("sleeves", {}), v.get("names", {})
+        of = lambda s: " + ".join(ko.get(k, k) for k, w in sleeves.items() if s in w) or "목표 비중 밖"
+        mk = lambda o: dict(sym=o["sym"], qty=o["qty"], limit=o["limit"], ref=o["ref"], w=o["weight"],
+                            why=f"{of(o['sym'])} — 목표 비중 {o['weight'] * 100:.1f}%")
+        sells, buys = [mk(o) for o in v["orders"] if o["side"] == "sell"], [mk(o) for o in v["orders"] if o["side"] == "buy"]
+        self.orders = dict(**{"for": next_open(dt.datetime.combine(day, dt.time(17), NY)).date().isoformat()}, buy=buys, sell=sells, done=False)
+        tg = sorted(v["targets"].items(), key=lambda kv: -kv[1])
+        self.watch = [dict(sym=s, setup="DESK", score=round(w * 100), ok=True, src="퀀트 데스크", why=f"목표 {w * 100:.1f}% — {of(s)}") for s, w in tg[:8]]
+        self.sig_day = day.isoformat()
+        if not buys_ok:
+            self.log("think", f"계좌 ${eq:,.0f}가 고점 ${self.peak:,.0f} 대비 −{self.DD_HALT:.0%} 아래 — 신규 매수 중단, 매도만.")
+        self.log("think", "오늘 목표 비중 — " + " / ".join(
+            f"{ko.get(k, k)}: {', '.join(f'{s} {x * 100:.0f}%' for s, x in sorted(w.items(), key=lambda kv: -kv[1])[:4]) or '현금'}"
+            + (f" 외 {len(w) - 4}" if len(w) > 4 else "") for k, w in sleeves.items()) + ". (전략별 몫 20%씩, 괄호 안은 그 전략 안에서의 비중)")
+        for side, xs in (("매도", sells), ("매수", buys)):
+            if xs:
+                self.log("decide", f"내일 시가 {side} {len(xs)}건 (지정가 ±2%): " + ", ".join(f"{x['sym']} {x['qty']:g}주" for x in xs[:12])
+                         + (f" 외 {len(xs) - 12}건" if len(xs) > 12 else "") + ".", sym=xs[0]["sym"])
+        if not sells and not buys:
+            self.log("think", "목표 비중과 지금 보유가 거의 같아 내일 주문 없음.")
+        return True
+
+    def at_open(self, now: dt.datetime, bars: dict):
+        """매도 먼저, 그다음 매수. 시가가 지정가 밖이면 건너뜀. 09:45까지 시가 데이터가 없는 종목도 건너뜀."""
+        o = self.orders
+        if o.get("done") or o.get("for") != now.date().isoformat():
+            return
+        late, waiting = now.hour * 60 + now.minute >= 585, False
+        for side, xs in (("sell", o["sell"]), ("buy", o["buy"])):
+            for x in xs:
+                if x.get("ok") is not None:
+                    continue
+                b = self.first_bar(x["sym"], now, bars)
+                if b is None:
+                    if late:
+                        x["ok"] = False
+                        self.log("pass", f"{x['sym']} 시가 데이터가 없어 주문 건너뜀 — 오늘 장 마감 후 다시 판단.", sym=x["sym"])
+                    else:
+                        waiting = True
+                    continue
+                op = float(b["Open"])
+                if (side == "buy" and op > x["limit"]) or (side == "sell" and op < x["limit"]):
+                    x["ok"] = False
+                    self.log("pass", f"{x['sym']} 시가 {f2(op)}가 지정가 {f2(x['limit'])} 밖 (전일 종가 {f2(x['ref'])} 대비 갭 {pc(op / x['ref'] - 1)}) — "
+                                     f"{'안 삼' if side == 'buy' else '안 팖'}, 장 마감 후 다시 판단.", sym=x["sym"])
+                    continue
+                x["ok"] = True
+                if side == "sell" and x["sym"] in self.pos:
+                    have = self.pos[x["sym"]]["shares"]
+                    n = have if x["qty"] >= have - 0.0005 else x["qty"]
+                    self.sell(x["sym"], n, op, f"비중 조정 — {x['why']}", now, final=n == have)
+                elif side == "buy":
+                    self.fill_buy(x, op, now, b)
+            if waiting and side == "sell":
+                return  # 매도가 다 끝나야(현금 확보) 매수
+        o["done"] = not waiting
+
+    def fill_buy(self, x: dict, op: float, now: dt.datetime, b):
+        px = op * (1 + SLIP)
+        n = min(x["qty"], math.floor((self.cash - self.fee) / px * 1000) / 1000)  # 소수점 주식 (0.001주 단위)
+        if n <= 0:
+            return self.log("pass", f"{x['sym']} 살 현금이 부족해서 건너뜀.", sym=x["sym"])
+        self.cash -= n * px + self.fee
+        p = self.pos.get(x["sym"])
+        if p:  # 추가 매수 — 평균 단가로
+            p.update(entry=(p["entry"] * p["shares"] + px * n) / (p["shares"] + n), shares=p["shares"] + n, init=p["init"] + n,
+                     realized=p["realized"] - self.fee, why=x["why"])
+        else:
+            self.pos[x["sym"]] = dict(shares=n, init=n, entry=px, stop=0.0, stop0=0.0, t1=px, t2=px, hi=px, setup="DESK", src="퀀트 데스크",
+                                      opened=now.isoformat(), checked=(b.name - pd.Timedelta(minutes=1)).isoformat(), half=True,
+                                      realized=-self.fee, sold=0, sold_val=0.0, mfe=px, mae=px, why=x["why"], score=round(x["w"] * 100),
+                                      feat=dict(mkt_score=np.nan, rvol=np.nan, rs=np.nan, atr_pct=np.nan, gap=op / x["ref"] - 1))
+        self.day["trades"] += 1
+        self.log("buy", f"{x['sym']} {n:g}주 시가 매수 @ {f2(px)} — {x['why']}.", sym=x["sym"], price=px, shares=n)
+
+
+def scalp_pick(F: dict, held: str | None, P: dict, mkt_on: bool) -> tuple[str | None, str | None, str]:
+    """10분 단타 판단 (scalp_lab.py의 dip·keep·mkt 규칙과 같은 정의). F = 종목별 지표(z·vw·day·rv·liquid).
+    돌려주는 값: (10분 뒤에도 들고 있을 종목, 새로 살 종목, 이유)."""
+    ok_ = lambda f: bool(f and f["liquid"] and f["z"] <= -P["z_in"] and f["vw"] > 0 and f["day"] > 0 and ok(f["rv"]) and f["rv"] >= P["rvol"])
+    cands = sorted((f for f in F.values() if ok_(f)), key=lambda f: f["z"])
+    pick = cands[0]["sym"] if cands and mkt_on else None
+    h = F.get(held) if held else None
+    if held and h and h["z"] > -P["z_keep"] and h["vw"] > 0:
+        return held, None, f"{held} 직전 10분 {pc(h['r10'], 2)} (z {h['z']:+.1f}) · VWAP 위 — 10분 더 보유"
+    if held and pick == held:
+        return held, None, f"{held} 다시 급락했지만 매수 조건을 또 채움 — 10분 더 보유"
+    why = ""
+    if held:
+        why = (f"{held} 지표를 못 읽음 — 정리" if not h else f"{held} VWAP 아래로 내려감 — 정리" if h["vw"] <= 0
+               else f"{held} 10분 새 {pc(h['r10'], 2)} (z {h['z']:+.1f}) 더 빠짐 — 정리")
+    return None, pick, why
+
+
+class ScalpTrader(Trader):
+    """단타형 (번개) — 10분마다(09:40~15:40 ET) 한 번 판단. 규칙은 scalp_lab.py에서 학습 기간에 고르고 확인·시험 기간에도 플러스였던 것:
+    오늘 오르는 종목(전일 대비 +, VWAP 위)이 거래량 3배로 10분 급락(z ≤ −1.5) → 가장 많이 빠진 한 종목을 계좌 전부로 매수.
+    10분 뒤: z > −1 이고 VWAP 위면 10분 더, 아니면 매도. 새로 살 땐 SPY가 VWAP 위여야 함. 손절선 없음(10분 뒤 재판단이 손절), 15:50 전량 정리."""
+
+    def __init__(self, key: str, st: dict | None):
+        super().__init__(key, st)
+        self.vprof: dict = {}
+
+    def plan(self, snaps: dict, mk: dict, disc: dict, today: dt.date, top_news: list | None = None):
+        self.log("plan", f"오늘 계획 — {self.P['motto']}\n프리마켓 시장 점수 {mk['score']} ({mk['bias']}). "
+                         f"평소 거래량 자료가 있는 종목 {len(self.vprof)}개. 백테스트로는 한 주에 한 번쯤만 조건이 맞아 — 안 사는 날이 대부분이야.")
+        self.day["planned"] = True
+
+    def react(self, it: dict, held: set):
+        dn = [s for s, v in it["imp"].items() if v <= -0.5 and s in held]
+        if dn:
+            self.log("news", f"뉴스 \"{it['head'][:90]}\" → 보유 중인 {', '.join(dn)}에 악재. 다음 10분 판단 때 꺾였으면 바로 정리.", sym=dn[0])
+
+    def feats(self, sym: str, snaps: dict, bars: dict, edge: int, today: dt.date) -> dict | None:
+        """edge(판단 시각, 분) 직전 10분의 지표. 데이터가 늦거나 모자라면 None."""
+        a, df = snaps.get(sym), bars.get(sym)
+        if not a or df is None or not ok(a.get("atr")) or a["atr"] <= 0 or a["pdc"] <= 0:
+            return None
+        m = mins(df.index)
+        T_ = df[(np.array(df.index.date) == today) & (m >= 570) & (m < edge)]
+        if len(T_) < 5 or int(mins(T_.index)[-1]) < edge - 2:
+            return None
+        w = T_[mins(T_.index) >= edge - 10]
+        if len(w) < 5:
+            return None
+        last, k = float(w["Close"].iloc[-1]), (edge - 580) // 5
+        r10 = last / float(w["Open"].iloc[0]) - 1
+        vw, _ = vwap_bands(T_)
+        prof = self.vprof.get(sym)
+        avg = float(prof[k] + prof[k + 1]) if prof is not None and k + 1 < len(prof) else 0.0
+        return dict(sym=sym, last=last, r10=r10, z=r10 / (a["atr"] / a["pdc"] * K10), vw=last / float(vw.iloc[-1]) - 1, day=last / a["pdc"] - 1,
+                    rv=float(w["Volume"].sum()) / avg if avg > 0 else np.nan, liquid=a["dvol"] >= self.P["min_dvol"] and a["pdc"] >= 5)
+
+    def step(self, now: dt.datetime, snaps: dict, bars: dict, mk: dict, disc: dict, news=None):
+        P, m, today = self.P, now.hour * 60 + now.minute, now.date()
+        cm = close_min(today)
+        for s, p in self.pos.items():
+            last = self.price(s, snaps, p["entry"])
+            p["mfe"], p["mae"] = max(p["mfe"], last), min(p["mae"], last)
+        held = next(iter(self.pos), None)
+        pos_txt = f"{held} {pc(self.price(held, snaps, self.pos[held]['entry']) / self.pos[held]['entry'] - 1, 2)}" if held else ""
+        if m >= cm - 10:
+            for s in list(self.pos):
+                self.sell(s, self.pos[s]["shares"], self.price(s, snaps, self.pos[s]["entry"]), "장 마감 전 청산 (단타 원칙)", now, final=True)
+            return self.think("마감", "마감 10분 전 — 오늘 매매 끝. 장 끝나면 회고를 쓸게.", "close", "오늘 매매 끝")
+        edge = 570 + (m - 570) // 10 * 10
+        nxt = edge + 10 if edge + 10 <= cm - 20 else None
+        idle = lambda: self.think("보유" if held else "탐색", (f"보유: {pos_txt}. " if held else "") + (
+            f"다음 판단 {hm(nxt)} ET ({ams(nxt, today)} 암스테르담)." if nxt else "오늘 새 매수는 끝 — 마감 10분 전에 정리."),
+            f"idle{held}{nxt}", (f"{held} 보유 — " if held else "대기 — ") + (f"{ams(nxt, today)} 재판단" if nxt else "마감 전 정리"))
+        if edge < 580 or edge > cm - 20 or self.day.get("slot") == edge:
+            return idle()
+        if m - edge > 4:  # 판단 시각을 놓침 (재시작 등) — 다음 10분에
+            self.day["slot"] = edge
+            return idle()
+        spy = self.feats("SPY", snaps, bars, edge, today)
+        if not spy:
+            return idle()  # 1분봉이 아직 안 옴 — 다음 틱(30초 뒤)에 다시
+        self.day["slot"] = edge
+        F = {s: self.feats(s, snaps, bars, edge, today) for s in dict.fromkeys(MARKET + WATCHLIST + list(self.pos))}
+        keep, pick, why = scalp_pick(F, held, P, spy["vw"] > 0)
+        near = sorted((f for f in F.values() if f and f["liquid"] and f["vw"] > 0 and f["day"] > 0 and f["z"] < 0), key=lambda f: f["z"])[:5]
+        self.watch = [dict(sym=f["sym"], setup="DIP10", score=round(min(99, max(0, -f["z"] / P["z_in"] * 60 + (min(f["rv"], P["rvol"]) / P["rvol"] * 40 if ok(f["rv"]) else 0)))),
+                           ok=f["sym"] == pick, src="관심종목" if f["sym"] in CAT_OF else "지수 ETF",
+                           why=f"10분 {pc(f['r10'], 2)} (z {f['z']:+.1f}, 필요 −{P['z_in']}) · 거래량 " + (f"{f['rv']:.1f}배" if ok(f["rv"]) else "자료 없음") + f" (필요 {P['rvol']:g}배)")
+                      for f in near]
+        if held and not keep:
+            self.sell(held, self.pos[held]["shares"], self.price(held, snaps, self.pos[held]["entry"]), why, now, final=True)
+        elif keep:
+            return self.think("보유", f"{hm(edge)} ET 판단 — {why}.", f"keep{edge}", f"{held} 보유 — 10분 더")
+        if pick and not self.pos and self.day["trades"] < P["max_trades"]:
+            f, a = F[pick], snaps[pick]
+            px = a["last"] * (1 + SLIP)
+            n = int((self.cash - self.fee) / px)
+            if n >= 1:
+                txt = (f"오늘 {pc(f['day'])} 오르는 중 · VWAP 위에서 10분 새 {pc(f['r10'], 2)} 급락 (평소 10분 변동의 {-f['z']:.1f}배), "
+                       f"거래량 {f['rv']:.1f}배 · SPY는 VWAP 위")
+                self.cash -= n * px + self.fee
+                self.pos[pick] = dict(shares=n, init=n, entry=px, stop=0.0, stop0=px * (1 - a["atr"] / a["pdc"] * K10), t1=px, t2=px, setup="DIP10",
+                                      src="관심종목" if pick in CAT_OF else "지수 ETF", opened=now.isoformat(), checked=a["t"], half=True,
+                                      realized=-self.fee, sold=0, sold_val=0.0, mfe=px, mae=px, why=txt, score=round(-f["z"] * 10),
+                                      feat=dict(mkt_score=mk["score"], rvol=f["rv"], rs=a["rs"], atr_pct=a["atr_pct"], gap=a["gap"]))
+                self.day["trades"] += 1
+                self.log("buy", f"{pick} {n}주 매수 @ {f2(px)} — {txt}. 손절선 없음 — {hm(edge + 10)} ET에 다시 보고 버티면 10분 더, 꺾이면 정리.",
+                         sym=pick, price=px, shares=n)
+                return self.think("보유", f"{pick} 샀어. {txt}. 10분 뒤 다시 판단.", "buy" + pick + str(edge), f"{pick} 매수함")
+        top = near[0] if near else None
+        body = (f"{hm(edge)} ET 판단 — " + (why + ". " if why else "") + ("SPY가 VWAP 아래라 새로 안 삼. " if spy["vw"] <= 0 else "")
+                + (f"조건에 가장 가까운 건 {top['sym']}: {self.watch[0]['why']}." if top else "오르는 종목 중 10분 눌림이 없음."))
+        self.think("탐색", body, f"scan{edge}", "대기 — " + ("시장 약함 (SPY VWAP 아래)" if spy["vw"] <= 0 else f"가까운 후보 {top['sym']}" if top else "눌림 없음"))
+
+    def review(self, snaps: dict, mk: dict, today: dt.date):
+        trades = [t for t in read_csv(DATA / "trades.csv") if t["trader"] == self.key and t["date"] == today.isoformat()]
+        eq = self.cash
+        pnl = eq - self.day["start"]
+        L = [f"오늘 결과: {money(pnl)} ({pc(pnl / self.day['start'], 2)}), 거래 {len(trades)}회" + (f" — {self.day['wins']}승 {self.day['losses']}패." if trades else ".")]
+        L.append(" / ".join(f"{t['sym']} {t['entry_t']}→{t['exit_t']} ({t['hold_min']}분) {money(float(t['pnl']))}" for t in trades) + "."
+                 if trades else "매매 없음 — 10분 급락 + 거래량 3배 조건이 한 번도 안 맞았어. 이 규칙은 원래 한 주에 한 번쯤만 삼.")
+        self.log("review", "\n".join(L))
+        append_csv(DATA / "days.csv", DAY_COLS, dict(date=today.isoformat(), trader=self.key, rules=RULES,
+                   start_equity=round(self.day["start"], 2), end_equity=round(eq, 2), pnl=round(pnl, 2), trades=len(trades),
+                   wins=self.day["wins"], losses=self.day["losses"], mkt_score=mk["score"], summary=L[0]))
+        self.day["reviewed"] = True
+
+
 # ───────────────────────── engine ─────────────────────────
 class Engine:
     def __init__(self):
@@ -1286,7 +1604,8 @@ class Engine:
                 st = json.loads((DATA / "state.json").read_text())
             except Exception:
                 st = {}
-        cls = lambda P: MomentumTrader if P.get("mode") == "rotation" else SwingTrader if P.get("kind") == "swing" else Trader
+        cls = lambda P: (MomentumTrader if P.get("mode") == "rotation" else DeskTrader if P.get("mode") == "desk"
+                         else SwingTrader if P.get("kind") == "swing" else ScalpTrader if P.get("kind") == "scalp" else Trader)
         self.T = {k: cls(P)(k, st.get("traders", {}).get(k)) for k, P in TRADERS.items()}
         self.disc: dict = st.get("disc", {})
         self.disc_at = 0
@@ -1301,6 +1620,8 @@ class Engine:
         self.system: deque = deque(maxlen=60)
         self.last_fetch, self.fetch_sec, self.error = None, 0.0, ""
         self.desk_day, self.desk_try = None, 0.0
+        self.pub_at, self.pub_err = 0.0, ""
+        self.cold_at = 0.0
         self.load_feed()
 
     def desk(self):
@@ -1321,6 +1642,23 @@ class Engine:
         self.desk_day = today.isoformat()
         tail = (r.stdout.strip().splitlines() or [r.stderr.strip()[-200:] or "출력 없음"])[-1]
         self.sys_log("desk", ("퀀트 데스크: " if r.returncode == 0 else f"퀀트 데스크 오류({r.returncode}): ") + tail)
+
+    def publish(self):
+        """사이트용 요약 올리기 — 장중(~마감 1시간 뒤)엔 30분마다, 그 밖엔 6시간마다."""
+        now = now_ny()
+        m = now.hour * 60 + now.minute
+        busy = is_trading_day(now.date()) and 570 <= m < close_min(now.date()) + 60
+        if (DATA / "NO_PUBLISH").exists() or not LIVE.get("traders") or time.time() - self.pub_at < (1800 if busy else 6 * 3600):
+            return
+        self.pub_at = time.time()
+        try:
+            publish_public(self)
+            self.pub_err = ""
+        except Exception as e:
+            err = f"{type(e).__name__}: {e}"
+            if err != self.pub_err:
+                self.sys_log("system", f"사이트용 요약 올리기 실패 — {err}")
+            self.pub_err = err
 
     def load_feed(self):
         p = DATA / "events" / f"{now_ny().date().isoformat()}.jsonl"
@@ -1346,7 +1684,8 @@ class Engine:
 
     def universe(self) -> list[str]:
         held = [s for t in self.T.values() for s in t.pos]
-        return list(dict.fromkeys(MARKET + [VIX] + WATCHLIST + list(self.disc) + held))
+        pend = [s for t in self.T.values() if isinstance(t, SwingTrader) for s in t.pending()]
+        return list(dict.fromkeys(MARKET + [VIX] + WATCHLIST + list(self.disc) + held + pend))
 
     def tick(self):
         now = now_ny()
@@ -1360,6 +1699,10 @@ class Engine:
                 if isinstance(t, SwingTrader):
                     t.status = "보유" if t.pos else "휴식"
                     t.thought += f" 보유: {t.held_txt(self.snaps)}." + (f" 다음 개장 {t.order_txt()}." if t.order_txt() else "")
+            if not self.snaps and time.time() - self.cold_at > 3600:  # 장이 닫힌 동안 켜졌으면 마지막 종가로 평가 (안 그러면 매수가로 보임)
+                self.cold_at = time.time()
+                self.snaps = {s: dict(sym=s, n=0, last=float(df["Close"].iloc[-1]), chg=float(df["Close"].iloc[-1] / df["Close"].iloc[-2] - 1))
+                              for s, df in fetch_daily(self.universe()).items() if len(df) >= 2}
             return
 
         if self.daily_day != today:
@@ -1368,6 +1711,14 @@ class Engine:
             self.daily = fetch_daily(uni)
             self.earn = fetch_earnings()
             self.daily_day = today
+            try:  # 번개(10분 단타)용: 종목별 '평소 이 시각 5분 거래량'
+                vp = fetch_vprof(MARKET + WATCHLIST, today)
+            except Exception:
+                traceback.print_exc()
+                vp = {}
+            for t in self.T.values():
+                if isinstance(t, ScalpTrader):
+                    t.vprof = vp
         due = (m >= 540 and m < 900 and time.time() - self.disc_at > 1800) or (not self.disc and m >= 540 and time.time() - self.disc_at > 300)
         if due:
             self.disc_at = time.time()
@@ -1494,6 +1845,10 @@ class Engine:
             except Exception:
                 traceback.print_exc()
             build_live(self)
+            try:
+                self.publish()
+            except Exception:
+                traceback.print_exc()
             m = now_ny().hour * 60 + now_ny().minute
             regular = is_trading_day(now_ny().date()) and 565 <= m < close_min(now_ny().date()) + 2
             time.sleep(30 if regular else 120 if 240 <= m < 1200 else 300)
@@ -1561,14 +1916,14 @@ def build_live(E: Engine):
             rps = p["entry"] - p["stop0"]
             sw = isinstance(t, SwingTrader)
             pos.append(dict(sym=s, shares=p["shares"], init=p["init"], entry=p["entry"], last=last, stop=p["stop"], swing=sw,
-                            rot=p.get("setup") == "MOM",
+                            rot=p.get("setup") in ("MOM", "DESK", "DIP10"),
                             stop0=p["stop0"], t1=max(p.get("hi", p["t1"]), last) if sw else p["t1"],
                             t2=max(p.get("hi", p["t2"]), last) if sw else p["t2"], half=p["half"] and not sw or sw,
                             days=(now.date() - dt.date.fromisoformat(p["opened"][:10])).days, setup=SETUP_KO.get(p["setup"], p["setup"]),
                             src=p["src"], why=p["why"], upl=p["shares"] * (last - p["entry"]) + p["realized"],
                             r=(last - p["entry"]) / rps if rps > 0 else 0, opened=p["opened"]))
         traders.append(dict(key=k, kind=t.P.get("kind", "day"), mode=t.P.get("mode", "day"), name=t.P["name"], nick=t.P["nick"], color=t.P["color"], motto=t.P["motto"],
-                            equity=eq, cash=t.cash, day_pnl=eq - start, total_pnl=eq - START_CASH, status=t.status, head=t.head,
+                            equity=eq, cash=t.cash, day_pnl=eq - start, total_pnl=eq - t.start_cash, start_cash=t.start_cash, status=t.status, head=t.head,
                             thought=t.thought, pos=pos, watch=t.watch, feed=list(t.feed)[:60], curve=t.curve,
                             trades=t.day.get("trades", 0), max_trades=t.P["max_trades"], wins=t.day.get("wins", 0),
                             losses=t.day.get("losses", 0), halted=t.day.get("halted", ""),
@@ -1622,7 +1977,8 @@ def history() -> dict:
         curve = [dict(date=d["date"], equity=float(d["end_equity"])) for d in dd]
         if k in live and today and (not curve or curve[-1]["date"] < today):
             curve.append(dict(date=today, equity=live[k], live=True))  # 아직 마감 전인 오늘
-        peak, mdd = START_CASH, 0.0
+        cash0 = P.get("cash", START_CASH)
+        peak, mdd = cash0, 0.0
         for c in curve:
             peak = max(peak, c["equity"])
             mdd = min(mdd, c["equity"] / peak - 1)
@@ -1634,7 +1990,7 @@ def history() -> dict:
                 g.setdefault(fn(t), []).append(t)
             groups[name] = sorted([dict(key=kk, **stats(v)) for kk, v in g.items()], key=lambda x: -x["n"])
         out["traders"][k] = dict(name=P["name"], nick=P["nick"], color=P["color"], stats=stats(rows), curve=curve,
-                                 equity=curve[-1]["equity"] if curve else START_CASH,
+                                 equity=curve[-1]["equity"] if curve else cash0, start_cash=cash0,
                                  mdd=mdd, days=len(dd), groups=groups, hints=hints(rows, groups, P))
     out["trades"] = sorted(trades, key=lambda t: (t["date"], t["entry_t"]), reverse=True)[:400]
     ev = DATA / "events"
@@ -1669,6 +2025,67 @@ def hints(rows: list, groups: dict, P: dict) -> list[str]:
         a, b = src["새로 발견"]["avg_r"], src["관심종목"]["avg_r"]
         H.append(f"새로 찾은 종목 평균 {a:+.2f}R vs 관심종목 {b:+.2f}R — {'스캐너 종목이 더 나음' if a > b else '관심종목이 더 나음'}.")
     return H or ["눈에 띄는 약점 없음 — 지금 규칙을 유지하면서 표본을 더 모으세요."]
+
+
+# ───────────────────────── 사이트 공개용 요약 ─────────────────────────
+# 포트폴리오 사이트(site/demos/traders.html)가 읽는 영어 요약. 생각 전문·뉴스는 빼고 숫자와 보유·거래만.
+# 장중 30분마다(그 밖엔 6시간마다) traders-data 브랜치에 traders.json 한 파일로 올림 (커밋 하나, 강제 푸시 — 다른 도구의 *-data 브랜치와 같은 방식).
+# journal/traders/NO_PUBLISH 파일이 있으면 올리지 않음.
+PUBLIC_EN = {
+    "agg": ("Isaac", "Momentum rotation", "Holds the 5 watchlist stocks with the best 6-month return, 20% each, and rotates once a month. No stops."),
+    "bal": ("Timo", "Oversold pullback", "Buys stocks in an uptrend after a sharp 2 to 3 day drop (RSI(2) below 10). Sells on a close above the 5-day average, or after 5 days."),
+    "def": ("Chacha", "Trend bounce", "Buys uptrending stocks that dip to their 20-day average and close back above it, calmest names first. Goes to cash when SPY is below its 200-day average."),
+    "swing": ("Dolsoe", "Breakout", "Buys 20-day closing highs on 1.5x volume from the watchlist plus the Nasdaq-100. 2 ATR stop, then a 3.5 ATR trailing stop."),
+    "desk": ("Alpha", "Multi-strategy desk", "Five published strategies at 20% each (trend following, volatility targeting, 12-month momentum, Minervini trend template, gap pivots), idle cash in T-bills. "
+                                            "The same signals and order rules also run on an Alpaca paper account."),
+    "scalp": ("Flash", "10-minute dip buyer", "Decides every 10 minutes. Buys a stock that is up on the day and drops sharply in 10 minutes on 3x volume, while SPY is above VWAP. Re-checks every 10 minutes, flat by 15:50 ET."),
+}
+SETUP_EN = {"MOM": "Momentum", "BRK": "Breakout", "PB": "Pullback", "TP": "Trend bounce", "DESK": "Desk rebalance", "DIP10": "10-min dip"}
+STATE_EN = {"휴장": "Market closed", "장 시작 전": "Before the open", "프리마켓": "Pre-market", "정규장": "Market open", "애프터마켓": "After hours", "장 마감": "Market closed"}
+
+
+def public_snapshot(E: "Engine") -> dict:
+    H = history()
+    with LOCK:
+        live = {t["key"]: t for t in LIVE.get("traders", [])}
+        state = LIVE.get("state", "")
+    out = []
+    for k, (nick, style, rule) in PUBLIC_EN.items():
+        t, h = live.get(k), H["traders"].get(k)
+        if not t or not h:
+            continue
+        eq, c0 = t["equity"], t["start_cash"]
+        pos = sorted(t["pos"], key=lambda p: -p["shares"] * p["last"])
+        out.append(dict(key=k, name=nick, style=style, rule=rule, color=t["color"], start_cash=c0, equity=round(eq, 2), ret=eq / c0 - 1,
+                        day_ret=t["day_pnl"] / t["start"] if t.get("start") else 0.0, cash_w=t["cash"] / eq if eq else 1.0, n_pos=len(pos),
+                        pos=[dict(sym=p["sym"], w=p["shares"] * p["last"] / eq, ret=p["last"] / p["entry"] - 1, days=p["days"]) for p in pos[:8]],
+                        trades=h["stats"]["n"], win=h["stats"].get("win"), mdd=h["mdd"], days=h["days"],
+                        curve=[[c["date"], round(c["equity"] / c0 - 1, 5)] for c in h["curve"]]))
+    rows = [t for t in H["trades"] if t["trader"] in PUBLIC_EN and t["setup"] in SETUP_EN][:20]
+    trades = [dict(date=t["date"], trader=PUBLIC_EN[t["trader"]][0], key=t["trader"], sym=t["sym"], setup=SETUP_EN[t["setup"]],
+                   ret=float(t["exit"]) / float(t["entry"]) - 1 if float(t["entry"] or 0) > 0 else None, pnl=t["pnl"],
+                   hold_min=t["hold_min"]) for t in rows]
+    return dict(updated=int(time.time()), state=STATE_EN.get(state, state), rules=RULES, traders=out, trades=trades)
+
+
+def publish_public(E: "Engine"):
+    """요약을 traders-data 브랜치에 올림. 실패하면 예외 (엔진이 한 번만 기록)."""
+    remote = subprocess.run(["git", "-C", str(APPS), "remote", "get-url", "origin"], capture_output=True, text=True, timeout=20).stdout.strip()
+    if not remote:
+        raise RuntimeError("git origin 주소를 못 찾음")
+    out = Path(tempfile.mkdtemp(prefix="traders-pub-"))
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    try:
+        (out / "traders.json").write_bytes(_dumps(public_snapshot(E)))
+        for args in (["init", "-q", "-b", "traders-data"], ["add", "traders.json"],
+                     ["-c", "user.name=virtual-traders", "-c", "user.email=virtual-traders@users.noreply.github.com", "commit", "-q", "-m",
+                      f"traders {dt.datetime.now(dt.timezone.utc):%Y-%m-%dT%H:%MZ}"],
+                     ["push", "-q", "-f", remote, "traders-data"]):
+            r = subprocess.run(["git", *args], cwd=out, capture_output=True, text=True, timeout=90, env=env)
+            if r.returncode:
+                raise RuntimeError(f"git {args[0]}: {(r.stderr.strip().splitlines() or ['실패'])[-1][:160]}")
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
 
 
 def events_of(day: str) -> list[dict]:

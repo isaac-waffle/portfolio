@@ -28,13 +28,7 @@ LAB = T.DATA / "lab"
 CASH0, FEE, SLIP = T.START_CASH, T.FEE, T.SLIP
 PERIODS = {"학습": ("2024-01-01", "2025-06-30"), "확인": ("2025-07-01", "2025-12-31"), "최종시험": ("2026-01-01", "2026-10-23")}
 # 나스닥100 (2026년 구성 근사) — 관심종목처럼 '오를 걸 알고 고른' 목록이 아닌 넓은 비교군
-NDX = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "AVGO", "TSLA", "COST", "NFLX", "AMD", "PEP", "ADBE", "CSCO", "TMUS",
-       "INTC", "QCOM", "TXN", "AMGN", "INTU", "AMAT", "ISRG", "HON", "BKNG", "CMCSA", "LRCX", "VRTX", "ADP", "MU", "PANW",
-       "ADI", "SBUX", "GILD", "MELI", "REGN", "KLAC", "MDLZ", "SNPS", "CDNS", "PYPL", "CRWD", "ASML", "MAR", "CTAS", "ORLY",
-       "CSX", "MRVL", "ABNB", "WDAY", "FTNT", "ROP", "NXPI", "ADSK", "PCAR", "CHTR", "CPRT", "MNST", "PAYX", "AEP", "ROST",
-       "KDP", "ODFL", "FAST", "EA", "DDOG", "KHC", "VRSK", "BKR", "EXC", "CTSH", "XEL", "GEHC", "IDXX", "CCEP", "TTWO",
-       "LULU", "ON", "CSGP", "ZS", "DXCM", "TEAM", "BIIB", "MDB", "WBD", "GFS", "ARM", "DASH", "PLTR", "APP", "AXON",
-       "MSTR", "SHOP", "TRI", "LIN", "AZN", "PDD"]
+NDX = T.NDX
 BENCH = ["SPY", "QQQ", "SMH"]
 
 
@@ -100,12 +94,17 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
                 sell(j, O[i, j], i, pos[j].get("why", "청산 신호"))
         sells = set()
         eq_prev = cash + sum(p["sh"] * C[i - 1, j] for j, p in pos.items() if np.isfinite(C[i - 1, j]))
+        if P.get("vt") and len(curve) > 20:  # 변동성 조절: 내 계좌의 최근 60일 변동성이 목표보다 크면 새로 사는 금액을 그만큼 줄임
+            rv = float(np.std(np.diff(np.log(curve[-61:]))) * np.sqrt(252))
+            eq_prev *= min(1.0, P["vt"] / rv) if rv > 0 else 1.0
         for j, w in buys:
             if j in pos or len(pos) >= P["max_pos"] or not np.isfinite(O[i, j]):
                 continue
             px = O[i, j] * (1 + SLIP)
             if P["mode"] == "rotation":
                 val = eq_prev * w
+                if P.get("volsize") and atr[i - 1, j] > 0:  # 많이 흔들리는 종목은 덜 삼: 비중 = 하루 변동 예산 ÷ 그 종목 ATR%
+                    val = min(val, eq_prev * P["volsize"] / (atr[i - 1, j] / px))
             elif not P.get("stop_atr"):  # 손절 없는 전략은 종목당 같은 비중
                 val = eq_prev / P["max_pos"]
             else:
@@ -155,6 +154,10 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
             if why:
                 p["why"] = why
                 sells.add(j)
+        if P.get("exec") == "close":  # 종가 체결: 신호가 난 그날 마감 직전에 바로 매매 (다음 날 시가를 기다리지 않음)
+            for j in list(sells):
+                sell(j, C[i, j], i, pos[j].get("why", "청산 신호"))
+            sells = set()
         # 4) 종가: 다음 날 살 종목
         nxt = days[n + 1] if n + 1 < len(days) else None
         if nxt is not None:
@@ -185,6 +188,20 @@ def simulate(P: dict, X: dict, start: str, end: str, uni: list) -> dict:
                 cand = [ci[k] for k in np.argsort(-np.where(sig, score, -np.inf)) if sig[k]]
                 free = P["max_pos"] - len(pos) + len(sells)
                 buys = [(j, 0) for j in cand if j not in pos][:max(free, 0)]
+                if P.get("exec") == "close":
+                    eq_now = cash + sum(p["sh"] * C[i, j] for j, p in pos.items() if np.isfinite(C[i, j]))
+                    for j, _ in buys:
+                        px = C[i, j] * (1 + SLIP)
+                        if P.get("stop_atr"):
+                            val = min(eq_now * P["risk"] / (P["stop_atr"] * atr[i, j] / px), eq_now / P["max_pos"])
+                        else:
+                            val = eq_now / P["max_pos"]
+                        sh = int(min(val, cash - FEE) / px)
+                        if sh >= 1:
+                            cash -= sh * px + FEE
+                            stop = px - P["stop_atr"] * atr[i, j] if P.get("stop_atr") else -np.inf
+                            pos[j] = dict(sh=sh, sh0=sh, entry=px, stop=stop, r0=px - stop if np.isfinite(stop) else 0, i0=i)
+                    buys = []
         eq = cash + sum(p["sh"] * (C[i, j] if np.isfinite(C[i, j]) else p["entry"]) for j, p in pos.items())
         curve.append(eq)
         expo.append(1 - cash / eq if eq > 0 else 0)
@@ -425,6 +442,43 @@ def trio_main():
     print(f"\n저장: {out} · 총 {time.time() - t0:.0f}초")
 
 
+# ───────────────────────── v8 강화 시도 (2026-11-14) ─────────────────────────
+TIMO = dict(mode="pullback", rsi=10, max_hold=5, stop_atr=None, max_pos=5, risk=0.0, mkt="50", mom=126)
+CHACHA = dict(mode="trendpull", tol=0.01, exit_ma=50, stop_atr=2.0, trail_atr=3.0, max_pos=5, risk=0.005, mkt="200", exit_mkt=True, rank="lowvol", mom=126)
+
+
+def v8_main():
+    """네 명 각각: 지금 규칙보다 나스닥100 학습(16~21)·확인(22~23) 둘 다에서 연수익/낙폭이 좋아지는 변경만 채택.
+    공통 후보 — 변동성 조절(vt), 종가 체결(exec), 후보군 넓히기(관심종목+나스닥100). 개별 후보 — 파라미터 격자.
+    결과: 돌쇠의 후보군 넓히기만 통과 (학습 0.59→0.84, 확인 0.63→1.42, 24~26 1.72→2.19). 나머지는 통과한 변경 없음."""
+    X = indicators(load("2014-06-01"))
+    W = [s for s in T.WATCHLIST if s in X["cols"]]
+    N = [s for s in NDX if s in X["cols"]]
+    U = sorted(set(W) | set(N))
+    ev = lambda P, uni: {k: simulate(P, X, a, b, uni) for k, (a, b) in LONG.items()}
+    line = lambda r: " | ".join(f"{k} 연 {v['cagr'] * 100:+6.1f}% 낙폭 {v['mdd'] * 100:4.0f}% (비 {v['calmar']:5.2f}, {v['n']}회)" for k, v in r.items())
+    better = lambda r, b: r["학습"]["calmar"] > b["학습"]["calmar"] and r["확인"]["calmar"] > b["확인"]["calmar"]
+    grids = {
+        "아이작": [dict(ISAAC, volsize=v, max_pos=m, mkt=k, exit_mkt=k != "none", mom=mo)
+                for v, m, k, mo in itertools.product((None, 0.004, 0.006, 0.008), (5, 8), ("none", "200"), (126, 252))],
+        "티모": [dict(TIMO, rsi=r, max_hold=h, max_pos=m, mkt=k, rank=rk)
+               for r, h, m, k, rk in itertools.product((5, 10), (5, 10), (5, 8), ("50", "200"), ("mom", "rsi", "lowvol"))],
+        "차차": [dict(CHACHA, tol=t, exit_ma=e, trail_atr=tr, max_pos=m, mkt=k, rank=rk, exit_mkt=x)
+               for t, e, tr, m, k, rk, x in itertools.product((0.0, 0.01, 0.02), (20, 50), (None, 3.0), (5, 8), ("200", "50"), ("lowvol", "mom"), (True, False))],
+        "돌쇠": [],
+    }
+    for who, base in (("아이작", ISAAC), ("티모", TIMO), ("차차", CHACHA), ("돌쇠", CURRENT)):
+        b = ev(base, N)
+        print(f"\n[{who}] 지금 규칙 · 나스닥100: {line(b)}")
+        for name, P, uni in ([(f"변동성 조절 {v:.0%}", dict(base, vt=v), N) for v in (0.15, 0.20, 0.25)]
+                             + [("종가 체결", dict(base, exec="close"), N), ("후보군 = 관심종목+나스닥100", base, U)]):
+            r = ev(P, uni)
+            print(f"  {'통과' if better(r, b) else '탈락'}  {name:<22} {line(r)}")
+        good = [P for P in grids[who] if better(ev(P, N), b)]
+        if grids[who]:
+            print(f"  파라미터 후보 {len(grids[who])}개 중 학습·확인 둘 다 나은 것 {len(good)}개")
+
+
 if __name__ == "__main__":
     import sys
-    trio_main() if "trio" in sys.argv else long_main() if "long" in sys.argv else main()
+    v8_main() if "v8" in sys.argv else trio_main() if "trio" in sys.argv else long_main() if "long" in sys.argv else main()

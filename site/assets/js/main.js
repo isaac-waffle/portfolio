@@ -440,6 +440,23 @@
       .then(function (d) { if (d && d.rows) { legData = d; drawLeg(); } }).catch(function () {});
   }
 
-  if (window.I18N) window.I18N.onChange(function () { if (dlg.open) dlg.close(); drawGrid(); drawLeg(); window.observeReveal(); });
+  /* ---------- live tools: one-line summary on the Virtual Traders card ---------- */
+  var trData = null;
+  function drawTr() {
+    var el = $("#trLive"); if (!el || !trData) return;
+    var rows = trData.traders.slice().sort(function (a, b) { return b.ret - a.ret; }), ko = window.I18N && window.I18N.lang === "ko";
+    var KO_N = { Isaac: "아이작", Timo: "티모", Chacha: "차차", Dolsoe: "돌쇠", Alpha: "알파", Flash: "번개" };
+    var f = function (r) { return (ko ? KO_N[r.name] || r.name : r.name) + " " + (r.ret >= 0 ? "+" : "−") + Math.abs(r.ret * 100).toFixed(1) + "%"; };
+    el.textContent = (ko ? "지금: 최고 " : "Now: best ") + f(rows[0]) + (ko ? " · 최저 " : " · worst ") + f(rows[rows.length - 1]);
+    el.hidden = false;
+  }
+  if ($("#trLive") && window.fetch) {
+    fetch("https://raw.githubusercontent.com/isaac-waffle/portfolio/traders-data/traders.json", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .catch(function () { return fetch("data/traders-sample.json").then(function (r) { return r.json(); }); })
+      .then(function (d) { if (d && d.traders && d.traders.length) { trData = d; drawTr(); } }).catch(function () {});
+  }
+
+  if (window.I18N) window.I18N.onChange(function () { if (dlg.open) dlg.close(); drawGrid(); drawLeg(); drawTr(); window.observeReveal(); });
   window.observeReveal();
 })();

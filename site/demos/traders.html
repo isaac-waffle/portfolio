@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Virtual Traders — Isaac Kim</title>
+<meta name="description" content="Six rule-based paper traders, each with its own strategy, trading US stocks with simulated money. One mirrors a multi-strategy desk that also runs on an Alpaca paper account.">
+<meta property="og:title" content="Virtual Traders — six rule-based paper traders">
+<meta property="og:description" content="Simulated money, real prices, every rule backtested first. Results shown as they are.">
+<meta property="og:type" content="website">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --soft:#f1f4f8; --pill:#eef1f5; --text:#0f172a; --sub:#475569; --mute:#94a3b8; --line:#e2e8f0;
+  --accent:#1d3a8a; --ink:#0f172a; --up:#15803d; --down:#c2362c; --sketch:12px; --sketch2:12px;
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12141c; --card:#1a1d28; --soft:#222634; --pill:#262b3a; --text:#eceef6; --sub:#b3b8cc; --mute:#7f859d; --line:#2c3142;
+  --accent:#93a7ff; --ink:#eceef6; --up:#4cc38a; --down:#ff7b72; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12141c; --card:#1a1d28; --soft:#222634; --pill:#262b3a; --text:#eceef6; --sub:#b3b8cc; --mute:#7f859d; --line:#2c3142;
+  --accent:#93a7ff; --ink:#eceef6; --up:#4cc38a; --down:#ff7b72; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background-color:var(--bg);color:var(--text);font-family:var(--font);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1160px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 48px}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--sub)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;min-height:60px}
+.back{font-size:14px;font-weight:500;color:var(--sub);text-decoration:none}
+.back:hover{color:var(--accent)}
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--pill);border:1px solid var(--line);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font-size:13px;font-weight:600;color:var(--sub)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.top-end{display:flex;gap:8px;align-items:center}
+.plain{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600}
+.plain:hover{border-color:var(--accent)}
+.plain:disabled{opacity:.5;cursor:default}
+
+.hero{padding:14px 0 22px}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.06em;text-transform:uppercase}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up);flex:none}
+.dot.off{background:var(--mute)}
+h1{font-weight:700;font-size:clamp(30px,5vw,44px);line-height:1.12;letter-spacing:-.03em;margin:10px 0 10px}
+.lede{font-size:16px;color:var(--sub);max-width:64ch;margin:0}
+.status{font-size:13px;color:var(--mute);margin-top:12px}
+
+h2{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sub);margin:30px 0 10px}
+.note{font-size:12.5px;color:var(--mute);margin:12px 0 0;max-width:90ch}
+.empty{padding:40px 16px;text-align:center;color:var(--sub);background:var(--card);border:1px solid var(--line);border-radius:12px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0;border-top:3px solid var(--c)}
+.who{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.who b{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.who span{font-size:12.5px;font-weight:600;color:var(--sub)}
+.big{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.15;margin-top:8px}
+.big small{font-size:12.5px;font-weight:500;letter-spacing:0;color:var(--sub)}
+.sub{font-size:13px;color:var(--sub)}
+.rule{font-size:13.5px;color:var(--sub);margin:10px 0 0;line-height:1.5}
+.pos{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.chip{font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--pill);white-space:nowrap}
+.chip small{font-weight:500;color:var(--sub);font-size:11.5px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--sub);margin-bottom:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;background:var(--c)}
+.sheet{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 12px;text-align:right;white-space:nowrap;border-top:1px solid var(--line)}
+thead th{border-top:0;font-size:11.5px;font-weight:600;color:var(--sub);background:var(--soft);letter-spacing:.02em}
+th:first-child,td:first-child,.l{text-align:left}
+td.wrapc{white-space:normal;min-width:220px;color:var(--sub)}
+.sw{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:6px}
+.facts{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.facts li{font-size:14px;line-height:1.55;padding-left:14px;border-left:2px solid var(--line)}
+.facts b{font-weight:600}
+.foot{font-size:12.5px;color:var(--mute);margin:26px 0 0;line-height:1.6}
+.foot a{color:var(--sub);font-weight:500}
+@media (max-width:980px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.cards{grid-template-columns:1fr}th,td{padding:8px 9px}.hide-s{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../">‹ Isaac Kim</a>
+    <div class="top-end">
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" id="lang-en" aria-pressed="true">English</button>
+        <button type="button" id="lang-ko" aria-pressed="false">한국어</button>
+      </div>
+    </div>
+  </div>
+  <header class="hero">
+    <span class="kicker"><span class="dot off" id="dot"></span><span data-t="kicker"></span></span>
+    <h1 data-t="title"></h1>
+    <p class="lede" data-t="lede"></p>
+    <div class="status num" id="status"></div>
+  </header>
+  <div id="view"></div>
+  <p class="foot"><span data-t="foot"></span>
+    <a href="../lab.html">Forecast Lab</a> · <a href="earnings.html">Earnings Desk</a> · <a href="legends.html" data-t="legends"></a> · <a href="radar.html" data-t="radar"></a> ·
+    <a href="https://github.com/isaac-waffle/portfolio/blob/main/apps/traders.py" target="_blank" rel="noopener" data-t="code"></a></p>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var qs = new URLSearchParams(location.search);
+  var LIVE = qs.get("data") || "https://raw.githubusercontent.com/isaac-waffle/portfolio/traders-data/traders.json";
+  var SAMPLE = "../data/traders-sample.json";
+
+  var T = {
+    en: { kicker: "Paper trading · updated every 30 minutes in US market hours", title: "Virtual Traders", doc: "Virtual Traders — Isaac Kim",
+      lede: "Six rule-based traders, each with its own strategy, buy and sell US stocks with simulated money at real prices. Every rule was backtested before it went in, and the results are shown as they are. One of them mirrors a multi-strategy desk that also sends real orders to an Alpaca paper account.",
+      asof: "{s} · data as of {t} (your local time) · rules {r}", sample: "Live feed unreachable. Showing a bundled snapshot from {t}.", loading: "Loading…", none: "No data yet.",
+      total: "since start", today: "on the last trading day", holds: "{n} positions · {c} cash", flat: "No positions · all cash", more: "+{n} more", closed: "{n} closed trades", winr: "{w} winners", dd: "worst drop {d}",
+      curveH: "Return since each trader started", curveNote: "Each line is that trader's account value against its own starting money ($20,000 each). Four started on 26 October 2026, Alpha and Flash on 16 November 2026. The last point is the current, unfinished day.",
+      tradesH: "Latest closed trades", date: "Opened", trader: "Trader", ticker: "Ticker", setup: "Setup", held: "Held", result: "Result", pnl: "P&L", noTrades: "No closed trades yet.", dayU: "d", minU: "min",
+      rulesH: "The six rules", style: "Style", rule: "Rule",
+      factsH: "What the backtests said",
+      facts: ["<b>Day trading lost money.</b> The first three traders started as day traders. On 2.8 years of 5-minute bars every version of their intraday rules lost after costs, so they became daily swing traders.",
+        "<b>Most ideas fail.</b> Out of 176 ten-minute rules, three made money in both the training and the checking period after costs. Flash trades the best of those, about once a week. It is a small edge and may be luck.",
+        "<b>Strengthening is mostly saying no.</b> In the last round 272 candidate changes to the four swing traders were tested on 2016 to 2026 data. One passed: letting the breakout trader choose from a wider list of stocks.",
+        "<b>The stock list flatters the numbers.</b> The watchlist and the Nasdaq-100 list are today's members, so backtests of stock strategies look better than they would have been in real time.",
+        "<b>How it is built.</b> A Python process on my own machine reads 1-minute prices, applies each rule, charges $2 per order and 0.05% slippage (Alpha: no commission and fractional shares, as on Alpaca), and logs every decision. No real money is involved."],
+      foot: "Simulated trading with delayed data that can be wrong. Not investment advice. ", legends: "Wall Street Legends", radar: "Market Radar", code: "View the code" },
+    ko: { kicker: "모의 매매 · 미국 장중 30분마다 갱신", title: "가상 트레이더", doc: "가상 트레이더 — Isaac Kim",
+      lede: "규칙으로 움직이는 트레이더 여섯 명이 각자 다른 전략으로 실제 시세에 가상 자금으로 미국 주식을 사고팝니다. 모든 규칙은 넣기 전에 백테스트했고, 결과는 있는 그대로 보여 줍니다. 그중 한 명은 Alpaca 모의계좌에 실제 주문을 내는 멀티 전략 데스크를 그대로 따라 합니다.",
+      asof: "{s} · {t} 기준 (내 시간대) · 규칙 {r}", sample: "실시간 데이터를 받지 못해 {t}에 저장한 표본을 보여 줍니다.", loading: "불러오는 중…", none: "아직 데이터가 없습니다.",
+      total: "시작 이후", today: "(최근 거래일)", holds: "{n}종목 보유 · 현금 {c}", flat: "보유 없음 · 전부 현금", more: "외 {n}종목", closed: "끝난 거래 {n}건", winr: "수익 거래 {w}", dd: "최대 낙폭 {d}",
+      curveH: "트레이더별 시작 이후 수익률", curveNote: "각 선은 그 트레이더의 계좌 평가액을 자기 시작 자금과 비교한 값입니다(각 $20,000). 네 명은 2026년 10월 26일, 알파와 번개는 2026년 11월 16일에 시작했습니다. 마지막 점은 아직 끝나지 않은 오늘입니다.",
+      tradesH: "최근 끝난 거래", date: "매수일", trader: "트레이더", ticker: "티커", setup: "셋업", held: "보유", result: "결과", pnl: "손익", noTrades: "아직 끝난 거래가 없습니다.", dayU: "일", minU: "분",
+      rulesH: "여섯 가지 규칙", style: "스타일", rule: "규칙",
+      factsH: "백테스트가 말해 준 것",
+      facts: ["<b>단타는 돈을 잃었습니다.</b> 처음 세 명은 단타 트레이더였습니다. 2.8년치 5분봉으로 검증하니 모든 버전이 비용을 빼면 손실이어서 일봉 스윙으로 바꿨습니다.",
+        "<b>대부분의 아이디어는 탈락합니다.</b> 10분 단타 규칙 176개 중 비용을 빼고도 학습 기간과 확인 기간에 모두 수익이 난 것은 세 개였습니다. 번개는 그중 가장 나은 규칙으로 일주일에 한 번쯤 매매합니다. 우위가 작아서 우연일 수 있습니다.",
+        "<b>강화는 대부분 '안 한다'는 결정입니다.</b> 최근에는 스윙 네 명의 변경 후보 272개를 2016~2026년 데이터로 검증했습니다. 통과한 것은 돌파형의 후보 종목을 넓히는 것 하나였습니다.",
+        "<b>종목 목록 때문에 숫자가 부풀려집니다.</b> 관심종목과 나스닥100 목록은 지금 구성이라서, 주식 전략의 백테스트는 실제로 그때 했을 때보다 좋게 나옵니다.",
+        "<b>만든 방식.</b> 제 컴퓨터에서 도는 파이썬 프로세스가 1분봉을 읽어 규칙을 적용하고, 주문당 $2와 슬리피지 0.05%를 빼고(알파는 Alpaca처럼 수수료 없이 소수점 주식으로), 모든 판단을 기록합니다. 실제 돈은 쓰지 않습니다."],
+      foot: "지연 데이터로 하는 모의 매매라 틀릴 수 있습니다. 투자 조언이 아닙니다. ", legends: "월가 전설 5인", radar: "마켓 레이더", code: "코드 보기" }
+  };
+  var KO = { names: { Isaac: "아이작", Timo: "티모", Chacha: "차차", Dolsoe: "돌쇠", Alpha: "알파", Flash: "번개" },
+    style: { agg: "모멘텀 순환", bal: "과매도 눌림목", def: "추세 지지 반등", swing: "신고가 돌파", desk: "멀티 전략 데스크", scalp: "10분 눌림 매수" },
+    rule: { agg: "관심종목 중 6개월 수익률 상위 5종목을 20%씩 들고 한 달에 한 번 갈아탑니다. 손절은 없습니다.",
+      bal: "상승 추세 종목이 2~3일 급하게 빠지면(RSI(2) 10 미만) 삽니다. 5일선 위로 마감하거나 5거래일이 지나면 팝니다.",
+      def: "상승 추세 종목이 20일선까지 내려왔다가 다시 그 위에서 마감하면 삽니다. 변동성이 낮은 종목부터 고르고, SPY가 200일선 아래면 현금으로 갑니다.",
+      swing: "관심종목과 나스닥100에서 거래량 1.5배와 함께 20일 종가 신고가를 낸 종목을 삽니다. 손절 2 ATR, 이후 3.5 ATR 트레일링.",
+      desk: "공개된 전략 다섯 가지(추세추종, 변동성 타기팅, 12개월 모멘텀, Minervini 트렌드 템플릿, 갭 피벗)를 20%씩 섞고 남는 돈은 초단기 국채에 둡니다. 같은 신호와 주문 규칙이 Alpaca 모의계좌에서도 돌아갑니다.",
+      scalp: "10분마다 판단합니다. 오늘 오르는 종목이 거래량 3배와 함께 10분 사이 급락하면 삽니다(SPY가 VWAP 위일 때만). 10분마다 다시 보고 15:50 ET 전에 모두 정리합니다." },
+    setup: { "Momentum": "모멘텀", "Breakout": "돌파", "Pullback": "눌림목", "Trend bounce": "지지 반등", "Desk rebalance": "비중 조정", "10-min dip": "10분 눌림" },
+    state: { "Market closed": "장 마감", "Before the open": "장 시작 전", "Pre-market": "프리마켓", "Market open": "정규장", "After hours": "애프터마켓" } };
+  var lang = "en";
+  try { var q = qs.get("lang") || localStorage.getItem("site-lang") || localStorage.getItem("earn-lang"); lang = q === "ko" ? "ko" : "en"; } catch (e) {}
+  var t = function (k) { return T[lang][k]; };
+  var fill = function (s, o) { return s.replace(/\{(\w+)\}/g, function (_, k) { return o[k]; }); };
+  var ko = function (grp, k, en) { return lang === "ko" && KO[grp][k] ? KO[grp][k] : en; };
+  var pc = function (x, d) { return x == null ? "–" : (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(d == null ? 1 : d) + "%"; };
+  var cls = function (x) { return x == null || Math.abs(x) < 5e-5 ? "muted" : x > 0 ? "up" : "down"; };
+  var usd = function (x) { return (x < 0 ? "−$" : "$") + Math.abs(x).toLocaleString("en-US", { maximumFractionDigits: 0 }); };
+  var D = null, sample = false;
+
+  function card(r) {
+    var chips = r.pos.map(function (p) { return '<span class="chip">' + esc(p.sym) + ' <small class="num ' + cls(p.ret) + '">' + pc(p.ret) + "</small></span>"; }).join("") +
+      (r.n_pos > r.pos.length ? '<span class="chip"><small>' + fill(t("more"), { n: r.n_pos - r.pos.length }) + "</small></span>" : "");
+    var stats = [fill(t("closed"), { n: r.trades })];
+    if (r.trades && r.win != null) stats.push(fill(t("winr"), { w: (r.win * 100).toFixed(0) + "%" }));
+    if (r.mdd < 0) stats.push(fill(t("dd"), { d: pc(r.mdd) }));
+    return '<div class="card" style="--c:' + esc(r.color) + '"><div class="who"><b>' + esc(ko("names", r.name, r.name)) + "</b><span>" + esc(ko("style", r.key, r.style)) + "</span></div>" +
+      '<div class="big num ' + cls(r.ret) + '">' + pc(r.ret, 2) + ' <small>' + t("total") + '</small></div><div class="sub num">' + usd(r.equity) + ' · <span class="' + cls(r.day_ret) + '">' + pc(r.day_ret, 2) + "</span> " + t("today") + "</div>" +
+      '<div class="sub" style="margin-top:8px">' + (r.n_pos ? fill(t("holds"), { n: r.n_pos, c: (r.cash_w * 100).toFixed(0) + "%" }) : t("flat")) + "</div>" +
+      (chips ? '<div class="pos">' + chips + "</div>" : "") + '<div class="sub" style="margin-top:10px">' + stats.join(" · ") + "</div></div>";
+  }
+  function chart(rows) {
+    var dates = {}; rows.forEach(function (r) { r.curve.forEach(function (c) { dates[c[0]] = 1; }); });
+    var xs = Object.keys(dates).sort(); if (xs.length < 2) return '<div class="empty">' + t("none") + "</div>";
+    var W = 1000, H = 300, l = 52, rgt = 96, top = 12, bot = 26, all = [0];
+    rows.forEach(function (r) { r.curve.forEach(function (c) { all.push(c[1]); }); });
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all), pad = (hi - lo || .01) * .12; lo -= pad; hi += pad;
+    var X = function (i) { return l + i / (xs.length - 1) * (W - l - rgt); }, Y = function (v) { return top + (1 - (v - lo) / (hi - lo)) * (H - top - bot); };
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(t("curveH")) + '">';
+    for (var k = 0; k <= 4; k++) { var v = lo + k / 4 * (hi - lo); s += '<line x1="' + l + '" x2="' + (W - rgt) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--line)"/><text x="' + (l - 8) + '" y="' + (Y(v) + 4) + '" font-size="12" fill="var(--sub)" text-anchor="end">' + pc(v) + "</text>"; }
+    s += '<line x1="' + l + '" x2="' + (W - rgt) + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke="var(--mute)" stroke-dasharray="4 4"/>';
+    var step = Math.ceil(xs.length / 7);
+    xs.forEach(function (d, i) { if (i % step === 0 || i === xs.length - 1) s += '<text x="' + X(i) + '" y="' + (H - 6) + '" font-size="12" fill="var(--sub)" text-anchor="middle">' + +d.slice(5, 7) + "/" + +d.slice(8) + "</text>"; });
+    var ends = [];
+    rows.forEach(function (r) {
+      var m = {}; r.curve.forEach(function (c) { m[c[0]] = c[1]; });
+      var first = xs.indexOf(r.curve.length ? r.curve[0][0] : xs[xs.length - 1]), v = 0, pts = [];
+      xs.forEach(function (d, i) { if (i < first - 1) return; if (i === first - 1) { pts.push([i, 0]); return; } if (m[d] != null) v = m[d]; pts.push([i, v]); });
+      if (pts.length === 1) pts.unshift([Math.max(pts[0][0] - 1, 0), 0]);
+      s += '<path d="' + pts.map(function (p, i) { return (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1); }).join("") + '" fill="none" stroke="' + esc(r.color) + '" stroke-width="2.2" stroke-linejoin="round"/>';
+      ends.push({ y: Y(pts[pts.length - 1][1]), r: r, v: pts[pts.length - 1][1] });
+    });
+    ends.sort(function (a, b) { return a.y - b.y; });
+    for (var i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 15) ends[i].y = ends[i - 1].y + 15;  // keep end labels apart
+    ends.forEach(function (e) { s += '<text x="' + (W - rgt + 8) + '" y="' + (e.y + 4) + '" font-size="12.5" font-weight="600" fill="' + esc(e.r.color) + '">' + esc(ko("names", e.r.name, e.r.name)) + " " + pc(e.v) + "</text>"; });
+    return '<div class="panel chart"><div class="legend">' + rows.map(function (r) { return '<span style="--c:' + esc(r.color) + '"><i></i>' + esc(ko("names", r.name, r.name)) + " · " + esc(ko("style", r.key, r.style)) + "</span>"; }).join("") + "</div>" + s + "</svg></div>";
+  }
+  function trades(rows, col) {
+    if (!rows.length) return '<div class="empty">' + t("noTrades") + "</div>";
+    return '<div class="sheet"><table><thead><tr><th class="l">' + t("date") + '</th><th class="l">' + t("trader") + '</th><th class="l">' + t("ticker") + '</th><th class="l hide-s">' + t("setup") + '</th><th class="hide-s">' + t("held") + "</th><th>" + t("result") + "</th><th>" + t("pnl") + "</th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        var h = r.hold_min == null ? "–" : r.hold_min >= 390 ? Math.max(1, Math.round(r.hold_min / 1440)) + t("dayU") : Math.round(r.hold_min) + " " + t("minU");
+        return '<tr><td class="num">' + esc(r.date.slice(5).replace("-", "/")) + '</td><td class="l"><span class="sw" style="--c:' + esc(col[r.key] || "var(--mute)") + '"></span>' + esc(ko("names", r.trader, r.trader)) + '</td><td class="l"><b>' + esc(r.sym) + '</b></td><td class="l hide-s">' + esc(ko("setup", r.setup, r.setup)) +
+          '</td><td class="num hide-s">' + h + '</td><td class="num ' + cls(r.ret) + '">' + pc(r.ret) + '</td><td class="num ' + cls(r.pnl) + '">' + (r.pnl == null ? "–" : (r.pnl >= 0 ? "+" : "") + usd(r.pnl)) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+  function rules(rows) {
+    return '<div class="sheet"><table><thead><tr><th class="l">' + t("trader") + '</th><th class="l">' + t("style") + '</th><th class="l">' + t("rule") + "</th></tr></thead><tbody>" +
+      rows.map(function (r) { return '<tr><td class="l"><span class="sw" style="--c:' + esc(r.color) + '"></span><b>' + esc(ko("names", r.name, r.name)) + '</b></td><td class="l">' + esc(ko("style", r.key, r.style)) + '</td><td class="l wrapc">' + esc(ko("rule", r.key, r.rule)) + "</td></tr>"; }).join("") + "</tbody></table></div>";
+  }
+  function render() {
+    document.documentElement.lang = lang; document.title = t("doc");
+    $("lang-en").setAttribute("aria-pressed", lang === "en"); $("lang-ko").setAttribute("aria-pressed", lang === "ko");
+    document.querySelectorAll("[data-t]").forEach(function (el) { el.textContent = t(el.getAttribute("data-t")); });
+    if (!D || !D.traders || !D.traders.length) { $("view").innerHTML = '<div class="empty">' + t(D ? "none" : "loading") + "</div>"; $("status").textContent = ""; return; }
+    var when = new Date(D.updated * 1000).toLocaleString(lang === "ko" ? "ko-KR" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    $("dot").className = "dot" + (sample || D.state !== "Market open" ? " off" : "");
+    $("status").textContent = sample ? fill(t("sample"), { t: when }) : fill(t("asof"), { s: ko("state", D.state, D.state), t: when, r: D.rules });
+    var col = {}; D.traders.forEach(function (r) { col[r.key] = r.color; });
+    $("view").innerHTML = '<div class="cards">' + D.traders.map(card).join("") + "</div>" +
+      "<h2>" + t("curveH") + "</h2>" + chart(D.traders) + '<p class="note">' + t("curveNote") + "</p>" +
+      "<h2>" + t("rulesH") + "</h2>" + rules(D.traders) +
+      "<h2>" + t("tradesH") + "</h2>" + trades(D.trades || [], col) +
+      "<h2>" + t("factsH") + '</h2><div class="panel"><ul class="facts">' + t("facts").map(function (f) { return "<li>" + f + "</li>"; }).join("") + "</ul></div>";
+  }
+  function setLang(l) { lang = l; try { localStorage.setItem("site-lang", l); localStorage.setItem("earn-lang", l); } catch (e) {} render(); }
+  $("lang-en").onclick = function () { setLang("en"); };
+  $("lang-ko").onclick = function () { setLang("ko"); };
+  function load() {
+    fetch(LIVE, { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) { if (!(d && d.traders)) throw 0; D = d; sample = false; render(); })
+      .catch(function () { fetch(SAMPLE).then(function (r) { return r.json(); }).then(function (d) { D = d; sample = true; render(); }).catch(function () { D = {}; render(); }); });
+  }
+  render(); load();
+})();
+</script>
+</body>
+</html>
