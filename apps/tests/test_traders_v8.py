@@ -416,7 +416,8 @@ def warm(t, px=101.0, start=0, end=400, step=4):
         t.on_price(px, tk_at(s))
 
 
-BAND = 101.0 * (1 + 2.0 * 0.001 * 3 ** 0.5)  # 3분 평균 101 × (1 + k·u)
+KT = T.TRADERS["tick"]["k"]
+BAND = 101.0 * (1 + KT * 0.001 * 3 ** 0.5)  # 3분 평균 101 × (1 + k·u)
 
 
 def test_tick_buys_on_the_print_after_a_jump_through_the_band(data_dir):
@@ -428,18 +429,37 @@ def test_tick_buys_on_the_print_after_a_jump_through_the_band(data_dir):
     raw = BAND + 0.10  # 익절·손절선은 체결가 기준, 매수 단가에만 슬리피지
     u = raw * 0.001 * 3 ** 0.5
     assert p["entry"] == pytest.approx(raw * (1 + T.SLIP)) and p["setup"] == "MTICK"
-    assert p["tgt"] == pytest.approx(raw + 4 * u) and p["stop"] == pytest.approx(raw - 3 * u) and p["until"] == pytest.approx(403 + 600)
+    assert p["stop"] == pytest.approx(raw - T.TRADERS["tick"]["st"] * u) and p["tgt"] is None and p["until"] is None  # 익절선·시한 없음
 
 
-@pytest.mark.parametrize("why, kw", [("price below yesterday's close", dict(px=99.0)), ("gap over 10 seconds", dict(gap=15)),
+@pytest.mark.parametrize("why, kw", [("gap over 10 seconds", dict(gap=15)),
                                      ("before 09:35", dict(end=280)), ("window too short", dict(start=300))])
 def test_tick_ignores_a_jump_when(data_dir, why, kw):
     t = ticker()
     px, end = kw.get("px", 101.0), kw.get("end", 400)
     warm(t, px=px, start=kw.get("start", 0), end=end)
-    band = px * (1 + 2.0 * 0.001 * 3 ** 0.5)
+    band = px * (1 + KT * 0.001 * 3 ** 0.5)
     t.on_price(band + 0.05, tk_at(end - 4 + kw.get("gap", 2)))
     assert not t.arm
+
+
+def test_tick_can_require_price_above_yesterdays_close(data_dir):
+    for up, want in ((True, False), (False, True)):
+        t = ticker()
+        t.P = dict(t.P, up=up)
+        warm(t, px=99.0)  # 전일 종가 100 아래
+        t.on_price(99.0 * (1 + KT * 0.001 * 3 ** 0.5) + 0.05, tk_at(402))
+        assert t.arm is want
+
+
+def test_tick_holds_through_a_big_gain_and_exits_only_at_the_stop(data_dir):
+    t = ticker()
+    warm(t)
+    t.on_price(BAND + 0.05, tk_at(402))
+    t.on_price(BAND + 0.10, tk_at(403))
+    stop = t.pos["MRNA"]["stop"]
+    assert not t.on_price(BAND + 5.0, tk_at(2000)) and t.pos  # 크게 올라도, 시간이 지나도 안 팖
+    assert t.on_price(stop - 0.01, tk_at(2010)) and not t.pos
 
 
 def test_tick_does_not_rearm_while_price_stays_above_the_band(data_dir):
@@ -454,6 +474,7 @@ def test_tick_does_not_rearm_while_price_stays_above_the_band(data_dir):
 def test_tick_exits_at_target_stop_and_deadline(data_dir):
     for move, reason in ((+1.0, "익절"), (-1.0, "손절"), (0.0, "시간")):
         t = ticker()
+        t.P = dict(t.P, tp=4.0, hold=600)  # 익절선·시한을 쓰는 설정도 계속 동작해야 함
         warm(t)
         t.on_price(BAND + 0.05, tk_at(402))
         t.on_price(BAND + 0.10, tk_at(403))
@@ -473,14 +494,30 @@ def test_tick_does_nothing_without_baselines_or_on_a_stale_day(data_dir):
     assert not t.on_price(101.0, tk_at(400).replace(day=14)) and t.n_ticks == 0
 
 
-def test_tick_closes_its_position_when_the_stream_goes_quiet(data_dir):
+def test_tick_keeps_its_position_through_a_quiet_stream_and_guards_the_stop_with_quotes(data_dir):
     t = ticker()
     warm(t)
     t.on_price(BAND + 0.05, tk_at(402))
     t.on_price(BAND + 0.10, tk_at(403))
+    stop = t.pos["MRNA"]["stop"]
+    t.step(tk_at(403 + 2000), {"MRNA": dict(SNAP, last=stop + 0.5)}, {}, dict(score=50), {})
+    assert t.pos  # 체결이 30분 넘게 안 와도 안 팖
+    t.last_at = None  # 재시작 직후와 같은 상태
+    t.step(tk_at(403 + 2030), {"MRNA": dict(SNAP, last=stop + 0.5)}, {}, dict(score=50), {})
     assert t.pos
-    t.step(tk_at(403 + 200), {"MRNA": dict(SNAP, last=101.3)}, {}, dict(score=50), {})
-    assert not t.pos
+    t.step(tk_at(403 + 2060), {"MRNA": dict(SNAP, last=stop - 0.1)}, {}, dict(score=50), {})
+    assert not t.pos  # 손절선은 30초 시세로 지킴
+
+
+def test_tick_flattens_on_the_first_print_after_1550(data_dir):
+    t = ticker()
+    warm(t)
+    t.on_price(BAND + 0.05, tk_at(402))
+    t.on_price(BAND + 0.10, tk_at(403))
+    n, cash = t.pos["MRNA"]["shares"], t.cash
+    assert not t.on_price(BAND + 0.3, tk_at(22799))
+    assert t.on_price(BAND + 0.4, tk_at(22801)) and not t.pos
+    assert t.cash == pytest.approx(cash + n * (BAND + 0.4) * (1 - T.SLIP) - T.FEE)
 
 
 # ── 실시간 체결 스트림 ──
