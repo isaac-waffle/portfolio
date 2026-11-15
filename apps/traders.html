@@ -9,17 +9,17 @@
   --bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--sub:#6e6e73;--mute:#8e8e93;--line:rgba(0,0,0,.08);--soft:rgba(0,0,0,.04);
   --accent:#0071e3;--pill:#e8e8ed;--up:#1f8a4c;--down:#d03b3b;--warn:#b26b00;
   --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
-  --agg:#2a78d6;--bal:#eb6834;--def:#1baf7a;--swing:#eda100;--desk:#7a5cd6;--scalp:#d6336c;--mrna:#0aa5a5;
+  --agg:#2a78d6;--bal:#eb6834;--def:#1baf7a;--swing:#eda100;--desk:#7a5cd6;--scalp:#d6336c;--mrna:#0aa5a5;--tick:#b0721a;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#000;--card:#1c1c1e;--text:#f5f5f7;--sub:#98989d;--mute:#7c7c80;--line:rgba(255,255,255,.1);--soft:rgba(255,255,255,.05);
   --accent:#0a84ff;--pill:#2c2c2e;--up:#30d158;--down:#ff6961;--warn:#ffb340;--shadow:none;
-  --agg:#3987e5;--bal:#d95926;--def:#199e70;--swing:#c98500;--desk:#9a82e8;--scalp:#e8588a;--mrna:#2cc4c4;
+  --agg:#3987e5;--bal:#d95926;--def:#199e70;--swing:#c98500;--desk:#9a82e8;--scalp:#e8588a;--mrna:#2cc4c4;--tick:#d99a3a;
 }}
 :root[data-theme="dark"]{
   --bg:#000;--card:#1c1c1e;--text:#f5f5f7;--sub:#98989d;--mute:#7c7c80;--line:rgba(255,255,255,.1);--soft:rgba(255,255,255,.05);
   --accent:#0a84ff;--pill:#2c2c2e;--up:#30d158;--down:#ff6961;--warn:#ffb340;--shadow:none;
-  --agg:#3987e5;--bal:#d95926;--def:#199e70;--swing:#c98500;--desk:#9a82e8;--scalp:#e8588a;--mrna:#2cc4c4;
+  --agg:#3987e5;--bal:#d95926;--def:#199e70;--swing:#c98500;--desk:#9a82e8;--scalp:#e8588a;--mrna:#2cc4c4;--tick:#d99a3a;
 }
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;
@@ -49,8 +49,8 @@ h1{font:700 34px/1.05 -apple-system,BlinkMacSystemFont,"SF Pro Display",sans-ser
 @media (max-width:560px){.strip{grid-template-columns:repeat(2,1fr)}.wrap{padding:20px 16px 40px}h1{font-size:28px}}
 
 /* trader cards */
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
-@media (max-width:1150px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:start}
+@media (max-width:1400px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.grid{grid-template-columns:1fr}}
 .card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:18px;border-top:4px solid var(--c);min-width:0}
 .who{display:flex;align-items:center;gap:12px}
@@ -269,7 +269,7 @@ const cls = x => x > 0 ? 'up' : x < 0 ? 'down' : 'muted';
 const f2 = x => x == null ? '-' : x.toFixed(2);
 const tAms = ts => new Date(ts).toLocaleTimeString('ko-KR', {timeZone:'Europe/Amsterdam', hour:'2-digit', minute:'2-digit', hour12:false});
 const KIND = {think:'생각', pass:'패스', decide:'결정', buy:'매수', sell:'매도', close:'결과', plan:'계획', review:'회고', scan:'스캔', news:'뉴스'};
-const TC = {agg:'var(--agg)', bal:'var(--bal)', def:'var(--def)', swing:'var(--swing)', desk:'var(--desk)', scalp:'var(--scalp)', mrna:'var(--mrna)'};
+const TC = {agg:'var(--agg)', bal:'var(--bal)', def:'var(--def)', swing:'var(--swing)', desk:'var(--desk)', scalp:'var(--scalp)', mrna:'var(--mrna)', tick:'var(--tick)'};
 let L = null, H = null, gkey = '셋업', tkey = 'all';
 const WAIT = {pullback: '과매도 눌림', trendpull: '20일선 반등', breakout: '돌파', desk: '목표 비중'};
 const OPEN = new Set();  // 펼친 '자세히' (5초마다 다시 그려도 유지)
@@ -340,7 +340,7 @@ function drawLive(){
         <span class="s">${esc(w.sym)}</span><span class="sc num">${Math.min(w.score, 100)}</span><span class="r" title="${esc(w.why)}">${esc(w.why)}</span></div>`).join('')
       : `<div class="empty">${open ? '지금 셋업이 감지된 종목 없음' : '장중에 채워져요'}</div>`;
     const lossLeft = t.start * t.daily_loss + Math.min(t.day_pnl, 0);
-    const cnt = t.mode === 'desk' ? `보유 ${t.pos.length}종목` : t.kind === 'swing' ? `보유 ${t.pos.length}/${t.max_trades}` : (t.kind === 'scalp' || t.kind === 'mrna') ? `오늘 거래 ${t.trades}회` : `거래 ${t.trades}/${t.max_trades}`;
+    const cnt = t.mode === 'desk' ? `보유 ${t.pos.length}종목` : t.kind === 'swing' ? `보유 ${t.pos.length}/${t.max_trades}` : ['scalp', 'mrna', 'tick'].includes(t.kind) ? `오늘 거래 ${t.trades}회` : `거래 ${t.trades}/${t.max_trades}`;
     return `<div class="card" style="--c:${TC[t.key]}">
       <div class="who"><div class="av">${esc(t.nick[0])}</div><div class="n">${esc(t.nick)}<span>${esc(t.name)}</span></div>
         <span class="badge ${esc(t.status)}">${esc(t.status)}</span></div>
@@ -351,8 +351,8 @@ function drawLive(){
       <div class="foot2 num">${cnt} · ${t.wins}승 ${t.losses}패${t.halted ? ` · <span class="warn">${esc(t.halted)}</span>` : ''}</div>
       <details class="more" data-k="${t.key}" ${OPEN.has(t.key) ? 'open' : ''}><summary>자세히 — 생각 전문 · ${t.mode === 'rotation' ? '모멘텀 순위' : t.kind === 'swing' ? (WAIT[t.mode] || '돌파') + ' 대기 종목' : '눈여겨보는 종목'} · 기록 ${t.feed.length}</summary>
         <div class="bubble"><div class="h">지금 생각</div>${esc(t.thought)}</div>
-        <h3>${t.mode === 'desk' ? '목표 비중 상위 <span class="muted" style="font-weight:400">(다섯 전략 합산 · 장 마감 후 계산)</span>' : t.kind === 'mrna' ? 'MRNA 지금 상태 <span class="muted" style="font-weight:400">(30초마다 갱신 · 체결은 몇 초마다 확인)</span>' : t.kind === 'scalp' ? '10분 눌림 후보 <span class="muted" style="font-weight:400">(마지막 판단 때 · 점수는 조건에 가까운 정도)</span>' : t.mode === 'rotation' ? '모멘텀 순위 <span class="muted" style="font-weight:400">(6개월 수익률 · 상위 5 편입, 매달 교체)</span>' : t.kind === 'swing' ? (WAIT[t.mode] || '돌파') + ' 신호 · 대기 종목 <span class="muted" style="font-weight:400">(장 마감 후 일봉)</span>' : '눈여겨보는 종목 <span class="muted" style="font-weight:400">(점수 · 판단)</span>'}</h3>${wl}
-        <div class="meta">${t.mode === 'desk' ? '<span class="chip">지정가 ±2% · 수수료 $0</span><span class="chip">Alpaca 모의계좌와 같은 규칙</span>' : t.kind === 'mrna' ? '<span class="chip">MRNA만 · 계좌 전부</span><span class="chip">검증 통과 못 한 규칙</span><span class="chip">15:50 ET 전량 정리</span>' : t.kind === 'scalp' ? '<span class="chip">한 번에 한 종목 · 계좌 전부</span><span class="chip">15:50 ET 전량 정리</span>' : t.mode === 'rotation' ? `<span class="chip">종목당 비중 ${Math.round(100 / t.max_trades)}%</span>` : `<span class="chip">거래당 위험 ${usd(t.start * t.risk)}</span>`}${t.daily_loss ? `<span class="chip">손실 한도까지 ${usd(Math.max(lossLeft, 0))}</span>` : (t.kind === 'scalp' || t.kind === 'mrna' ? '' : '<span class="chip">오버나잇 보유</span>')}</div>
+        <h3>${t.mode === 'desk' ? '목표 비중 상위 <span class="muted" style="font-weight:400">(다섯 전략 합산 · 장 마감 후 계산)</span>' : (t.kind === 'mrna' || t.kind === 'tick') ? 'MRNA 지금 상태 <span class="muted" style="font-weight:400">(화면은 30초마다 갱신 · 판단은 체결 한 건마다)</span>' : t.kind === 'scalp' ? '10분 눌림 후보 <span class="muted" style="font-weight:400">(마지막 판단 때 · 점수는 조건에 가까운 정도)</span>' : t.mode === 'rotation' ? '모멘텀 순위 <span class="muted" style="font-weight:400">(6개월 수익률 · 상위 5 편입, 매달 교체)</span>' : t.kind === 'swing' ? (WAIT[t.mode] || '돌파') + ' 신호 · 대기 종목 <span class="muted" style="font-weight:400">(장 마감 후 일봉)</span>' : '눈여겨보는 종목 <span class="muted" style="font-weight:400">(점수 · 판단)</span>'}</h3>${wl}
+        <div class="meta">${t.mode === 'desk' ? '<span class="chip">지정가 ±2% · 수수료 $0</span><span class="chip">Alpaca 모의계좌와 같은 규칙</span>' : t.kind === 'tick' ? '<span class="chip">MRNA만 · 계좌 전부</span><span class="chip">백테스트 손실 규칙 — 모나와 비교용</span><span class="chip">15:50 ET 전량 정리</span>' : t.kind === 'mrna' ? '<span class="chip">MRNA만 · 계좌 전부</span><span class="chip">검증 통과 못 한 규칙</span><span class="chip">15:50 ET 전량 정리</span>' : t.kind === 'scalp' ? '<span class="chip">한 번에 한 종목 · 계좌 전부</span><span class="chip">15:50 ET 전량 정리</span>' : t.mode === 'rotation' ? `<span class="chip">종목당 비중 ${Math.round(100 / t.max_trades)}%</span>` : `<span class="chip">거래당 위험 ${usd(t.start * t.risk)}</span>`}${t.daily_loss ? `<span class="chip">손실 한도까지 ${usd(Math.max(lossLeft, 0))}</span>` : (['scalp', 'mrna', 'tick'].includes(t.kind) ? '' : '<span class="chip">오버나잇 보유</span>')}</div>
         <div class="m motto">${esc(t.motto)}</div>
         <h3>생각 기록</h3><div class="feed">${t.feed.length ? t.feed.map(e => evRow(e)).join('') : '<div class="empty">아직 기록 없음</div>'}</div>
       </details>
@@ -372,7 +372,7 @@ function drawLive(){
     : '<div class="empty">관심 종목에 영향 있는 뉴스가 아직 없어요.</div>';
   $('news').scrollTop = nk;
   $('sys').innerHTML = L.system.length ? L.system.map(e => evRow(e)).join('') : '<div class="empty">아직 기록 없음</div>';
-  $('foot').innerHTML = `규칙 ${esc(L.rules)} · 시작 자금 각 $20,000 · 아이작 모멘텀 순환 · 티모 과매도 눌림목 · 차차 20일선 지지 반등 · 돌쇠 신고가 돌파(관심종목+나스닥100) — 장 마감 후 신호 → 다음 날 시가 매매 · 알파는 Alpaca 모의계좌에 넣은 퀀트 데스크와 같은 배분(소수점 주식) · 번개는 10분마다 판단하는 단타 · 모나는 MRNA 한 종목만 몇 초 간격으로 보는 단타 · 수수료 매수·매도 각 $2(알파 $0), 슬리피지 0.05% 반영 · 데이터 Yahoo Finance 1분봉` +
+  $('foot').innerHTML = `규칙 ${esc(L.rules)} · 시작 자금 각 $20,000 · 아이작 모멘텀 순환 · 티모 과매도 눌림목 · 차차 20일선 지지 반등 · 돌쇠 신고가 돌파(관심종목+나스닥100) — 장 마감 후 신호 → 다음 날 시가 매매 · 알파는 Alpaca 모의계좌에 넣은 퀀트 데스크와 같은 배분(소수점 주식) · 번개는 10분마다 판단하는 단타 · 모나는 MRNA 한 종목만 보는 단타 · 틱은 MRNA 체결 한 건마다 판단하는 초단타 · 수수료 매수·매도 각 $2(알파 $0), 슬리피지 0.05% 반영 · 데이터 Yahoo Finance 1분봉` +
     (L.fetch_sec ? ` (수집 ${L.fetch_sec.toFixed(1)}초)` : '') + `<br>기록 위치: apps/journal/traders/ — trades.csv(거래·근거), days.csv(일별 결과), events/(모든 생각). 이 화면을 닫아도 프로그램이 켜져 있으면 계속 매매해요.`;
 }
 

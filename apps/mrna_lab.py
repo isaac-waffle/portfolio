@@ -1,6 +1,7 @@
 """MRNA 전문 단타(모나) 규칙 찾기 — 모더나 한 종목만, 1분봉으로 검증하고 실전은 몇 초 간격으로 감시.
 
   .venv/bin/python apps/mrna_lab.py fetch     # Alpaca에서 MRNA·SPY 1분봉(2024-01~)과 호가 표본을 받아 journal/traders/lab/mrna_1m.pkl
+  .venv/bin/python apps/mrna_lab.py ticks     # 초 단위 규칙용: MRNA의 IEX 체결 내역 전부 → journal/traders/lab/mrna_ticks.pkl
   .venv/bin/python apps/mrna_lab.py           # 규칙 검증 → 표 + journal/traders/lab/mrna_result.json
 
 데이터: Alpaca 전체 시장(SIP) 1분봉, 정규장만. 호가 표본으로 실제 매수·매도 호가 차이(스프레드)를 재서 비용으로 씀.
@@ -14,6 +15,11 @@
   장중 추세 추종 96개: 학습 전부 마이너스, 확인·시험은 4분의 3이 플러스.
   → MRNA가 99→28달러로 내린 학습 기간엔 받아먹기가, 28→223달러로 오른 뒤엔 추세 추종이 번 것. 그래서 모나는 전일 종가가 50일선 위면 추세 추종,
     아래면 받아먹기로 바꿔 씀 (학습 +10% · 확인 −0% · 시험 +14%). 세 기간을 다 보고 만든 규칙이고 이웃 설정도 불안정해서 검증된 우위가 아님.
+
+초 단위 (`ticks`로 IEX 체결 315만 건을 받아 체결 한 건마다 판단, 576개) — 세 기간 모두 플러스 0개
+  급락 받기(fade): 시장가 비용을 0으로 봐도 전부 마이너스 — 지정가를 뚫는 체결이 나오면 대개 더 내려감.
+  급등 추종(mom): 비용이 없으면 42개가 세 기간 모두 플러스지만, 왕복 0.12% 비용을 넣으면 하루 1건 이상인 설정은 기간마다 −12~−60%.
+  사용자가 "둘 다 돌려서 비교"를 골라, 하루 1건 이상인 설정 중 학습 1등(LIVE_TICK: 학습 −36% · 확인 −12% · 시험 −31%)을 '틱'으로 돌림.
 """
 from __future__ import annotations
 
@@ -73,6 +79,42 @@ def fetch():
     pickle.dump(dict(bars=B, quotes=Q), open(FILE, "wb"))
     print(f"{SYM} 1분봉 {len(B[SYM]):,}개 · {days[0]} ~ {days[-1]} ({len(days)}일) · 호가 표본 {len(Q)}개")
 
+
+
+TICKS = LAB / "mrna_ticks.pkl"
+
+
+def fetch_ticks():
+    """모나 초 단위 규칙용 — MRNA의 IEX 체결 내역 전부(2024-01~). 실전에서 무료로 실시간으로 받는 것과 같은 데이터라 백테스트와 실전이 같은 걸 봄.
+    (전체 시장 체결의 3~4%, 하루 4천 건 안팎 = 5초에 한 건꼴). 날짜별로 (09:30부터 초, 가격, 수량) 배열로 저장."""
+    out, token, n = {}, None, 0
+    end = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    while True:
+        q = dict(start=START, end=end, limit=10000, feed="iex", sort="asc")
+        if token:
+            q["page_token"] = token
+        W.throttle()
+        r = requests.get(f"https://data.alpaca.markets/v2/stocks/{SYM}/trades", params=q, headers=W.hdr(), timeout=60)
+        if r.status_code == 429 or r.status_code >= 500:
+            continue
+        r.raise_for_status()
+        js = r.json()
+        tr = js.get("trades") or []
+        if tr:
+            ts = pd.DatetimeIndex(pd.to_datetime([x["t"] for x in tr], utc=True, format="ISO8601")).tz_convert(T.NY)
+            sec = (ts.hour * 3600 + ts.minute * 60 + ts.second + ts.microsecond / 1e6 - 34200).to_numpy()
+            px, sz, day = np.array([x["p"] for x in tr]), np.array([x["s"] for x in tr]), np.array(ts.date)
+            ok = (sec >= 0) & (sec < 23400)
+            for d in sorted(set(day[ok])):
+                m = ok & (day == d)
+                out.setdefault(d, []).append(np.c_[sec[m], px[m], sz[m]])
+            n += len(tr)
+        token = js.get("next_page_token")
+        if not token:
+            break
+    out = {d: np.vstack(v) for d, v in out.items()}
+    pickle.dump(out, open(TICKS, "wb"))
+    print(f"{SYM} IEX 체결 {n:,}건 · {len(out)}일 · 하루 중앙값 {int(np.median([len(v) for v in out.values()])):,}건")
 
 
 class Data:
@@ -364,6 +406,112 @@ def regime_main(d: Data):
           + " ".join(f"{k} {x * 100:.0f}%" for k, x in zip(PERIODS, (res > 0).mean(0))) + " · 중앙값 " + " ".join(f"{x * 100:+.0f}%" for x in np.median(res, 0)))
 
 
+# ───────────────────────── 초 단위 (체결 한 건마다 판단) ─────────────────────────
+class Ticks:
+    """날짜별 IEX 체결 (초, 가격) + 구간 W초 이동평균. Data와 같은 날짜 순서."""
+
+    def __init__(self, d: Data):
+        raw = pickle.load(open(TICKS, "rb"))
+        self.d = d
+        self.t, self.p = [], []
+        for day in d.days:
+            x = raw.get(day)
+            x = x[np.argsort(x[:, 0], kind="stable")] if x is not None and len(x) > 200 else np.zeros((0, 3))
+            self.t.append(x[:, 0])
+            self.p.append(x[:, 1])
+        self._ref = {}
+
+    def ref(self, i: int, W: int) -> np.ndarray:
+        """그 체결 시점까지 최근 W초 체결가의 평균 (자기 자신 포함, 미래 정보 없음)."""
+        if (i, W) not in self._ref:
+            s = pd.Series(self.p[i], index=pd.to_timedelta(self.t[i], unit="s"))
+            self._ref[i, W] = s.rolling(f"{W}s").mean().to_numpy()
+        return self._ref[i, W]
+
+
+def tick_run(tk: Ticks, mode="fade", W=60, k=2.0, tp=2.0, st=4.0, hold=300, filt="none", cost=None):
+    """초 단위 규칙. 단위 u = 가격 × 평소 1분 변동폭 × √(W/60).
+    fade: 가격이 '최근 W초 평균 − k·u' 아래로 뚫고 내려가는 체결이 나오면 그 선에 걸어 둔 지정가가 체결된 것으로 봄 (수수료만).
+    mom:  가격이 '최근 W초 평균 + k·u' 위로 뚫고 올라가면 다음 체결가에 시장가 매수 (스프레드 포함).
+    청산: 익절 지정가(+tp·u, 수수료만) · 손절(−st·u, 시장가) · hold초 지나면 시장가 · 15:50 전량 정리. 직전 체결과 10초 넘게 벌어진 신호는 버림."""
+    d = tk.d
+    fee = T.FEE / T.START_CASH
+    day_r, day_n, rets = np.zeros(len(d.days)), np.zeros(len(d.days)), []
+    for i in np.flatnonzero(d.ok):
+        t, p = tk.t[i], tk.p[i]
+        if len(t) < 200:
+            continue
+        c = d.cost if cost is None else np.full(NB, cost)
+        ref, u1 = tk.ref(i, W), d.s1[i] * np.sqrt(W / 60)
+        band = ref - k * u1 * ref if mode == "fade" else ref + k * u1 * ref
+        if mode == "fade":
+            hit = (p[1:] < band[:-1]) & (p[:-1] >= band[:-1])
+        else:
+            hit = (p[1:] > band[:-1]) & (p[:-1] <= band[:-1])
+        hit &= (np.diff(t) <= 10) & (t[1:] >= 300) & (t[1:] < 22200) & (t[:-1] >= W)
+        if filt == "up":
+            hit &= p[:-1] > d.PC[i]
+        free, eq, end_i = 0, 1.0, int(np.searchsorted(t, 22800))
+        for j in np.flatnonzero(hit) + 1:
+            if j < free or j + 1 >= end_i:
+                continue
+            if mode == "fade":
+                e, px, c_in = j, band[j - 1], fee
+            else:
+                e, px = j + 1, p[j + 1]
+                c_in = c[int(t[e] // 60)]
+            u = px * u1
+            last = min(end_i, int(np.searchsorted(t, t[e] + hold)))
+            seg = p[e + 1:last]
+            hs, ht = np.flatnonzero(seg <= px - st * u), np.flatnonzero(seg > px + tp * u)
+            a, b = (hs[0] if len(hs) else 10 ** 9), (ht[0] if len(ht) else 10 ** 9)
+            if a < b:
+                x = e + 1 + a
+                out, c_out = p[x], c[min(int(t[x] // 60), NB - 1)]
+            elif b < 10 ** 9:
+                x = e + 1 + b
+                out, c_out = px + tp * u, fee
+            else:
+                x = min(last, len(p) - 1)
+                out, c_out = p[x], c[min(int(t[x] // 60), NB - 1)]
+            r = out / px * (1 - c_out) / (1 + c_in) - 1
+            eq *= 1 + r
+            rets.append(r)
+            day_n[i] += 1
+            free = x + 1
+        day_r[i] = eq - 1
+    return day_r, day_n, np.array(rets)
+
+
+LIVE_TICK = dict(mode="mom", W=180, k=2.0, tp=4.0, st=3.0, hold=600, filt="up")  # traders.py의 틱 — 하루 1건 이상인 설정 중 학습 샤프 1등 (그래도 마이너스)
+
+TICK_GRID = [dict(mode=mo, W=W, k=k, tp=tp, st=st, hold=h, filt=f) for mo, W, k, tp, st, h, f in itertools.product(
+    ("fade", "mom"), (30, 60, 180, 600), (1.5, 2.0, 3.0), (1.0, 2.0, 4.0), (3.0, 6.0), (120, 600), ("none", "up"))]
+
+
+def tick_main(d: Data) -> list:
+    tk = Ticks(d)
+    rows = []
+    for g in TICK_GRID:
+        r, n, tr = tick_run(tk, **g)
+        r0, _, _ = tick_run(tk, **g, cost=0.0)
+        rows.append(dict(p=g, win=float((tr > 0).mean()) if len(tr) else 0, avg=float(tr.mean()) if len(tr) else 0,
+                         **{k: stats(r, n, m) for k, m in d.mask.items()}, **{k + "_0": stats(r0, n, m) for k, m in d.mask.items()}))
+
+    def show(w):
+        print(f"  {w['p']}  승률 {w['win'] * 100:.0f}% 평균 {w['avg'] * 1e4:+.1f}bp\n     " + " | ".join(
+            f"{k} {w[k]['ret'] * 100:+6.1f}% S{w[k]['sharpe']:+.2f} 낙폭{w[k]['dd'] * 100:4.0f}% {w[k]['tpd']:.1f}건/일 (시장가 비용 0이면 {w[k + '_0']['ret'] * 100:+.0f}%)" for k in PERIODS))
+
+    for mode in ("fade", "mom"):
+        rs = [w for w in rows if w["p"]["mode"] == mode and w["학습"]["tpd"] >= 1]
+        both = [w for w in rs if w["학습"]["ret"] > 0 and w["확인"]["ret"] > 0]
+        print(f"\n[초 단위 {mode}] 하루 1건 이상인 설정 {len(rs)}개 — 학습 플러스 {np.mean([w['학습']['ret'] > 0 for w in rs]) * 100:.0f}% · 확인 플러스 {np.mean([w['확인']['ret'] > 0 for w in rs]) * 100:.0f}% · "
+              f"시험 플러스 {np.mean([w['시험']['ret'] > 0 for w in rs]) * 100:.0f}% · 학습·확인 둘 다 플러스 {len(both)}개, 그중 시험도 플러스 {sum(w['시험']['ret'] > 0 for w in both)}개")
+        for w in sorted(rs, key=lambda w: -w["학습"]["sharpe"])[:6]:
+            show(w)
+    return rows
+
+
 def stats(r: np.ndarray, n: np.ndarray, m: np.ndarray) -> dict:
     x = r[m]
     eq = np.cumprod(1 + x)
@@ -422,8 +570,10 @@ def main():
         show(w)
     lim, trd = limit_main(d), trend_main(d)
     regime_main(d)
+    if TICKS.exists():
+        (LAB / "mrna_tick_result.json").write_text(json.dumps(tick_main(d), ensure_ascii=False, default=float))
     (LAB / "mrna_result.json").write_text(json.dumps(dict(rows=rows, limit=lim, trend=trd), ensure_ascii=False, default=float))
 
 
 if __name__ == "__main__":
-    fetch() if sys.argv[1:] == ["fetch"] else main()
+    fetch() if sys.argv[1:] == ["fetch"] else fetch_ticks() if sys.argv[1:] == ["ticks"] else main()
