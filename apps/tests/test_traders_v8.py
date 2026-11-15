@@ -397,3 +397,209 @@ def test_mona_closes_a_position_it_can_no_longer_manage(data_dir):
     t.hist, t.hist_day, t.hist_try = {}, None, 1e18  # 재시작 뒤 기준값을 못 받은 상황
     t.step(at(591), {"MRNA": dict(SNAP, last=102.0)}, {"MRNA": minute_bars(np.r_[rise, 102.0])}, dict(score=50), {})
     assert not t.pos
+
+
+# ── 틱: MRNA 초단타 ──
+def ticker(cash=20_000.0):
+    t = T.TickTrader("tick", dict(cash=cash, day=dict(date=DAY.isoformat(), start=cash, trades=0, wins=0, losses=0, realized=0.0)))
+    t.hist, t.hist_day = dict(s1=0.001), DAY
+    T.LAST_SNAP["MRNA"] = SNAP
+    return t
+
+
+def tk_at(sec):
+    return dt.datetime(2026, 11, 13, 9, 30, tzinfo=T.NY) + dt.timedelta(seconds=sec)
+
+
+def warm(t, px=101.0, start=0, end=400, step=4):
+    for s in range(start, end, step):
+        t.on_price(px, tk_at(s))
+
+
+BAND = 101.0 * (1 + 2.0 * 0.001 * 3 ** 0.5)  # 3분 평균 101 × (1 + k·u)
+
+
+def test_tick_buys_on_the_print_after_a_jump_through_the_band(data_dir):
+    t = ticker()
+    warm(t)
+    assert not t.on_price(BAND + 0.05, tk_at(402)) and t.arm and not t.pos  # 신호 체결에서는 안 삼
+    assert t.on_price(BAND + 0.10, tk_at(403))
+    p = t.pos["MRNA"]
+    raw = BAND + 0.10  # 익절·손절선은 체결가 기준, 매수 단가에만 슬리피지
+    u = raw * 0.001 * 3 ** 0.5
+    assert p["entry"] == pytest.approx(raw * (1 + T.SLIP)) and p["setup"] == "MTICK"
+    assert p["tgt"] == pytest.approx(raw + 4 * u) and p["stop"] == pytest.approx(raw - 3 * u) and p["until"] == pytest.approx(403 + 600)
+
+
+@pytest.mark.parametrize("why, kw", [("price below yesterday's close", dict(px=99.0)), ("gap over 10 seconds", dict(gap=15)),
+                                     ("before 09:35", dict(end=280)), ("window too short", dict(start=300))])
+def test_tick_ignores_a_jump_when(data_dir, why, kw):
+    t = ticker()
+    px, end = kw.get("px", 101.0), kw.get("end", 400)
+    warm(t, px=px, start=kw.get("start", 0), end=end)
+    band = px * (1 + 2.0 * 0.001 * 3 ** 0.5)
+    t.on_price(band + 0.05, tk_at(end - 4 + kw.get("gap", 2)))
+    assert not t.arm
+
+
+def test_tick_does_not_rearm_while_price_stays_above_the_band(data_dir):
+    t = ticker()
+    warm(t)
+    t.on_price(BAND + 0.05, tk_at(402))
+    t.arm = False  # 매수 기회를 건너뛴 경우
+    t.on_price(BAND + 0.06, tk_at(404))
+    assert not t.arm  # 직전 체결이 이미 선 위 → 새 돌파가 아님
+
+
+def test_tick_exits_at_target_stop_and_deadline(data_dir):
+    for move, reason in ((+1.0, "익절"), (-1.0, "손절"), (0.0, "시간")):
+        t = ticker()
+        warm(t)
+        t.on_price(BAND + 0.05, tk_at(402))
+        t.on_price(BAND + 0.10, tk_at(403))
+        p = dict(t.pos["MRNA"])
+        cash = t.cash
+        px = p["tgt"] + 0.2 if move > 0 else p["stop"] - 0.2 if move < 0 else p["entry"]
+        assert t.on_price(px, tk_at(410 if move else 1004)) and not t.pos
+        got = p["tgt"] if move > 0 else px * (1 - T.SLIP)
+        assert t.cash == pytest.approx(cash + p["shares"] * got - T.FEE), reason
+
+
+def test_tick_does_nothing_without_baselines_or_on_a_stale_day(data_dir):
+    t = ticker()
+    t.hist = {}
+    assert not t.on_price(101.0, tk_at(400)) and t.n_ticks == 0
+    t = ticker()
+    assert not t.on_price(101.0, tk_at(400).replace(day=14)) and t.n_ticks == 0
+
+
+def test_tick_closes_its_position_when_the_stream_goes_quiet(data_dir):
+    t = ticker()
+    warm(t)
+    t.on_price(BAND + 0.05, tk_at(402))
+    t.on_price(BAND + 0.10, tk_at(403))
+    assert t.pos
+    t.step(tk_at(403 + 200), {"MRNA": dict(SNAP, last=101.3)}, {}, dict(score=50), {})
+    assert not t.pos
+
+
+# ── 실시간 체결 스트림 ──
+def test_stream_passes_each_mrna_trade_to_the_mrna_traders(monkeypatch):
+    import asyncio
+    import json
+    import types
+
+    clock = [dt.datetime(2026, 11, 13, 10, 0, 1, tzinfo=T.NY)]
+    monkeypatch.setattr(T, "now_ny", lambda: clock[0])
+
+    class FakeWs:
+        def __init__(self):
+            self.sent, self.q = [], [
+                [{"T": "success", "msg": "connected"}], [{"T": "success", "msg": "authenticated"}],
+                [{"T": "subscription", "trades": ["MRNA"]}],
+                [{"T": "t", "S": "MRNA", "p": 223.5, "s": 10, "t": "2026-11-13T15:00:00.5Z"},
+                 {"T": "t", "S": "SPY", "p": 1.0, "s": 1, "t": "2026-11-13T15:00:00.6Z"},
+                 {"T": "t", "S": "MRNA", "p": 223.6, "s": 5, "t": "2026-11-13T14:59:00Z"}]]  # 마지막은 1분 전 체결 → 버림
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def send(self, m):
+            self.sent.append(json.loads(m))
+
+        async def recv(self):
+            if not self.q:
+                clock[0] = clock[0].replace(hour=16)  # 장 끝 → 스트림이 스스로 돌아감
+                return json.dumps([])
+            return json.dumps(self.q.pop(0))
+
+    ws = FakeWs()
+    monkeypatch.setitem(sys.modules, "websockets", types.SimpleNamespace(connect=lambda *a, **k: ws))
+    got = []
+    E = T.Engine.__new__(T.Engine)
+    E.mlock, E.trader_err, E.stream_ok, E.save, E.trades = T.threading.RLock(), {}, 0.0, lambda: got.append("saved"), T.queue.Queue()
+    mona_ = types.SimpleNamespace(on_price=lambda px, at: got.append((px, at.hour, at.minute)) or True)
+    asyncio.run(E.stream([mona_], "key", "secret"))
+    assert ws.sent == [dict(action="auth", key="key", secret="secret"), dict(action="subscribe", trades=["MRNA"])]
+    assert E.trades.qsize() == 1 and E.stream_ok > 0  # SPY와 오래된 체결은 큐에 안 들어감
+    E.on_trade([mona_], *E.trades.get())
+    assert got == [(223.5, 10, 0), "saved"]
+
+
+def test_stream_refuses_a_failed_login(monkeypatch):
+    import asyncio
+    import json
+    import types
+
+    class Ws:
+        n = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def send(self, m):
+            pass
+
+        async def recv(self):
+            Ws.n += 1
+            return json.dumps([{"T": "success", "msg": "connected"}] if Ws.n == 1 else [{"T": "error", "code": 402, "msg": "auth failed"}])
+
+    monkeypatch.setitem(sys.modules, "websockets", types.SimpleNamespace(connect=lambda *a, **k: Ws()))
+    E = T.Engine.__new__(T.Engine)
+    with pytest.raises(RuntimeError):
+        asyncio.run(E.stream([], "k", "s"))
+
+
+def test_tick_starts_each_day_with_an_empty_window(data_dir):
+    t = ticker()
+    warm(t, end=23000, step=50)  # 어제 하루치
+    t.day["date"] = "2026-11-16"
+    nxt = lambda sec: dt.datetime(2026, 11, 16, 9, 30, tzinfo=T.NY) + dt.timedelta(seconds=sec)
+    for s_ in range(0, 400, 4):
+        t.on_price(101.0, nxt(s_))
+    assert t.win[0][0] > 200 and t.n_ticks == 100
+    t.on_price(BAND + 0.05, nxt(402))
+    assert t.arm
+
+
+def test_tick_uses_polled_prices_for_exits_only(data_dir):
+    t = ticker()
+    warm(t)
+    assert not t.on_price(BAND + 0.05, tk_at(402), sparse=True) and not t.arm and not t.win  # 신호로 안 씀, 창도 비움
+    warm(t, start=404, end=800)
+    t.on_price(BAND + 0.05, tk_at(802))
+    t.on_price(BAND + 0.10, tk_at(803))
+    stop = t.pos["MRNA"]["stop"]
+    assert t.on_price(stop - 0.1, tk_at(806), sparse=True) and not t.pos
+
+
+def test_tick_waits_for_a_full_window_after_a_restart(data_dir):
+    t = ticker()
+    warm(t, start=1000, end=1100)
+    t.on_price(BAND + 0.05, tk_at(1102))
+    assert not t.arm
+    t2 = ticker()
+    warm(t2, start=1000, end=1200)
+    t2.on_price(BAND + 0.05, tk_at(1202))
+    assert t2.arm
+
+
+def test_tick_rejects_out_of_order_prints(data_dir):
+    t = ticker()
+    warm(t)
+    t.on_price(BAND + 0.05, tk_at(390))
+    assert not t.arm
+
+
+def test_engine_has_one_definition_of_each_method():
+    import inspect
+    src = inspect.getsource(T.Engine)
+    for name in ("fast_loop", "tick", "save", "publish", "universe"):
+        assert src.count(f"    def {name}(") == 1, name
+    assert "스트림" in T.Engine.fast_loop.__doc__
