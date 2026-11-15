@@ -1,7 +1,8 @@
-"""가상 트레이더 6명 — 미국 정규장 실시간 모의 매매 (롱만).
+"""가상 트레이더 7명 — 미국 정규장 실시간 모의 매매 (롱만).
   아이작·티모·차차·돌쇠  일봉 스윙 ($20,000씩, 매수 규칙이 제각각)
   알파  Alpaca 모의계좌에 넣은 퀀트 데스크(paper_desk.py)와 같은 배분 ($20,000, 소수점 주식, 수수료 $0)
   번개  10분마다 판단하는 단타 ($20,000, 15:50 ET 전량 정리)
+  모나  MRNA 한 종목 전문 단타 ($20,000, 몇 초마다 가격 확인, 15:50 ET 전량 정리)
 
 실행:  .venv/bin/python apps/traders.py [--open]      (localhost:8503, 허브에서 켜도 됨)
 규칙 기반으로 판단하고 판단 근거를 한국어 '생각'으로 남김. 켜 두는 동안 맥이 잠들지 않게 caffeinate를 붙임.
@@ -70,7 +71,7 @@ APPS = Path(__file__).resolve().parent
 DATA = APPS / "journal" / "traders"
 PAGE = APPS / "traders.html"
 PORT = 8503
-RULES = "v8"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
+RULES = "v9"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
 # v3 (2026-10-26): 실시간 뉴스 반영 (traders_news.py) — 아직 백테스트로 검증 안 됨
 # v4 (2026-10-26): 2024.01~2026.10 Alpaca 5분봉으로 v1에서 재튜닝 (학습 24.01~25.06 · 확인 25.07~12 · 최종 시험 26.01~10).
 #     세 명 모두 v1·v2보다 덜 잃지만 여전히 손실 — 주로 거래를 크게 줄여서 좋아진 것 (lab/tune_2026-10-26_2024-01-02.json)
@@ -81,6 +82,8 @@ RULES = "v8"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버�
 #     티모=RSI(2) 과매도 눌림목(손절 없이 5종목 균등, 5일선 회복·5거래일 청산), 차차=20일선 지지 반등(변동성 낮은 순, SPY 200일선 필터)
 # v8 (2026-11-14): 알파(Alpaca 모의계좌 퀀트 데스크와 같은 배분)·번개(10분 단타, scalp_lab.py) 추가. 돌쇠는 후보를 관심종목+나스닥100으로 넓힘
 #     (swing_lab.py v8: 학습·확인 둘 다 좋아진 유일한 변경). 아이작·티모·차차는 후보 272개 중 통과한 변경이 없어 그대로.
+# v9 (2026-11-15): 모나(MRNA 전문 단타, mrna_lab.py) 추가 — 검증을 통과한 규칙은 아님 (2,300여 개 중 통과 없음).
+#     일봉 추세에 따라 추세 추종 / 지정가 받아먹기를 바꿔 쓰고, 지정가·익절·손절은 Alpaca 실시간 체결가로 몇 초마다 확인.
 # v2 (2026-10-26): traders_lab 튜닝 (9월 학습 · 10월 확인 · 8월 최종 시험) — 아이작·티모만 변경, 차차는 8월에서 나빠져 유지
 START_CASH = 20_000.0
 FEE = 2.0  # 주문당 수수료 $ (매수 $2, 매도 $2)
@@ -119,7 +122,7 @@ HOLIDAYS = {dt.date(2026, 11, 26), dt.date(2026, 12, 25), dt.date(2027, 1, 1), d
             dt.date(2027, 7, 5), dt.date(2027, 9, 6), dt.date(2027, 11, 25), dt.date(2027, 12, 24)}
 EARLY = {dt.date(2026, 11, 27): 780, dt.date(2026, 12, 24): 780, dt.date(2027, 11, 26): 780}
 
-SETUP_KO = {"DESK": "퀀트 데스크 배분", "DIP10": "10분 눌림 반등", "MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
+SETUP_KO = {"MTREND": "MRNA 추세 추종", "MFADE": "MRNA 지정가 받아먹기", "DESK": "퀀트 데스크 배분", "DIP10": "10분 눌림 반등", "MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
             "GAPFILL": "갭 메우기 반등", "FADE": "과매도 반등", "SQZ": "스퀴즈 발사", "PDL": "전일 고점 돌파"}
 
 SETUP_OF = {"breakout": "BRK", "pullback": "PB", "trendpull": "TP", "rotation": "MOM", "desk": "DESK"}
@@ -153,6 +156,13 @@ TRADERS = {
                   risk=0.0, max_pos=1, max_trades=40, daily_loss=0.0, z_in=1.5, z_keep=1.0, rvol=3.0, min_dvol=2e7, min_rvol=0, cooldown=0,
                   motto="10분마다 판단한다. 오늘 오르는 종목이 거래량 3배로 10분 급락하면 사고, 10분 뒤 다시 본다 — 버티면 10분 더, 꺾이면 판다. "
                         "시장(SPY)이 VWAP 위일 때만, 한 번에 한 종목, 15:50 ET 전량 정리."),
+    # v9: 모더나 한 종목만 보는 단타 (mrna_lab.py). k·step = 추세 모드, fk·tp·stop·hold = 받아먹기 모드 (단위: 평소 1분 변동폭의 배수, 분)
+    "mrna": dict(kind="mrna", mode="mrna", name="MRNA 전문", nick="모나", color="#0aa5a5",
+                 risk=0.0, max_pos=1, max_trades=30, daily_loss=0.0, k=1.0, step=15, fk=5.0, tp=6.0, stop=16.0, hold=60,
+                 min_dvol=0, min_rvol=0, cooldown=0,
+                 motto="모더나 하나만 판다. 50일선 위인 날은 추세 모드 — 평소 변동 범위를 뚫고 올라가면 따라 사고 꺾이면 판다. "
+                       "50일선 아래인 날은 받아먹기 모드 — 급락에 지정가를 걸어 두고 반등에 지정가로 판다. 몇 초마다 가격 확인, 계좌 전부, 15:50 ET 전량 정리. "
+                       "백테스트 검증을 통과하지 못한 규칙이라 크게 벌 수도 크게 잃을 수도 있다."),
 }
 
 LOCK = threading.RLock()
@@ -629,9 +639,9 @@ class Trader:
                         f"손절 {f2(s['stop'])} (최대 손실 ${risk:,.0f}), 1차 목표 {f2(s['t1'])}, 2차 {f2(s['t2'])}.",
                  sym=a["sym"], price=px, shares=shares)
 
-    def sell(self, sym: str, shares: int, px: float, reason: str, now: dt.datetime, final: bool = False):
+    def sell(self, sym: str, shares: int, px: float, reason: str, now: dt.datetime, final: bool = False, slip: float = SLIP):
         p = self.pos[sym]
-        fill = px * (1 - SLIP)
+        fill = px * (1 - slip)  # 지정가로 판 경우(slip=0)는 스프레드를 안 냄
         self.cash += shares * fill - self.fee
         p["shares"] -= shares
         p["sold"] += shares
@@ -1493,6 +1503,8 @@ class ScalpTrader(Trader):
     오늘 오르는 종목(전일 대비 +, VWAP 위)이 거래량 3배로 10분 급락(z ≤ −1.5) → 가장 많이 빠진 한 종목을 계좌 전부로 매수.
     10분 뒤: z > −1 이고 VWAP 위면 10분 더, 아니면 매도. 새로 살 땐 SPY가 VWAP 위여야 함. 손절선 없음(10분 뒤 재판단이 손절), 15:50 전량 정리."""
 
+    idle_txt = "매매 없음 — 10분 급락 + 거래량 3배 조건이 한 번도 안 맞았어. 이 규칙은 원래 한 주에 한 번쯤만 삼."
+
     def __init__(self, key: str, st: dict | None):
         super().__init__(key, st)
         self.vprof: dict = {}
@@ -1601,12 +1613,241 @@ class ScalpTrader(Trader):
         pnl = eq - self.day["start"]
         L = [f"오늘 결과: {money(pnl)} ({pc(pnl / self.day['start'], 2)}), 거래 {len(trades)}회" + (f" — {self.day['wins']}승 {self.day['losses']}패." if trades else ".")]
         L.append(" / ".join(f"{t['sym']} {t['entry_t']}→{t['exit_t']} ({t['hold_min']}분) {money(float(t['pnl']))}" for t in trades) + "."
-                 if trades else "매매 없음 — 10분 급락 + 거래량 3배 조건이 한 번도 안 맞았어. 이 규칙은 원래 한 주에 한 번쯤만 삼.")
+                 if trades else self.idle_txt)
         self.log("review", "\n".join(L))
         append_csv(DATA / "days.csv", DAY_COLS, dict(date=today.isoformat(), trader=self.key, rules=RULES,
                    start_equity=round(self.day["start"], 2), end_equity=round(eq, 2), pnl=round(pnl, 2), trades=len(trades),
                    wins=self.day["wins"], losses=self.day["losses"], mkt_score=mk["score"], summary=L[0]))
         self.day["reviewed"] = True
+
+
+def mrna_hist(sym: str, today: dt.date, keys: tuple, bars: pd.DataFrame | None = None) -> dict:
+    """모나용 기준값 — 직전 14거래일 1분봉에서: s1 = 평소 1분 변동폭(1분 로그수익률 표준편차의 평균),
+    move[t] = 개장 t분 뒤까지 시가 대비 평균 변동폭. Alpaca 전체 시장 1분봉을 쓰고, 키가 없으면 엔진이 가진 야후 1분봉(며칠치)으로 대신함."""
+    df = None
+    if keys[0] and keys[1]:
+        rows, token = [], None
+        end = min(dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=20), dt.datetime.combine(today, dt.time(0), NY).astimezone(dt.timezone.utc))
+        while True:
+            q = dict(symbols=sym, timeframe="1Min", start=(today - dt.timedelta(days=35)).isoformat(), end=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                     limit=10000, feed="sip", adjustment="split", sort="asc")
+            if token:
+                q["page_token"] = token
+            r = requests.get("https://data.alpaca.markets/v2/stocks/bars", params=q, timeout=30,
+                             headers={"APCA-API-KEY-ID": keys[0], "APCA-API-SECRET-KEY": keys[1]})
+            r.raise_for_status()
+            js = r.json()
+            rows += (js.get("bars") or {}).get(sym, [])
+            token = js.get("next_page_token")
+            if not token:
+                break
+        if rows:
+            df = pd.DataFrame(rows).rename(columns=dict(o="Open", c="Close"))
+            df.index = pd.DatetimeIndex(pd.to_datetime(df.pop("t"), utc=True)).tz_convert(NY)
+    need = 7 if df is not None else 3
+    df = df if df is not None else bars
+    if df is None:
+        raise RuntimeError("1분봉 없음")
+    m = mins(df.index)
+    df = df[(m >= 570) & (m < 960) & (np.array(df.index.date) < today)]
+    s1, mv = [], []
+    for _, g in df.groupby(df.index.date):
+        if len(g) < 380:
+            continue
+        c = g["Close"].groupby(mins(g.index) - 570).last().reindex(range(390)).ffill().bfill()
+        s1.append(float(np.diff(np.log(c.to_numpy())).std()))
+        mv.append(np.abs(c.to_numpy() / float(g["Open"].iloc[0]) - 1))
+    if len(s1) < need:
+        raise RuntimeError(f"온전한 거래일이 {len(s1)}일뿐")
+    return dict(s1=float(np.mean(s1[-14:])), move=np.mean(mv[-14:], axis=0), days=len(s1[-14:]))
+
+
+def mrna_view(df: pd.DataFrame | None, today: dt.date, m: int) -> dict | None:
+    """오늘 정규장에서 '끝난' 1분봉들을 분 번호(0 = 09:30)로 정리. b = 마지막으로 끝난 봉. 빈 분은 직전 종가로 메움."""
+    if df is None:
+        return None
+    mm = mins(df.index)
+    T_ = df[(np.array(df.index.date) == today) & (mm >= 570) & (mm < min(m, 960))]
+    if len(T_) < 3:
+        return None
+    k = mins(T_.index) - 570
+    b = int(k[-1])
+    if b < m - 570 - 3:  # 3분 넘게 늦은 데이터로는 판단하지 않음
+        return None
+    g = T_.groupby(k)
+    C = g["Close"].last().reindex(range(b + 1)).ffill().bfill().to_numpy()
+    fill = lambda col, how: getattr(g[col], how)().reindex(range(b + 1)).to_numpy()
+    O, H, L = (np.where(np.isnan(x), C, x) for x in (fill("Open", "first"), fill("High", "max"), fill("Low", "min")))
+    V = np.nan_to_num(fill("Volume", "sum"))
+    cv = np.cumsum(V)
+    VW = np.where(cv > 0, np.cumsum((H + L + C) / 3 * V) / np.where(cv > 0, cv, 1), C)
+    return dict(b=b, O=O, H=H, L=L, C=C, VW=VW, o0=float(T_["Open"].iloc[0]))
+
+
+class MrnaTrader(ScalpTrader):
+    """MRNA 전문 (모나) — 모더나 한 종목만, 계좌 전부로. 규칙은 mrna_lab.py (일봉 추세에 따라 두 가지 모드):
+    추세 모드 (전일 종가 > 50일선): 15분마다, 가격이 '평소 이 시각 변동 범위' 위로 나가 있으면 사고, 그 선이나 VWAP 아래로 내려오면 팖.
+    받아먹기 모드 (50일선 아래): 매분 'min(VWAP, 직전 종가) − 5×평소 1분 변동폭'에 매수 지정가를 걸어 둠. 체결되면 +6배에 익절 지정가,
+        −16배에 손절, 60분 지나면 정리. 지정가·익절·손절은 Alpaca 실시간 체결가로 몇 초마다 확인 (키가 없으면 30초마다 1분봉으로).
+    15:50 ET 전량 정리. 백테스트로 검증을 통과한 규칙이 아님 — 2,300여 개 중 통과가 없어, 기간마다 벌었던 두 방식을 추세로 나눠 쓴 것."""
+    SYM = "MRNA"
+
+    def __init__(self, key: str, st: dict | None):
+        super().__init__(key, st)
+        self.hist: dict = {}
+        self.hist_day, self.hist_try, self.tick_px = None, 0.0, None
+
+    def plan(self, snaps: dict, mk: dict, disc: dict, today: dt.date, top_news: list | None = None):
+        a = snaps.get(self.SYM)
+        mode = ("추세 모드 (전일 종가 {} > 50일선 {})" if a and a["pdc"] > a["sma50d"] else "받아먹기 모드 (전일 종가 {} ≤ 50일선 {})").format(
+            f2(a["pdc"]), f2(a["sma50d"])) if a else "모드는 개장 후 결정"
+        self.log("plan", f"오늘 계획 — {self.P['motto']}\n오늘은 {mode}." + (f" 프리마켓 {pc(a['chg'])}." if a else ""))
+        self.day["planned"] = True
+
+    def review(self, snaps: dict, mk: dict, today: dt.date):
+        self.idle_txt = f"매매 없음 — 오늘({'추세' if self.day.get('mode') == 'trend' else '받아먹기'} 모드) 조건이 한 번도 안 맞았어."
+        super().review(snaps, mk, today)
+
+    def wants_ticks(self) -> bool:
+        """몇 초 간격 실시간 가격이 필요한 상태인지 (걸어 둔 지정가가 있거나, 익절·손절선이 있는 포지션)."""
+        return bool(self.day.get("lim")) or any(p.get("tgt") for p in self.pos.values())
+
+    def load_hist(self, today: dt.date, df: pd.DataFrame | None):
+        if time.time() - self.hist_try < 600:
+            return
+        self.hist_try = time.time()
+        try:
+            self.hist, self.hist_day = mrna_hist(self.SYM, today, alpaca_keys(), df), today
+        except Exception as e:
+            try:
+                self.hist, self.hist_day = mrna_hist(self.SYM, today, (None, None), df), today
+                self.log("think", f"Alpaca 1분봉을 못 받아 ({type(e).__name__}) 야후 며칠치로 기준값을 계산했어 — 평소보다 거칠어.")
+            except Exception as e2:
+                self.hist = {}
+                self.log("think", f"기준값(평소 변동폭)을 못 구함 — {type(e2).__name__}: {e2}. 10분 뒤 다시.")
+
+    # ── 체결 ──
+    def enter(self, px: float, setup: str, why: str, now: dt.datetime, a: dict, bar: int, limit: bool):
+        px = px if limit else px * (1 + SLIP)  # 지정가 체결은 스프레드를 안 냄
+        n = int((self.cash - self.fee) / px)
+        if n < 1:
+            return
+        P, u = self.P, px * self.hist["s1"]
+        fade = setup == "MFADE"
+        self.cash -= n * px + self.fee
+        self.pos[self.SYM] = dict(shares=n, init=n, entry=px, stop=px - P["stop"] * u if fade else 0.0, stop0=px - P["stop"] * u,
+                                  t1=px + P["tp"] * u, t2=px + P["tp"] * u, tgt=px + P["tp"] * u if fade else None, until=bar + P["hold"] if fade else None,
+                                  bar=bar, setup=setup, src="관심종목", opened=now.isoformat(), checked=a["t"], half=True, realized=-self.fee,
+                                  sold=0, sold_val=0.0, mfe=px, mae=px, why=why, score=100,
+                                  feat=dict(mkt_score=np.nan, rvol=a["rvol"], rs=a["rs"], atr_pct=a["atr_pct"], gap=a["gap"]))
+        self.day["trades"] += 1
+        self.day["lim"] = None
+        self.log("buy", f"{self.SYM} {n}주 {'지정가 ' if limit else ''}매수 @ {f2(px)} — {why}. " + (
+            f"익절 지정가 {f2(px + P['tp'] * u)}, 손절 {f2(px - P['stop'] * u)}, 늦어도 {P['hold']}분 뒤 정리." if fade
+            else f"{P['step']}분마다 다시 보고, 변동 범위 상단이나 VWAP 아래로 내려오면 팔아."), sym=self.SYM, price=px, shares=n)
+
+    def on_price(self, px: float, now: dt.datetime) -> bool:
+        """실시간 체결가 한 건 — 걸어 둔 매수 지정가, 익절 지정가, 손절을 확인. 매매가 있었으면 True."""
+        if self.day.get("date") != now.date().isoformat():  # 오늘 첫 틱(new_day) 전에는 어제 상태로 판단하지 않음
+            return False
+        p, lim = self.pos.get(self.SYM), self.day.get("lim")
+        self.tick_px = (px, now.isoformat())
+        if p and p.get("tgt"):
+            if px <= p["stop"]:
+                self.sell(self.SYM, p["shares"], px, f"손절선 도달 ({f2(p['stop'])})", now, final=True)
+                return True
+            if px > p["tgt"]:
+                self.sell(self.SYM, p["shares"], p["tgt"], f"익절 지정가 체결 ({f2(p['tgt'])})", now, final=True, slip=0.0)
+                return True
+        elif (not p and lim and self.hist and px < lim["px"] and now.hour * 60 + now.minute - 570 == lim["bar"]
+              and now.isoformat() >= lim.get("at", "")):  # 그 지정가가 걸려 있던 1분 안에, 건 뒤에 나온 체결만
+            a = LAST_SNAP.get(self.SYM)
+            if a:
+                self.enter(lim["px"], "MFADE", lim["why"], now, a, lim["bar"], limit=True)
+                return True
+        return False
+
+    def bar_triggers(self, v: dict, a: dict, now: dt.datetime):
+        """새로 끝난 1분봉으로 같은 확인 — 실시간 가격이 없거나 놓쳤을 때. 백테스트와 같은 가정(뚫어야 체결, 한 봉에 둘 다 닿으면 손절).
+        백테스트와 다른 점: 체결된 그 1분 안의 손절·익절은 실시간 가격으로만 확인함 (백테스트는 그 봉에서 손절만 가능하다고 가정)."""
+        for j in range(self.day.get("bar", -1) + 1, v["b"] + 1):
+            p, lim = self.pos.get(self.SYM), self.day.get("lim")
+            if p and p.get("tgt") and j > p["bar"]:
+                if v["L"][j] <= p["stop"]:
+                    self.sell(self.SYM, p["shares"], min(v["O"][j], p["stop"]), f"손절선 도달 ({f2(p['stop'])})", now, final=True)
+                elif v["H"][j] > p["tgt"]:
+                    self.sell(self.SYM, p["shares"], p["tgt"], f"익절 지정가 체결 ({f2(p['tgt'])})", now, final=True, slip=0.0)
+            elif not p and lim and lim["bar"] == j and v["L"][j] < lim["px"]:
+                self.enter(min(lim["px"], v["O"][j]), "MFADE", lim["why"], now, a, j, limit=True)
+
+    # ── 30초마다: 분 단위 판단 ──
+    def step(self, now: dt.datetime, snaps: dict, bars: dict, mk: dict, disc: dict, news=None):
+        P, m, today, sym = self.P, now.hour * 60 + now.minute, now.date(), self.SYM
+        cm = close_min(today)
+        a, df = snaps.get(sym), bars.get(sym)
+        LAST_SNAP[sym] = a
+        for p in self.pos.values():
+            last = self.price(sym, snaps, p["entry"])
+            p["mfe"], p["mae"] = max(p["mfe"], last), min(p["mae"], last)
+        if m >= cm - 10:
+            self.day["lim"] = None
+            for s in list(self.pos):
+                self.sell(s, self.pos[s]["shares"], self.price(s, snaps, self.pos[s]["entry"]), "장 마감 전 청산 (단타 원칙)", now, final=True)
+            return self.think("마감", "마감 10분 전 — 오늘 매매 끝. 장 끝나면 회고를 쓸게.", "close", "오늘 매매 끝")
+        if self.hist_day != today:
+            self.load_hist(today, df)
+        done = now - dt.timedelta(seconds=15)  # 1분봉은 끝나고 15초 지나야 '끝난 봉'으로 봄 (야후 마지막 봉이 늦게 확정됨)
+        v = mrna_view(df, today, done.hour * 60 + done.minute) if a else None
+        if v is not None and self.hist_day != today and self.pos:  # 기준값을 못 구한 채 들고 있을 수는 없음 (장중 재시작 등)
+            self.sell(sym, self.pos[sym]["shares"], a["last"], "기준값(평소 변동폭)을 못 구해 관리할 수 없음 — 정리", now, final=True)
+        if v is None or self.hist_day != today:
+            self.day["lim"] = None
+            return self.think("보유" if self.pos else "관망", "1분봉이나 기준값이 아직 준비 안 됨 — 기다리는 중.", "wait", "데이터 대기")
+        mode = self.day.setdefault("mode", "trend" if a["pdc"] > a["sma50d"] else "fade")
+        b, s1, c, vw = v["b"], self.hist["s1"], float(v["C"][-1]), float(v["VW"][-1])
+        up = lambda t: max(v["o0"], a["pdc"]) * (1 + P["k"] * float(self.hist["move"][t]))
+        if mode == "trend":
+            t = b - (b - 19) % P["step"] if b >= 19 else None  # 판단하는 봉: 09:49, 10:04, … (15분마다)
+            if t is not None and self.day.get("chk", -1) < t:
+                self.day["chk"] = t
+                ct, line = float(v["C"][t]), max(up(t), float(v["VW"][t]))
+                px = self.px_at(sym, snaps, bars, 571 + t, today, a["last"])
+                if b - t > 3:
+                    pass  # 판단 시각을 놓침 — 다음 15분에
+                elif sym in self.pos and ct < line:
+                    self.sell(sym, self.pos[sym]["shares"], px, f"종가 {f2(ct)}가 청산선 {f2(line)} (변동 범위 상단·VWAP 중 높은 쪽) 아래 — 추세 꺾임", now, final=True)
+                elif sym not in self.pos and t < 360 and ct > up(t) and self.day["trades"] < P["max_trades"]:
+                    self.enter(px, "MTREND", f"{hm(571 + t)} ET 종가 {f2(ct)}가 평소 변동 범위 상단 {f2(up(t))} 위 — 오늘은 추세가 붙은 날", now, a, t + 1, limit=False)
+            nxt = 571 + (t + P["step"] if t is not None else 19)
+            body = (f"추세 모드 (전일 종가 {f2(a['pdc'])} > 50일선 {f2(a['sma50d'])}). 지금 {f2(c)} · 변동 범위 상단 {f2(up(b))} · VWAP {f2(vw)}. "
+                    + (f"보유 중 — {f2(max(up(b), vw))} 아래로 마감하면 팔아. " if sym in self.pos else f"상단까지 {pc(up(b) / c - 1, 2)}. ")
+                    + f"다음 판단 {hm(nxt)} ET ({ams(nxt, today)} 암스테르담).")
+            head = f"추세 — {'보유, ' + ams(nxt, today) + ' 재판단' if sym in self.pos else '상단까지 ' + pc(up(b) / c - 1, 1)}"
+            self.watch = [dict(sym=sym, setup="MTREND", score=round(min(99, max(0, 100 - (up(b) / c - 1) * 5000))), ok=c > up(b), src="관심종목",
+                               why=f"지금 {f2(c)} · 상단 {f2(up(b))} · VWAP {f2(vw)}")]
+        else:
+            self.bar_triggers(v, a, now)
+            p = self.pos.get(sym)
+            timed = bool(p and p.get("until") and b + 1 >= p["until"])
+            if timed:
+                self.sell(sym, p["shares"], a["last"], f"{P['hold']}분 지나도 익절선에 안 닿음 — 시간 청산", now, final=True)
+            if sym not in self.pos and not timed and 5 <= b < 369 and self.day.get("bar", -1) < b and self.day["trades"] < P["max_trades"]:
+                lp = min(vw, c) - P["fk"] * c * s1
+                self.day["lim"] = dict(px=lp, bar=b + 1, at=now.isoformat(), why=f"급락을 지정가 {f2(lp)}에 받음 (VWAP {f2(vw)}·직전 종가 {f2(c)} 중 낮은 쪽에서 평소 1분 변동폭의 {P['fk']:g}배 아래)")
+            elif sym in self.pos or not 5 <= b < 369:
+                self.day["lim"] = None
+            lim, p = self.day.get("lim"), self.pos.get(sym)
+            body = (f"받아먹기 모드 (전일 종가 {f2(a['pdc'])} ≤ 50일선 {f2(a['sma50d'])}). 지금 {f2(c)} · VWAP {f2(vw)} · 평소 1분 변동폭 {s1 * 1e4:.0f}bp. "
+                    + (f"보유 중 — 익절 {f2(p['tgt'])} / 손절 {f2(p['stop'])} / {hm(570 + p['until'])} ET까지." if p else
+                       f"매수 지정가 {f2(lim['px'])} ({pc(lim['px'] / c - 1, 2)}) 걸어 둠 — 매분 다시 계산." if lim else "지금은 지정가를 안 거는 시간."))
+            head = "받아먹기 — " + (f"보유, 익절 {f2(p['tgt'])}" if p else f"지정가 {f2(lim['px'])} 대기" if lim else "대기")
+            self.watch = [dict(sym=sym, setup="MFADE", score=round(min(99, max(0, 100 - (c / lim["px"] - 1) * 5000))) if lim else 0, ok=bool(p), src="관심종목",
+                               why=f"지금 {f2(c)} · 매수 지정가 {f2(lim['px'])}" if lim else f"지금 {f2(c)}")]
+        self.day["bar"] = b
+        self.think("보유" if self.pos else "탐색", body, f"{mode}{b // 5}{sym in self.pos}{bool(self.day.get('lim'))}", head)
+
+
+LAST_SNAP: dict = {}  # 모나가 실시간 체결(다른 스레드)에서 쓸 마지막 분석 스냅샷
 
 
 # ───────────────────────── engine ─────────────────────────
@@ -1620,7 +1861,8 @@ class Engine:
             except Exception:
                 st = {}
         cls = lambda P: (MomentumTrader if P.get("mode") == "rotation" else DeskTrader if P.get("mode") == "desk"
-                         else SwingTrader if P.get("kind") == "swing" else ScalpTrader if P.get("kind") == "scalp" else Trader)
+                         else SwingTrader if P.get("kind") == "swing" else ScalpTrader if P.get("kind") == "scalp"
+                         else MrnaTrader if P.get("kind") == "mrna" else Trader)
         self.T = {k: cls(P)(k, st.get("traders", {}).get(k)) for k, P in TRADERS.items()}
         self.disc: dict = st.get("disc", {})
         self.disc_at = 0
@@ -1638,6 +1880,7 @@ class Engine:
         self.pub_at, self.pub_err = 0.0, ""
         self.cold_at = 0.0
         self.trader_err: dict = {}
+        self.mlock = threading.RLock()  # 트레이더 상태를 바꾸는 두 스레드(30초 엔진, 몇 초 간격 실시간 가격) 사이의 잠금
         self.no_daily: set = set()
         self.vprof_at = 0.0
         self.load_feed()
@@ -1698,13 +1941,14 @@ class Engine:
         write_event(ev)
 
     def save(self):
-        tmp = DATA / "state.json.tmp"
-        tmp.write_text(json.dumps(dict(traders={k: t.dump() for k, t in self.T.items()}, disc=self.disc,
-                                       saved=now_ny().isoformat()), ensure_ascii=False, default=float))
-        tmp.replace(DATA / "state.json")
+        with self.mlock:  # 두 스레드와 종료 처리(SIGTERM·재시작)가 동시에 쓰지 않게 + 쓰는 쪽마다 다른 임시 파일
+            tmp = DATA / f"state.json.{threading.get_ident()}.tmp"
+            tmp.write_text(json.dumps(dict(traders={k: t.dump() for k, t in self.T.items()}, disc=dict(self.disc),
+                                           saved=now_ny().isoformat()), ensure_ascii=False, default=float))
+            tmp.replace(DATA / "state.json")
 
     def universe(self) -> list[str]:
-        held = [s for t in self.T.values() for s in t.pos]
+        held = [s for t in self.T.values() for s in list(t.pos)]  # list(): 실시간 스레드가 그 사이 포지션을 바꿔도 안전
         pend = [s for t in self.T.values() if isinstance(t, SwingTrader) for s in t.pending()]
         return list(dict.fromkeys(MARKET + [VIX] + WATCHLIST + list(self.disc) + held + pend))
 
@@ -1795,16 +2039,59 @@ class Engine:
         self.pull_news(now, today)
 
         cm = close_min(today)
-        for t in self.T.values():
+        with self.mlock:
+            for t in self.T.values():
+                try:
+                    self.run_trader(t, now, today, m, cm, snaps, bars)
+                except Exception as e:  # 한 명의 오류가 나머지와 저장을 막지 않게
+                    traceback.print_exc()
+                    err = f"{t.P['nick']} 오류 — {type(e).__name__}: {e}"
+                    if err != self.trader_err.get(t.key):
+                        self.sys_log("system", err)
+                    self.trader_err[t.key] = err
+            self.save()
+
+    def fast_loop(self):
+        """모나용 — Alpaca 실시간 체결가(IEX)를 3초마다 받아 지정가·익절·손절을 확인. 키가 없으면 돌지 않고, 그땐 30초마다 1분봉으로 확인됨."""
+        k, sec = alpaca_keys()
+        ms = [t for t in self.T.values() if isinstance(t, MrnaTrader)]
+        if not (k and sec and ms):
+            return
+        hdr, seen, bad = {"APCA-API-KEY-ID": k, "APCA-API-SECRET-KEY": sec}, None, 0
+        while True:
+            now = now_ny()
+            m = now.hour * 60 + now.minute
+            if not (is_trading_day(now.date()) and 570 <= m < close_min(now.date()) - 10):
+                time.sleep(30)
+                continue
             try:
-                self.run_trader(t, now, today, m, cm, snaps, bars)
-            except Exception as e:  # 한 명의 오류가 나머지와 저장을 막지 않게
+                with self.mlock:
+                    want = any(t.wants_ticks() for t in ms)
+                if not want:
+                    time.sleep(2)
+                    continue
+                tr = requests.get(f"https://data.alpaca.markets/v2/stocks/{MrnaTrader.SYM}/trades/latest", params={"feed": "iex"}, headers=hdr, timeout=5).json()["trade"]
+                bad = 0
+            except Exception as e:
+                bad += 1
+                if bad == 20:
+                    self.sys_log("system", f"실시간 체결가를 계속 못 받음 ({type(e).__name__}) — 모나는 30초마다 1분봉으로 확인 중")
+                time.sleep(3)
+                continue
+            try:
+                at = pd.Timestamp(tr["t"]).tz_convert(NY).to_pydatetime()  # 판단은 '받은 시각'이 아니라 '체결된 시각' 기준
+                if tr["t"] != seen and (now_ny() - at).total_seconds() < 20:  # 오래된 체결가로는 판단하지 않음
+                    seen = tr["t"]
+                    with self.mlock:
+                        if any([t.on_price(float(tr["p"]), at) for t in ms]):
+                            self.save()
+            except Exception as e:  # 여기서 죽으면 스레드가 사라져 실시간 확인이 조용히 멈춤 — 기록하고 계속
                 traceback.print_exc()
-                err = f"{t.P['nick']} 오류 — {type(e).__name__}: {e}"
-                if err != self.trader_err.get(t.key):
+                err = f"모나 실시간 처리 오류 — {type(e).__name__}: {e}"
+                if err != self.trader_err.get("fast"):
                     self.sys_log("system", err)
-                self.trader_err[t.key] = err
-        self.save()
+                self.trader_err["fast"] = err
+            time.sleep(3)
 
     def run_trader(self, t, now: dt.datetime, today: dt.date, m: int, cm: int, snaps: dict, bars: dict):
         if t.day.get("date") != today.isoformat():
@@ -1886,7 +2173,8 @@ class Engine:
                 self.desk()
             except Exception:
                 traceback.print_exc()
-            build_live(self)
+            with self.mlock:
+                build_live(self)
             try:
                 self.publish()
             except Exception:
@@ -1958,7 +2246,7 @@ def build_live(E: Engine):
             rps = p["entry"] - p["stop0"]
             sw = isinstance(t, SwingTrader)
             pos.append(dict(sym=s, shares=p["shares"], init=p["init"], entry=p["entry"], last=last, stop=p["stop"], swing=sw,
-                            rot=p.get("setup") in ("MOM", "DESK", "DIP10"),
+                            rot=p.get("setup") in ("MOM", "DESK", "DIP10", "MTREND"),
                             stop0=p["stop0"], t1=max(p.get("hi", p["t1"]), last) if sw else p["t1"],
                             t2=max(p.get("hi", p["t2"]), last) if sw else p["t2"], half=p["half"] and not sw or sw,
                             days=(now.date() - dt.date.fromisoformat(p["opened"][:10])).days, setup=SETUP_KO.get(p["setup"], p["setup"]),
@@ -2081,8 +2369,10 @@ PUBLIC_EN = {
     "desk": ("Alpha", "Multi-strategy desk", "Five published strategies at 20% each (trend following, volatility targeting, 12-month momentum, Minervini trend template, gap pivots), idle cash in T-bills. "
                                             "The same signals and order rules also run on an Alpaca paper account."),
     "scalp": ("Flash", "10-minute dip buyer", "Decides every 10 minutes. Buys a stock that is up on the day and drops sharply in 10 minutes on 3x volume, while SPY is above VWAP. Re-checks every 10 minutes, flat by 15:50 ET."),
+    "mrna": ("Mona", "MRNA specialist", "Trades Moderna only, with the whole account. Above the 50-day average it follows intraday breakouts beyond the usual range; "
+                                        "below it, it rests limit orders under sharp drops and sells the bounce. Prices are checked every few seconds. This rule did not pass validation."),
 }
-SETUP_EN = {"MOM": "Momentum", "BRK": "Breakout", "PB": "Pullback", "TP": "Trend bounce", "DESK": "Desk rebalance", "DIP10": "10-min dip"}
+SETUP_EN = {"MOM": "Momentum", "BRK": "Breakout", "PB": "Pullback", "TP": "Trend bounce", "DESK": "Desk rebalance", "DIP10": "10-min dip", "MTREND": "MRNA trend", "MFADE": "MRNA limit dip"}
 STATE_EN = {"휴장": "Market closed", "장 시작 전": "Before the open", "프리마켓": "Pre-market", "정규장": "Market open", "애프터마켓": "After hours", "장 마감": "Market closed"}
 
 
@@ -2217,6 +2507,7 @@ def main():
     except Exception:
         pass
     threading.Thread(target=E.run, daemon=True).start()
+    threading.Thread(target=E.fast_loop, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     if "--open" in sys.argv:
         threading.Timer(0.5, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
