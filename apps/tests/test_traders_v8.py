@@ -231,3 +231,169 @@ def test_small_virtual_account_gets_the_same_weights_as_the_alpaca_account():
         assert small[s] == pytest.approx(tgt[s], abs=0.0003) and big[s] == pytest.approx(tgt[s], abs=0.008)
     whole = {o["sym"] for o in D.plan(tgt, px, 20_000, {}, True, note=quiet)}
     assert "MU" not in whole  # 1주 단위로는 $20,000 계좌에서 작은 비중을 못 삼 — 소수점 주식이 필요한 이유
+
+
+# ── 모나: MRNA 전문 ──
+DAY = dt.date(2026, 11, 13)
+SNAP = dict(sym="MRNA", pdc=100.0, sma50d=90.0, last=100.0, t="2026-11-13T09:30:00-05:00", rvol=1.0, rs=0.0, atr_pct=0.05, gap=0.0, chg=0.0)
+
+
+def minute_bars(closes, vol=1000.0, lows=None, highs=None):
+    idx = pd.date_range("2026-11-13 09:30", periods=len(closes), freq="1min", tz=T.NY)
+    c = np.asarray(closes, float)
+    o = np.r_[c[0], c[:-1]]
+    return pd.DataFrame(dict(Open=o, High=np.maximum(o, c) if highs is None else highs, Low=np.minimum(o, c) if lows is None else lows,
+                             Close=c, Volume=vol), index=idx)
+
+
+def mona(mode, cash=20_000.0):
+    t = T.MrnaTrader("mrna", dict(cash=cash, day=dict(date=DAY.isoformat(), start=cash, trades=0, wins=0, losses=0, realized=0.0, mode=mode)))
+    t.hist, t.hist_day = dict(s1=0.001, move=np.full(390, 0.01)), DAY
+    T.LAST_SNAP["MRNA"] = SNAP
+    return t
+
+
+def at(minute):
+    return dt.datetime(2026, 11, 13, minute // 60, minute % 60, 20, tzinfo=T.NY)
+
+
+def test_view_uses_only_finished_minutes_and_fills_gaps():
+    df = minute_bars([100, 101, 102, 103, 104]).drop(pd.Timestamp("2026-11-13 09:32", tz=T.NY))
+    v = T.mrna_view(df, DAY, 574)  # 09:34 지금 → 09:33 봉까지만
+    assert v["b"] == 3 and list(v["C"]) == [100, 101, 101, 103] and v["o0"] == 100
+    assert T.mrna_view(df, DAY, 580) is None  # 3분 넘게 늦은 데이터
+
+
+def test_mona_picks_the_mode_from_the_50_day_average(data_dir):
+    df = minute_bars(np.full(12, 100.0))
+    for snap, want in ((SNAP, "trend"), (dict(SNAP, sma50d=110.0), "fade")):
+        t = mona(None)
+        del t.day["mode"]
+        t.step(at(582), {"MRNA": snap}, {"MRNA": df}, dict(score=50), {})
+        assert t.day["mode"] == want
+
+
+def test_mona_rests_a_limit_five_units_under_the_lower_of_vwap_and_last_close(data_dir):
+    t = mona("fade")
+    t.step(at(582), {"MRNA": SNAP}, {"MRNA": minute_bars(np.full(12, 100.0))}, dict(score=50), {})
+    lim = t.day["lim"]
+    assert lim["px"] == pytest.approx(100.0 - 5 * 100.0 * 0.001) and lim["bar"] == 12
+
+
+def test_mona_fills_the_limit_only_when_a_trade_prints_through_it(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    assert not t.on_price(99.5, at(582)) and not t.pos
+    assert t.on_price(99.4, at(582))
+    p = t.pos["MRNA"]
+    assert p["entry"] == 99.5 and p["tgt"] == pytest.approx(99.5 * 1.006) and p["stop"] == pytest.approx(99.5 * 0.984) and p["until"] == 72
+    assert t.day["lim"] is None and t.cash == pytest.approx(20_000 - p["shares"] * 99.5 - T.FEE)
+
+
+def test_mona_ignores_an_expired_limit(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    assert not t.on_price(99.0, at(584)) and not t.pos
+
+
+def test_mona_takes_profit_at_the_limit_price_without_slippage(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    t.on_price(99.4, at(582))
+    n, tgt = t.pos["MRNA"]["shares"], t.pos["MRNA"]["tgt"]
+    cash = t.cash
+    assert not t.on_price(tgt, at(585))  # 같으면 미체결
+    assert t.on_price(tgt + 0.3, at(586)) and not t.pos
+    assert t.cash == pytest.approx(cash + n * tgt - T.FEE)
+
+
+def test_mona_stops_out_at_the_market_with_slippage(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    t.on_price(99.4, at(582))
+    n, cash = t.pos["MRNA"]["shares"], t.cash
+    assert t.on_price(97.5, at(585)) and not t.pos
+    assert t.cash == pytest.approx(cash + n * 97.5 * (1 - T.SLIP) - T.FEE)
+
+
+def test_mona_falls_back_to_minute_bars_when_no_live_price_arrives(data_dir):
+    t = mona("fade")
+    flat = np.full(12, 100.0)
+    t.step(at(582), {"MRNA": SNAP}, {"MRNA": minute_bars(flat)}, dict(score=50), {})
+    dip = minute_bars(np.r_[flat, 99.8], lows=np.r_[flat, 99.2])  # 09:42 봉이 지정가 99.5 아래로 뚫음
+    t.step(at(583), {"MRNA": SNAP}, {"MRNA": dip}, dict(score=50), {})
+    assert t.pos["MRNA"]["entry"] == pytest.approx(99.5)
+    up = minute_bars(np.r_[flat, 99.8, 100.5], lows=np.r_[flat, 99.2, 99.8], highs=np.r_[flat, 100.0, 100.6])
+    t.step(at(584), {"MRNA": SNAP}, {"MRNA": up}, dict(score=50), {})
+    assert not t.pos and t.day["wins"] == 1
+
+
+def test_mona_time_exit_after_an_hour(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    t.on_price(99.4, at(582))
+    t.day["bar"] = 70
+    t.step(at(642), {"MRNA": dict(SNAP, last=99.6)}, {"MRNA": minute_bars(np.full(72, 99.6))}, dict(score=50), {})
+    assert not t.pos
+
+
+def test_mona_trend_mode_buys_above_the_band_and_sells_below_the_line(data_dir):
+    t = mona("trend")
+    rise = np.r_[np.full(10, 100.0), np.linspace(100.2, 102.0, 10)]  # 09:49 종가 102 > 상단 101
+    t.step(at(590), {"MRNA": dict(SNAP, last=102.0)}, {"MRNA": minute_bars(rise)}, dict(score=50), {})
+    assert t.pos["MRNA"]["setup"] == "MTREND" and t.pos["MRNA"]["tgt"] is None and t.day["chk"] == 19
+    assert not t.on_price(50.0, at(591))  # 추세 모드는 실시간 손절·익절 없음
+    hold = np.r_[rise, np.full(14, 102.0)]
+    t.step(at(604), {"MRNA": dict(SNAP, last=102.0)}, {"MRNA": minute_bars(hold)}, dict(score=50), {})
+    assert "MRNA" in t.pos  # 아직 판단 시각 아님
+    fall = np.r_[hold, 100.5]  # 10:04 종가 100.5 < 청산선
+    t.step(at(605), {"MRNA": dict(SNAP, last=100.5)}, {"MRNA": minute_bars(fall)}, dict(score=50), {})
+    assert not t.pos and t.day["chk"] == 34
+
+
+def test_mona_trend_mode_does_not_buy_inside_the_usual_range(data_dir):
+    t = mona("trend")
+    t.step(at(590), {"MRNA": dict(SNAP, last=100.5)}, {"MRNA": minute_bars(np.linspace(100.0, 100.5, 20))}, dict(score=50), {})
+    assert not t.pos and t.day["chk"] == 19
+
+
+def test_mona_is_flat_ten_minutes_before_the_close(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    t.on_price(99.4, at(582))
+    t.step(at(950), {"MRNA": dict(SNAP, last=99.9)}, {"MRNA": minute_bars(np.full(380, 99.9))}, dict(score=50), {})
+    assert not t.pos and not t.day["lim"] and not t.wants_ticks()
+
+
+def test_mona_waits_fifteen_seconds_before_trusting_a_finished_bar(data_dir):
+    t = mona("fade")
+    early = dt.datetime(2026, 11, 13, 9, 42, 5, tzinfo=T.NY)
+    t.step(early, {"MRNA": SNAP}, {"MRNA": minute_bars(np.full(12, 100.0))}, dict(score=50), {})
+    assert t.day["lim"]["bar"] == 11  # 09:41 봉은 아직 덜 끝난 것으로 봄 → 09:40 봉 기준
+
+
+def test_mona_ignores_trades_printed_before_the_limit_was_placed_or_on_another_day(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, at=at(582).isoformat(), why="테스트")
+    assert not t.on_price(99.0, at(582).replace(second=10)) and not t.pos
+    assert not t.on_price(99.0, at(582).replace(day=14, second=40)) and not t.pos
+    assert t.on_price(99.0, at(582).replace(second=40))
+
+
+def test_mona_does_not_rest_a_new_limit_in_the_minute_of_a_time_exit(data_dir):
+    t = mona("fade")
+    t.day["lim"] = dict(px=99.5, bar=12, why="테스트")
+    t.on_price(99.4, at(582))
+    t.day["bar"] = 70
+    t.step(at(642), {"MRNA": dict(SNAP, last=99.6)}, {"MRNA": minute_bars(np.full(72, 99.6))}, dict(score=50), {})
+    assert not t.pos and not t.day["lim"]
+
+
+def test_mona_closes_a_position_it_can_no_longer_manage(data_dir):
+    t = mona("trend")
+    rise = np.r_[np.full(10, 100.0), np.linspace(100.2, 102.0, 10)]
+    t.step(at(590), {"MRNA": dict(SNAP, last=102.0)}, {"MRNA": minute_bars(rise)}, dict(score=50), {})
+    assert t.pos
+    t.hist, t.hist_day, t.hist_try = {}, None, 1e18  # 재시작 뒤 기준값을 못 받은 상황
+    t.step(at(591), {"MRNA": dict(SNAP, last=102.0)}, {"MRNA": minute_bars(np.r_[rise, 102.0])}, dict(score=50), {})
+    assert not t.pos
