@@ -19,7 +19,14 @@
 초 단위 (`ticks`로 IEX 체결 315만 건을 받아 체결 한 건마다 판단, 576개) — 세 기간 모두 플러스 0개
   급락 받기(fade): 시장가 비용을 0으로 봐도 전부 마이너스 — 지정가를 뚫는 체결이 나오면 대개 더 내려감.
   급등 추종(mom): 비용이 없으면 42개가 세 기간 모두 플러스지만, 왕복 0.12% 비용을 넣으면 하루 1건 이상인 설정은 기간마다 −12~−60%.
-  사용자가 "둘 다 돌려서 비교"를 골라, 하루 1건 이상인 설정 중 학습 1등(LIVE_TICK: 학습 −36% · 확인 −12% · 시험 −31%)을 '틱'으로 돌림.
+  사용자가 "둘 다 돌려서 비교"를 골라, 하루 1건 이상인 설정 중 학습 1등(OLD_TICK: 학습 −36% · 확인 −12% · 시험 −31%)을 '틱'으로 돌림.
+
+강화 (2026-11-15, 매수만·당일 정리 조건 유지)
+  급등 추종 + 길게 가져가기 432개(run_main): 익절선을 없애고 손절·마감으로만 청산. 세 기간 모두 플러스 24개 — 전부 '평균 이탈 청산 없음', 대부분 급등 기준 4배.
+    하루 0.1건 이상 중 학습 1등 = LIVE_TICK(W=180·k=4·손절 6배·시한 없음): 학습 +41% · 확인 +4% · 시험 +20%, 122건(주 1회꼴), 낙폭 −20~−23%.
+    고르는 기준(최소 거래 빈도)을 0.05건이나 0.2건으로 바꾸면 다른 설정이 뽑히고 확인에서 마이너스 — 튼튼하다고 하긴 이름. 틱에 적용.
+  머신러닝(ml_main): 신호 46개(MRNA·일봉 상태·SPY/QQQ/XBI/BNTX/NVAX/PFE·체결 쏠림)로 15·60·180분 뒤 수익률 예측 — 학습 밖 예측력 상관이 0 근처·음수, 탈락.
+  모나에 급등 추종을 결합(강세일에만 등): 확인 기간 마이너스, 탈락. 모나는 그대로.
 """
 from __future__ import annotations
 
@@ -429,11 +436,12 @@ class Ticks:
         return self._ref[i, W]
 
 
-def tick_run(tk: Ticks, mode="fade", W=60, k=2.0, tp=2.0, st=4.0, hold=300, filt="none", cost=None):
+def tick_run(tk: Ticks, mode="fade", W=60, k=2.0, tp=2.0, st=4.0, hold=300, filt="none", cost=None, trail=None, xref=False):
     """초 단위 규칙. 단위 u = 가격 × 평소 1분 변동폭 × √(W/60).
     fade: 가격이 '최근 W초 평균 − k·u' 아래로 뚫고 내려가는 체결이 나오면 그 선에 걸어 둔 지정가가 체결된 것으로 봄 (수수료만).
     mom:  가격이 '최근 W초 평균 + k·u' 위로 뚫고 올라가면 다음 체결가에 시장가 매수 (스프레드 포함).
-    청산: 익절 지정가(+tp·u, 수수료만) · 손절(−st·u, 시장가) · hold초 지나면 시장가 · 15:50 전량 정리. 직전 체결과 10초 넘게 벌어진 신호는 버림."""
+    청산: 익절 지정가(+tp·u, 수수료만) · 손절(−st·u, 시장가) · hold초 지나면 시장가 · 15:50 전량 정리. 직전 체결과 10초 넘게 벌어진 신호는 버림.
+    길게 가져가기(v11): tp=None(익절선 없음) · hold=None(시한 없음) · trail = 진입 후 고점에서 trail·u 내려오면 청산 · xref = 가격이 W초 평균 아래로 내려오면 청산."""
     d = tk.d
     fee = T.FEE / T.START_CASH
     day_r, day_n, rets = np.zeros(len(d.days)), np.zeros(len(d.days)), []
@@ -461,9 +469,15 @@ def tick_run(tk: Ticks, mode="fade", W=60, k=2.0, tp=2.0, st=4.0, hold=300, filt
                 e, px = j + 1, p[j + 1]
                 c_in = c[int(t[e] // 60)]
             u = px * u1
-            last = min(end_i, int(np.searchsorted(t, t[e] + hold)))
+            last = min(end_i, int(np.searchsorted(t, t[e] + hold))) if hold else end_i
             seg = p[e + 1:last]
-            hs, ht = np.flatnonzero(seg <= px - st * u), np.flatnonzero(seg > px + tp * u)
+            line = np.full(len(seg), px - st * u)
+            if trail and len(seg):
+                line = np.maximum(line, np.r_[px, np.maximum.accumulate(seg)[:-1]] - trail * u)  # 직전 체결까지의 고점 기준
+            bad = seg <= line
+            if xref:
+                bad |= seg < ref[e + 1:last]
+            hs, ht = np.flatnonzero(bad), (np.flatnonzero(seg > px + tp * u) if tp else np.array([], int))
             a, b = (hs[0] if len(hs) else 10 ** 9), (ht[0] if len(ht) else 10 ** 9)
             if a < b:
                 x = e + 1 + a
@@ -483,10 +497,39 @@ def tick_run(tk: Ticks, mode="fade", W=60, k=2.0, tp=2.0, st=4.0, hold=300, filt
     return day_r, day_n, np.array(rets)
 
 
-LIVE_TICK = dict(mode="mom", W=180, k=2.0, tp=4.0, st=3.0, hold=600, filt="up")  # traders.py의 틱 — 하루 1건 이상인 설정 중 학습 샤프 1등 (그래도 마이너스)
+OLD_TICK = dict(mode="mom", W=180, k=2.0, tp=4.0, st=3.0, hold=600, filt="up")  # v10의 틱 — 하루 1건 이상인 설정 중 학습 샤프 1등 (그래도 마이너스)
+LIVE_TICK = dict(mode="mom", W=180, k=4.0, tp=None, st=6.0, hold=None, filt="none")  # v11의 틱 — run_main: 하루 0.1건 이상인 설정 중 학습 샤프 1등
 
 TICK_GRID = [dict(mode=mo, W=W, k=k, tp=tp, st=st, hold=h, filt=f) for mo, W, k, tp, st, h, f in itertools.product(
     ("fade", "mom"), (30, 60, 180, 600), (1.5, 2.0, 3.0), (1.0, 2.0, 4.0), (3.0, 6.0), (120, 600), ("none", "up"))]
+
+
+RUN_GRID = [dict(mode="mom", W=W, k=k, tp=None, st=st, trail=tr, hold=h, xref=x, filt=f) for W, k, st, tr, h, x, f in itertools.product(
+    (180, 600, 1800), (2.0, 3.0, 4.0), (3.0, 6.0), (None, 4.0, 8.0), (None, 1800), (False, True), ("up", "none"))]
+
+
+def run_main(d: Data, tk: Ticks | None = None) -> list:
+    """급등 추종 + 길게 가져가기 (v11 강화 시도): 익절선을 없애고 추적 손절·평균 이탈·마감으로만 청산."""
+    tk = tk or Ticks(d)
+    rows = []
+    for g in RUN_GRID:
+        r, n, tr = tick_run(tk, **g)
+        r0, _, _ = tick_run(tk, **g, cost=0.0)
+        rows.append(dict(p=g, win=float((tr > 0).mean()) if len(tr) else 0, avg=float(tr.mean()) if len(tr) else 0, n=len(tr),
+                         **{k: stats(r, n, m) for k, m in d.mask.items()}, **{k + "_0": stats(r0, n, m) for k, m in d.mask.items()}))
+    show = lambda w: print(f"  {({k: v for k, v in w['p'].items() if k not in ('mode', 'tp')})}  {w['n']}건 승률 {w['win'] * 100:.0f}% 평균 {w['avg'] * 1e4:+.0f}bp\n     " + " | ".join(
+        f"{k} {w[k]['ret'] * 100:+6.1f}% S{w[k]['sharpe']:+.2f} 낙폭{w[k]['dd'] * 100:4.0f}% {w[k]['tpd']:.2f}건/일 (비용0 {w[k + '_0']['ret'] * 100:+.0f}%)" for k in PERIODS))
+    allp = [w for w in rows if all(w[k]["ret"] > 0 for k in PERIODS)]
+    print(f"\n[초 단위 급등 추종 + 길게 가져가기] 설정 {len(rows)}개 — 학습 플러스 {sum(w['학습']['ret'] > 0 for w in rows)}개 · 학습·확인 플러스 "
+          f"{sum(w['학습']['ret'] > 0 and w['확인']['ret'] > 0 for w in rows)}개 · 세 기간 모두 플러스 {len(allp)}개")
+    for name, key in (("W", "W"), ("k", "k"), ("평균 이탈 청산", "xref"), ("추적 손절", "trail"), ("필터", "filt"), ("시한", "hold")):
+        vals = sorted({str(w["p"][key]) for w in rows})
+        print(f"  {name}: " + " · ".join(f"{v} → 세 기간 모두 플러스 {sum(str(w['p'][key]) == v for w in allp)}/{sum(str(w['p'][key]) == v for w in rows)}" for v in vals))
+    for thr in (0.1, 0.2):
+        print(f"■ 하루 {thr}건 이상 매매하는 설정 중 학습 샤프 상위" + (" (틱을 고른 기준 — 1등이 LIVE_TICK)" if thr == 0.1 else " (기준을 올리면 다른 설정이 뽑히고 확인에서 마이너스)"))
+        for w in sorted([w for w in rows if w["학습"]["tpd"] >= thr], key=lambda w: -w["학습"]["sharpe"])[:4]:
+            show(w)
+    return rows
 
 
 def tick_main(d: Data) -> list:
@@ -510,6 +553,162 @@ def tick_main(d: Data) -> list:
         for w in sorted(rs, key=lambda w: -w["학습"]["sharpe"])[:6]:
             show(w)
     return rows
+
+
+# ───────────────────────── 머신러닝 (v11 강화 시도) ─────────────────────────
+PEERS = ("SPY", "QQQ", "XBI", "BNTX", "NVAX", "PFE")
+
+
+def features(d: Data, tk: Ticks | None = None) -> tuple[np.ndarray, list]:
+    """매 1분 종가 시점의 신호들 (날짜 × 390 × 신호). 전부 그 시각까지의 정보만: MRNA 자체(여러 구간 수익률·VWAP·고저점·거래량·변동성),
+    일봉 상태(20·50일선, 갭, 전일·5일 수익률), 시장·섹터·동종 종목(SPY·QQQ·XBI·BNTX·NVAX·PFE)의 움직임, IEX 체결의 매수·매도 쏠림."""
+    C, O, H, L, V, s1 = d.C, d.O, d.H, d.L, d.V, d.s1[:, None]
+    F, names = [], []
+
+    def add(n, x):
+        names.append(n)
+        F.append(np.clip(np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0), -20, 20))
+
+    def back(X, n):  # n분 전 값 (그날 안에서만, 모자라면 시가)
+        out = np.repeat(X[:, :1], X.shape[1], axis=1) if X is not O else None
+        Y = np.empty_like(X)
+        Y[:, n:] = X[:, :-n]
+        Y[:, :n] = O[:, :1] if X is C else X[:, :1]
+        return Y
+
+    for n in (1, 3, 5, 15, 30, 60):
+        add(f"r{n}", (C / back(C, n) - 1) / (s1 * np.sqrt(n)))
+    tt = np.arange(NB)[None, :] + 1
+    add("r_open", (C / O[:, :1] - 1) / (s1 * np.sqrt(tt)))
+    add("r_pc", (C / d.PC[:, None] - 1) / (s1 * np.sqrt(390)))
+    add("gap", (O[:, :1] / d.PC[:, None] - 1) / (s1 * np.sqrt(390)) + 0 * C)
+    add("vwap", (C / d.VW - 1) / (s1 * np.sqrt(tt)))
+    hi, lo = np.maximum.accumulate(H, 1), np.minimum.accumulate(L, 1)
+    add("to_hi", (C / hi - 1) / (s1 * np.sqrt(tt)))
+    add("to_lo", (C / lo - 1) / (s1 * np.sqrt(tt)))
+    add("pos", (C - lo) / np.where(hi > lo, hi - lo, 1))
+    add("rv1", np.log(np.clip(d.RV1, 0.05, 20)))
+    add("rv5", np.log(np.clip(d.RV5, 0.05, 20)))
+    lr = np.c_[np.zeros(len(C)), np.diff(np.log(C), axis=1)]
+    add("vol15", pd.DataFrame(lr.T).rolling(15, min_periods=3).std().to_numpy().T / s1)
+    add("ema", (d.E9 / d.E20 - 1) / s1)
+    add("tod", tt / NB + 0 * C)
+    dc = pd.Series(d.C[:, -1])
+    for n in (20, 50):
+        add(f"ma{n}", (d.PC / dc.rolling(n).mean().shift(1).to_numpy() - 1)[:, None] + 0 * C)
+    add("ret_d1", (dc.shift(1) / dc.shift(2) - 1).to_numpy()[:, None] + 0 * C)
+    add("ret_d5", (dc.shift(1) / dc.shift(6) - 1).to_numpy()[:, None] + 0 * C)
+    add("s1", np.log(s1 * 1e4) + 0 * C)
+    raw = pickle.load(open(FILE, "rb"))["bars"] | pickle.load(open(LAB / "mrna_peers_1m.pkl", "rb"))
+    ix = {day: i for i, day in enumerate(d.days)}
+    for sym in PEERS:
+        df = raw[sym]
+        A = np.full(C.shape, np.nan)
+        di, bi = np.array([ix.get(x, -1) for x in df.index.date]), T.mins(df.index) - 570
+        A[di[di >= 0], bi[di >= 0]] = df["Close"].to_numpy()[di >= 0]
+        A = pd.DataFrame(A.T).ffill().to_numpy().T  # 그날 첫 체결 전 분은 비워 둠 (미래 가격으로 메우지 않음)
+        o0 = np.nanmax(np.where(np.cumsum(~np.isnan(A), 1) == 1, A, np.nan), 1)[:, None]  # 그날 첫 값
+        for n in (5, 15):
+            B = np.empty_like(A)
+            B[:, n:], B[:, :n] = A[:, :-n], o0
+            add(f"{sym}_r{n}", (A / B - 1) * 100)
+        add(f"{sym}_open", (A / o0 - 1) * 100)
+        if sym == "XBI":
+            add("rel_xbi", ((C / O[:, :1] - 1) - (A / o0 - 1)) / (s1 * np.sqrt(tt)))
+    if tk is not None:  # 체결 방향 쏠림: 직전 체결보다 높게 체결된 수량 − 낮게 체결된 수량 (IEX)
+        raw_t = pickle.load(open(TICKS, "rb"))
+        imb, cnt = np.zeros(C.shape), np.zeros(C.shape)
+        for i, day in enumerate(d.days):
+            x = raw_t.get(day)
+            if x is None or len(x) < 50:
+                continue
+            sg = np.sign(np.r_[0, np.diff(x[:, 1])])
+            b = np.minimum((x[:, 0] // 60).astype(int), NB - 1)
+            np.add.at(imb[i], b, sg * x[:, 2])
+            np.add.at(cnt[i], b, 1)
+        for n in (1, 5, 15):
+            num = pd.DataFrame(imb.T).rolling(n, min_periods=1).sum().to_numpy().T
+            den = pd.DataFrame(np.abs(imb).T).rolling(n, min_periods=1).sum().to_numpy().T
+            add(f"imb{n}", num / np.where(den > 0, den, 1))
+        add("ticks5", np.log1p(pd.DataFrame(cnt.T).rolling(5, min_periods=1).sum().to_numpy().T))
+    return np.stack(F, -1), names
+
+
+def ml_trade(d: Data, pred: np.ndarray, H: int, th: float, cost=None):
+    """예측 수익률이 th를 넘으면 다음 1분 시가에 사서 H분 뒤(또는 15:50) 시가에 팖. 한 번에 한 포지션."""
+    c = d.cost if cost is None else np.full(NB, cost)
+    day_r, day_n = np.zeros(len(d.days)), np.zeros(len(d.days))
+    sig = (pred > th) & d.ok[:, None]
+    sig[:, :5] = False
+    sig[:, 360:] = False
+    for i in np.flatnonzero(sig.any(1)):
+        free, eq = 0, 1.0
+        for t in np.flatnonzero(sig[i]):
+            e = t + 1
+            if e < free:
+                continue
+            x = min(e + H, 380)
+            eq *= d.O[i, x] / d.O[i, e] * (1 - c[x]) / (1 + c[e])
+            day_n[i] += 1
+            free = x
+        day_r[i] = eq - 1
+    return day_r, day_n
+
+
+def ml_main(d: Data):
+    """학습 기간(24.01~25.06)만으로 모델을 맞추고(그 안의 마지막 20%로 조기 종료와 문턱 선택), 확인·시험 기간에 그대로 적용.
+    모델: 얕은 그래디언트 부스팅(잎당 최소 500개, 강한 규제)과 릿지 회귀. 목표: 다음 1분 시가 → H분 뒤 시가 수익률."""
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    from sklearn.linear_model import Ridge
+    X, names = features(d, Ticks(d))
+    tr_days = np.flatnonzero(d.mask["학습"] & d.ok)
+    cut = int(len(tr_days) * 0.8)
+    fit_d, val_d = tr_days[:cut], tr_days[cut:]
+    val_mask = np.zeros(len(d.days), bool)
+    val_mask[val_d] = True
+    print(f"\n[머신러닝] 신호 {len(names)}개 · 학습 {len(fit_d)}일 + 문턱 선택 {len(val_d)}일 · 확인·시험은 손대지 않음")
+    out = {}
+    for H in (15, 60, 180):
+        Y = np.full(d.C.shape, np.nan)
+        Y[:, :NB - 1 - H] = d.O[:, 1 + H:] / d.O[:, 1:NB - H] - 1
+        Y[:, 300:] = np.nan
+        flat = lambda days: (X[days, 5:360].reshape(-1, X.shape[-1]), Y[days, 5:360].reshape(-1))
+        xa, ya = flat(fit_d)
+        g = ~np.isnan(ya)
+        lo_, hi_ = np.quantile(ya[g], [0.005, 0.995])
+        for kind in ("boost", "ridge"):
+            if kind == "boost":
+                m = HistGradientBoostingRegressor(max_iter=200, learning_rate=0.03, max_leaf_nodes=8, min_samples_leaf=500, l2_regularization=10.0,
+                                                  early_stopping=False, random_state=0)
+            else:
+                m = Ridge(alpha=1000.0)
+            m.fit(xa[g], np.clip(ya[g], lo_, hi_))
+            pred = m.predict(X.reshape(-1, X.shape[-1])).reshape(d.C.shape)
+            xv, yv = flat(val_d)
+            gv = ~np.isnan(yv)
+            def corr(mk):  # 목표가 없는 칸(장 끝 무렵)은 빼고 계산
+                a_, b_ = pred[np.flatnonzero(mk & d.ok)][:, 5:300].ravel(), Y[np.flatnonzero(mk & d.ok)][:, 5:300].ravel()
+                ok_ = ~np.isnan(b_)
+                return float(np.corrcoef(a_[ok_], b_[ok_])[0, 1])
+            ic = {k: corr(mk) for k, mk in (("문턱", val_mask), ("확인", d.mask["확인"]), ("시험", d.mask["시험"]))}
+            best = None
+            for th in (0.0006, 0.0012, 0.002, 0.003, 0.005):
+                r, n = ml_trade(d, pred, H, th)
+                sv = stats(r, n, val_mask)
+                if sv["tpd"] >= 0.1 and (best is None or sv["sharpe"] > best[1]["sharpe"]):
+                    best = (th, sv)
+            if best is None:
+                print(f"  {kind} H={H}: 문턱을 넘는 예측이 거의 없음 (예측력 상관 " + " ".join(f"{k} {v:+.3f}" for k, v in ic.items()) + ")")
+                continue
+            r, n = ml_trade(d, pred, H, best[0])
+            r0, _ = ml_trade(d, pred, H, best[0], cost=0.0)
+            res = {k: stats(r, n, mk) for k, mk in d.mask.items()}
+            out[f"{kind}_{H}"] = dict(th=best[0], val=best[1], ic=ic, **res)
+            print(f"  {kind:5s} H={H:3d}분 문턱 {best[0] * 100:.2f}% · 예측력 상관 " + " ".join(f"{k} {v:+.3f}" for k, v in ic.items())
+                  + f"\n     문턱 선택 구간 {best[1]['ret'] * 100:+.1f}% S{best[1]['sharpe']:+.2f} | "
+                  + " | ".join(f"{k} {res[k]['ret'] * 100:+6.1f}% S{res[k]['sharpe']:+.2f} 낙폭{res[k]['dd'] * 100:4.0f}% {res[k]['tpd']:.1f}건/일 (비용0 {stats(r0, n, d.mask[k])['ret'] * 100:+.0f}%)"
+                               for k in ("확인", "시험")))
+    return out
 
 
 def stats(r: np.ndarray, n: np.ndarray, m: np.ndarray) -> dict:
@@ -572,6 +771,9 @@ def main():
     regime_main(d)
     if TICKS.exists():
         (LAB / "mrna_tick_result.json").write_text(json.dumps(tick_main(d), ensure_ascii=False, default=float))
+        (LAB / "mrna_run_result.json").write_text(json.dumps(run_main(d), ensure_ascii=False, default=float))
+        if (LAB / "mrna_peers_1m.pkl").exists():
+            ml_main(d)
     (LAB / "mrna_result.json").write_text(json.dumps(dict(rows=rows, limit=lim, trend=trd), ensure_ascii=False, default=float))
 
 
