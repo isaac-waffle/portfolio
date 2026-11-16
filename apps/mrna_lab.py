@@ -2,6 +2,7 @@
 
   .venv/bin/python apps/mrna_lab.py fetch     # Alpaca에서 MRNA·SPY 1분봉(2024-01~)과 호가 표본을 받아 journal/traders/lab/mrna_1m.pkl
   .venv/bin/python apps/mrna_lab.py ticks     # 초 단위 규칙용: MRNA의 IEX 체결 내역 전부 → journal/traders/lab/mrna_ticks.pkl
+  .venv/bin/python apps/mrna_lab.py rebound   # 내릴 때 사서 반등에 파는 규칙만 → journal/traders/lab/mrna_rebound_result.json
   .venv/bin/python apps/mrna_lab.py           # 규칙 검증 → 표 + journal/traders/lab/mrna_result.json
 
 데이터: Alpaca 전체 시장(SIP) 1분봉, 정규장만. 호가 표본으로 실제 매수·매도 호가 차이(스프레드)를 재서 비용으로 씀.
@@ -27,6 +28,12 @@
     고르는 기준(최소 거래 빈도)을 0.05건이나 0.2건으로 바꾸면 다른 설정이 뽑히고 확인에서 마이너스 — 튼튼하다고 하긴 이름. 틱에 적용.
   머신러닝(ml_main): 신호 46개(MRNA·일봉 상태·SPY/QQQ/XBI/BNTX/NVAX/PFE·체결 쏠림)로 15·60·180분 뒤 수익률 예측 — 학습 밖 예측력 상관이 0 근처·음수, 탈락.
   모나에 급등 추종을 결합(강세일에만 등): 확인 기간 마이너스, 탈락. 모나는 그대로.
+
+내릴 때 사서 반등에 팔기 (2026-11-17, `rebound`) — 사용자 요청("내릴 때도 다시 오를 수 있잖아"). 864개, 통과 0개
+  평소보다 많이 내렸을 때(하단 밴드 아래) 바로 사거나(knife) 돌아서는 걸 보고 사서(turn), VWAP 복귀·익절·손절·마감에 청산. 50일선 위/아래/전체로 나눠 봄.
+  학습·확인 둘 다 플러스 0개. 비용을 0으로 봐도 세 기간 모두 플러스 0개 — 비용 문제가 아니라 반등 자체가 없음.
+  직접 세어 봐도 같음: 14:00에 전일 대비 −3% 이하였던 121일, 그 뒤 마감까지 오른 날 43~51%(동전 던지기), 평균 −0.2~+0.3%로 왕복 비용 0.12% 안쪽.
+  → 모나·틱에 적용 안 함. 같은 계열을 근거 없이 다시 돌리지 말 것.
 """
 from __future__ import annotations
 
@@ -711,6 +718,86 @@ def ml_main(d: Data):
     return out
 
 
+# ───────────────────────── 내릴 때 사서 반등에 팔기 (2026-11-17) ─────────────────────────
+def rebound_run(d: Data, k=1.0, step=15, entry="turn", stop=3.0, tp=None, vwap=True, regime="all", nmax=2, start=5, last=330, cost=None):
+    """추세 추종(trend_run)의 거울상 — 평소보다 많이 내렸을 때 사서 반등에 팖. 롱만, 15:50 전량 정리.
+    하단 = min(오늘 시가, 전일 종가) × (1 − k × 평소 이 시각까지의 시가 대비 변동폭).
+    entry: knife = step분마다 종가가 하단 아래면 바로 삼 · turn = 하단 아래로 내려간 적이 있고, 직전 step분이 양봉으로 돌아섰을 때 삼(아직 VWAP 아래).
+    청산: 손절(진입가 − stop × 평소 1시간 변동폭, 봉 안 저가로 확인) · 익절(+tp × 1시간 변동폭) · vwap이면 step분마다 종가가 VWAP 위면 매도 · 마감.
+    regime: all / up(전일 종가 > 50일선) / down."""
+    C, O, H, L = d.C, d.O, d.H, d.L
+    c = d.cost if cost is None else np.full(NB, cost)
+    move = pd.DataFrame(np.abs(C / O[:, :1] - 1)).rolling(14, min_periods=7).mean().shift(1).to_numpy()
+    lower = np.fmin(O[:, :1], d.PC[:, None]) * (1 - k * move)
+    ma = pd.Series(C[:, -1]).rolling(50).mean().shift(1).to_numpy()
+    up = np.where(np.isnan(ma), False, d.PC > ma)
+    okd = d.ok & ~np.isnan(move[:, 0]) & {"all": np.ones(len(up), bool), "up": up, "down": ~up & ~np.isnan(ma)}[regime]
+    day_r, day_n, rets = np.zeros(len(d.days)), np.zeros(len(d.days)), []
+    checks = list(range(start + step - 1, 380, step))
+    for i in np.flatnonzero(okd):
+        if not (C[i, checks] < lower[i, checks]).any():
+            continue
+        eq, n, armed, free = 1.0, 0, False, 0
+        for t in checks:
+            if t < free or t >= last or n >= nmax:
+                continue
+            under = C[i, t] < lower[i, t]
+            go = under if entry == "knife" else (armed and C[i, t] > C[i, t - step] and C[i, t] < d.VW[i, t])
+            armed = armed or under
+            if not go:
+                continue
+            e = t + 1
+            px = O[i, e]
+            uh = px * d.s1[i] * np.sqrt(60)
+            x, out = 380, O[i, 380]
+            sl = px - stop * uh if stop else -1.0
+            tg = px + tp * uh if tp else np.inf
+            for j in range(e, 380):
+                if L[i, j] <= sl:
+                    x, out = j, min(O[i, j], sl)
+                    break
+                if H[i, j] >= tg and j > e:
+                    x, out = j, max(O[i, j], tg)
+                    break
+                if vwap and j in checks and j > e and C[i, j] > d.VW[i, j]:
+                    x, out = j + 1, O[i, j + 1]
+                    break
+            r = out / px * (1 - c[min(x, NB - 1)]) / (1 + c[e]) - 1
+            eq *= 1 + r
+            rets.append(r)
+            n += 1
+            armed, free = False, x + 1
+        day_r[i], day_n[i] = eq - 1, n
+    return day_r, day_n, np.array(rets)
+
+
+REBOUND_GRID = [dict(k=k, step=st, entry=en, stop=sl, tp=tp, vwap=vw, regime=rg) for k, st, en, sl, tp, vw, rg in itertools.product(
+    (0.5, 1.0, 1.5, 2.0), (5, 15), ("knife", "turn"), (1.5, 3.0, None), (None, 1.5, 3.0), (False, True), ("all", "up", "down"))]
+
+
+def rebound_main(d: Data) -> list:
+    rows = []
+    for g in REBOUND_GRID:
+        r, n, tr = rebound_run(d, **g)
+        r0, _, _ = rebound_run(d, **g, cost=0.0)
+        rows.append(dict(p=g, win=float((tr > 0).mean()) if len(tr) else 0, avg=float(tr.mean()) if len(tr) else 0, n=len(tr),
+                         **{k: stats(r, n, m) for k, m in d.mask.items()}, **{k + "_0": stats(r0, n, m) for k, m in d.mask.items()}))
+
+    def show(w):
+        print(f"  {w['p']}  {w['n']}건 승률 {w['win'] * 100:.0f}% 평균 {w['avg'] * 1e4:+.0f}bp\n     " + " | ".join(
+            f"{k} {w[k]['ret'] * 100:+6.1f}% S{w[k]['sharpe']:+.2f} 낙폭{w[k]['dd'] * 100:4.0f}% {w[k]['tpd']:.2f}건/일 (비용0 {w[k + '_0']['ret'] * 100:+.0f}%)" for k in PERIODS))
+
+    for rg in ("all", "up", "down"):
+        rs = [w for w in rows if w["p"]["regime"] == rg and w["학습"]["tpd"] >= 0.05]
+        both = [w for w in rs if w["학습"]["ret"] > 0 and w["확인"]["ret"] > 0]
+        print(f"\n[내릴 때 사기 · {rg}] 설정 {len(rs)}개 — 학습 플러스 {np.mean([w['학습']['ret'] > 0 for w in rs]) * 100:.0f}% · 확인 플러스 {np.mean([w['확인']['ret'] > 0 for w in rs]) * 100:.0f}% · "
+              f"시험 플러스 {np.mean([w['시험']['ret'] > 0 for w in rs]) * 100:.0f}% · 학습·확인 둘 다 플러스 {len(both)}개, 그중 시험도 플러스 {sum(w['시험']['ret'] > 0 for w in both)}개 · "
+              f"비용 0이면 세 기간 모두 플러스 {sum(all(w[k + '_0']['ret'] > 0 for k in PERIODS) for w in rs)}개")
+        for w in sorted(rs, key=lambda w: -w["학습"]["sharpe"])[:5]:
+            show(w)
+    return rows
+
+
 def stats(r: np.ndarray, n: np.ndarray, m: np.ndarray) -> dict:
     x = r[m]
     eq = np.cumprod(1 + x)
@@ -778,4 +865,7 @@ def main():
 
 
 if __name__ == "__main__":
-    fetch() if sys.argv[1:] == ["fetch"] else fetch_ticks() if sys.argv[1:] == ["ticks"] else main()
+    if sys.argv[1:] == ["rebound"]:
+        (LAB / "mrna_rebound_result.json").write_text(json.dumps(rebound_main(Data()), ensure_ascii=False, default=float))
+    else:
+        fetch() if sys.argv[1:] == ["fetch"] else fetch_ticks() if sys.argv[1:] == ["ticks"] else main()
