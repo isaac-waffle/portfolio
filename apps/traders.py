@@ -47,6 +47,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 
+import traders_context as ctx_mod
 import traders_news as news_mod
 
 
@@ -180,6 +181,22 @@ TRADERS = {
 }
 
 LOCK = threading.RLock()
+CONTEXT: ctx_mod.ContextBook | None = None  # 종목별 주변 정보(의견·목표가·실적·옵션·공매도·계절성) — 엔진이 채움. 참고용, 매매 규칙엔 안 들어감
+
+
+def ctx_note(sym: str) -> str:
+    """트레이더 설명 끝에 붙는 주변 정보 한 줄 (없으면 빈 문자열)."""
+    line = ctx_mod.line(CONTEXT.get(sym), now_ny().date()) if CONTEXT else ""
+    return f" 참고({sym}) — {line}." if line else ""
+
+
+def earn_soon(syms, days: int = 7) -> str:
+    """보유 종목 중 실적 발표가 days일 안에 있는 것."""
+    if not CONTEXT:
+        return ""
+    today = now_ny().date()
+    hit = [(s, d) for s in syms if (d := ctx_mod.earn_days(CONTEXT.get(s), today)) is not None and d <= days]
+    return "\n실적 발표 임박: " + ", ".join(f"{s}({d}일 뒤)" for s, d in sorted(hit, key=lambda x: x[1])) + " — 발표 다음 날 갭이 클 수 있어." if hit else ""
 LIVE: dict = {}  # 화면용 스냅샷 (엔진 스레드가 매 틱 갱신)
 
 
@@ -1193,7 +1210,7 @@ class SwingTrader(Trader):
             self.log("decide", f"{x['sym']} 내일 시가에 매도 — {x['why']}.", sym=x["sym"])
         for x in buys:
             self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. " + (f"손절은 시가 − {P['stop_atr']:g} ATR(≈{f2(P['stop_atr'] * x['atr'])})."
-                     if P.get("stop_atr") else f"손절 없이 비중 {100 / P['max_pos']:.0f}%, 최대 {P['max_hold']}거래일."), sym=x["sym"])
+                     if P.get("stop_atr") else f"손절 없이 비중 {100 / P['max_pos']:.0f}%, 최대 {P['max_hold']}거래일.") + ctx_note(x["sym"]), sym=x["sym"])
         skipped = cands[len(buys):]
         if skipped:
             self.log("pass", f"신호는 더 있지만 자리가 없음 ({len(self.pos)}/{P['max_pos']}): "
@@ -1275,7 +1292,7 @@ class SwingTrader(Trader):
         if m < 570:
             if not self.day["planned"] and m >= 480:
                 self.log("plan", f"오늘 계획 — {self.P['motto']}\n보유: {self.held_txt(snaps)}.\n"
-                                 + (f"시가 주문: {self.order_txt()}." if self.order_txt() else "오늘 시가 주문 없음 — 보유 종목 손절선만 지킴."))
+                                 + (f"시가 주문: {self.order_txt()}." if self.order_txt() else "오늘 시가 주문 없음 — 보유 종목 손절선만 지킴.") + earn_soon(self.pos))
                 self.day["planned"] = True
             return self.think("준비", f"개장 전 — {self.order_txt() or '시가 주문 없음'}. 보유: {self.held_txt(snaps)}.", "pre" + self.order_txt(),
                               f"개장 전 — {self.order_txt() or '시가 주문 없음'}")
@@ -1361,7 +1378,7 @@ class MomentumTrader(SwingTrader):
         for x in sells:
             self.log("decide", f"{x['sym']} 내일 시가에 매도 — {x['why']}.", sym=x["sym"])
         for x in buys:
-            self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. 비중 {100 / P['max_pos']:.0f}%.", sym=x["sym"])
+            self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. 비중 {100 / P['max_pos']:.0f}%." + ctx_note(x["sym"]), sym=x["sym"])
         return True
 
 
@@ -1715,7 +1732,7 @@ class MrnaTrader(ScalpTrader):
         a = snaps.get(self.SYM)
         mode = ("추세 모드 (전일 종가 {} > 50일선 {})" if a and a["pdc"] > a["sma50d"] else "받아먹기 모드 (전일 종가 {} ≤ 50일선 {})").format(
             f2(a["pdc"]), f2(a["sma50d"])) if a else "모드는 개장 후 결정"
-        self.log("plan", f"오늘 계획 — {self.P['motto']}\n오늘은 {mode}." + (f" 프리마켓 {pc(a['chg'])}." if a else ""))
+        self.log("plan", f"오늘 계획 — {self.P['motto']}\n오늘은 {mode}." + (f" 프리마켓 {pc(a['chg'])}." if a else "") + ctx_note(self.SYM))
         self.day["planned"] = True
 
     def review(self, snaps: dict, mk: dict, today: dt.date):
@@ -1880,7 +1897,7 @@ class TickTrader(MrnaTrader):
             self.win_day, self.n_ticks = day, 0
 
     def plan(self, snaps: dict, mk: dict, disc: dict, today: dt.date, top_news: list | None = None):
-        self.log("plan", f"오늘 계획 — {self.P['motto']}")
+        self.log("plan", f"오늘 계획 — {self.P['motto']}" + ctx_note(self.SYM))
         self.day["planned"] = True
 
     def review(self, snaps: dict, mk: dict, today: dt.date):
@@ -2015,6 +2032,8 @@ class Engine:
         self.dflags: dict = {}
         self.dflags_day = None
         self.news = news_mod.NewsBook(alpaca_keys())
+        global CONTEXT
+        self.ctx = CONTEXT = ctx_mod.ContextBook(DATA / "context.json")
         self.snaps: dict = {}
         self.mk = dict(score=0, bias="-", vix=np.nan, breadth=0, notes=[])
         self.system: deque = deque(maxlen=60)
@@ -2097,9 +2116,19 @@ class Engine:
         pend = [s for t in self.T.values() if isinstance(t, SwingTrader) for s in t.pending()]
         return list(dict.fromkeys(MARKET + [VIX] + WATCHLIST + list(self.disc) + held + pend))
 
+    def ctx_syms(self) -> list[str]:
+        """주변 정보를 받아 둘 종목 — 관심종목 + 보유·주문·후보."""
+        extra = [s for t in self.T.values() for s in list(t.pos) + [w["sym"] for w in t.watch]]
+        pend = [s for t in self.T.values() if isinstance(t, SwingTrader) for s in t.pending()]
+        return [s for s in dict.fromkeys(WATCHLIST + extra + pend) if s not in ctx_mod.SKIP]
+
     def tick(self):
         now = now_ny()
         today, m = now.date(), now.hour * 60 + now.minute
+        try:  # 하루 한 번, 다른 스레드에서 천천히. 장이 쉬는 시간(20:00~04:00 ET·휴장일)에만 갱신하고 그 밖엔 없는 종목만 — 참고 정보라 실패해도 매매는 계속
+            self.ctx.refresh(self.ctx_syms(), now.replace(tzinfo=None), quiet=not is_trading_day(today) or m < 240 or m >= 1200)
+        except Exception as e:
+            self.ctx.error = f"{type(e).__name__}: {e}"
         if not is_trading_day(today) or m < 240 or m >= 1200:
             nx = next_open(now)
             why = "오늘은 휴장" if not is_trading_day(today) else "장 열리기 전" if m < 240 else "오늘 장 끝 — 회고는 피드에 있어"
@@ -2448,6 +2477,7 @@ def build_live(E: Engine):
                          mk=E.mk, idx=idx, traders=traders, system=list(E.system)[:30], disc=list(E.disc.values()),
                          last_fetch=E.last_fetch.isoformat() if E.last_fetch else None, fetch_sec=E.fetch_sec,
                          error=E.error, rules=RULES, start_cash=START_CASH, news_err=E.news.error,
+                         ctx={s: line for s in {x["sym"] for t in traders for x in t["pos"] + t["watch"]} if (line := ctx_mod.line(E.ctx.get(s), today))},
                          news=[dict(t=i["t"], head=i["head"], url=i["url"], themes=[x["name"] for x in i["themes"]],
                                     imp=sorted(i["imp"].items(), key=lambda kv: -abs(kv[1]))[:8])
                                for i in E.news.recent(set(E.universe()), 40)]))

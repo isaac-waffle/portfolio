@@ -68,6 +68,7 @@ h1{font:700 34px/1.05 -apple-system,BlinkMacSystemFont,"SF Pro Display",sans-ser
 .bubble .h{font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.02em;margin-bottom:4px;display:flex;gap:6px;align-items:center}
 .bubble .h .think{width:6px;height:6px;border-radius:50%;background:var(--c);animation:pulse2 1.6s infinite}
 @keyframes pulse2{50%{opacity:.25}}
+.cx{font-size:11px;color:var(--sub);margin:-2px 0 6px 26px;line-height:1.35}
 h3{font-size:12px;font-weight:600;color:var(--sub);margin:18px 0 8px;letter-spacing:.01em}
 .pos{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
 .pos .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
@@ -332,12 +333,13 @@ function drawLive(){
   const keep = [...document.querySelectorAll('#cards .feed')].map(f => f.scrollTop);
   $('cards').innerHTML = L.traders.map(t => {
     const dp = t.day_pnl / (t.start || 20000);
-    const pos = t.pos.length ? t.pos.map(p => `<div class="pr" title="${esc(p.why)} · 진입 ${f2(p.entry)} → 현재 ${f2(p.last)}">
+    const cx = L.ctx || {};
+    const pos = t.pos.length ? t.pos.map(p => `<div class="pr" title="${esc(p.why)} · 진입 ${f2(p.entry)} → 현재 ${f2(p.last)}${cx[p.sym] ? '\n참고 — ' + esc(cx[p.sym]) : ''}">
         <div class="prt"><b>${esc(p.sym)}</b><span class="muted"> ${+p.shares.toFixed(3)}주 · ${p.swing ? p.days + '일째' : esc(p.setup)}</span>
         <span class="prv num ${cls(p.upl)}">${sgn(p.upl)} <small>${p.rot ? pct(p.last / p.entry - 1, 1) : (p.r >= 0 ? '+' : '') + p.r.toFixed(1) + 'R'}</small></span></div>${p.rot ? '' : track(p)}</div>`).join('')
       : `<div class="empty">보유 없음 · 현금 ${usd(t.cash)}</div>`;
     const wl = t.watch.length ? t.watch.map(w => `<div class="wl"><span class="ic ${w.ok ? 'up' : 'muted'}">${w.ok ? '✓' : '·'}</span>
-        <span class="s">${esc(w.sym)}</span><span class="sc num">${Math.min(w.score, 100)}</span><span class="r" title="${esc(w.why)}">${esc(w.why)}</span></div>`).join('')
+        <span class="s">${esc(w.sym)}</span><span class="sc num">${Math.min(w.score, 100)}</span><span class="r" title="${esc(w.why)}${cx[w.sym] ? '\n참고 — ' + esc(cx[w.sym]) : ''}">${esc(w.why)}</span></div>${cx[w.sym] ? `<div class="cx">${esc(cx[w.sym])}</div>` : ''}`).join('')
       : `<div class="empty">${open ? '지금 셋업이 감지된 종목 없음' : '장중에 채워져요'}</div>`;
     const lossLeft = t.start * t.daily_loss + Math.min(t.day_pnl, 0);
     const cnt = t.mode === 'desk' ? `보유 ${t.pos.length}종목` : t.kind === 'swing' ? `보유 ${t.pos.length}/${t.max_trades}` : ['scalp', 'mrna', 'tick'].includes(t.kind) ? `오늘 거래 ${t.trades}회` : `거래 ${t.trades}/${t.max_trades}`;
