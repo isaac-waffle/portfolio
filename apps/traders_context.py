@@ -22,6 +22,7 @@ import yfinance as yf
 
 TTL_H = 20  # 시간 — 이보다 오래된 값은 다시 받음
 WINDOW = 60  # 일 — 최근 의견 변경을 세는 기간
+QWIN = 87  # 일 — 60거래일(≈87일). analyst_lab의 '목표가 상향 우위 60일'과 같은 기간
 SKIP = {"SPY", "QQQ", "IWM", "BIL", "EFA", "EEM", "TLT", "IEF", "SHY", "GLD", "DBC", "VNQ", "LQD"}  # ETF는 애널리스트 의견·실적이 없음
 
 
@@ -37,18 +38,21 @@ def analyst(tk: yf.Ticker, now: pd.Timestamp) -> dict:
     """최근 60일 등급 상향/하향, 목표가 상향/하향 건수와 가장 최근 변경."""
     ud = tk.upgrades_downgrades
     if ud is None or not len(ud):
-        return {}
+        return dict(none=True)  # 의견 이력이 아예 없는 종목 (받기 실패와 구분)
     ud = ud[~ud.index.isna()].sort_index(ascending=False)  # 최신이 맨 위
     idx = pd.DatetimeIndex(ud.index)  # Yahoo는 시각을 UTC로 줌 → 뉴욕 시각으로 (now와 같은 기준)
     idx = (idx.tz_localize("UTC") if idx.tz is None else idx).tz_convert("America/New_York").tz_localize(None)
-    ud = ud[(idx >= now - pd.Timedelta(days=WINDOW)) & (idx <= now)]
-    if not len(ud):
-        return dict(up=0, down=0, pt_up=0, pt_down=0)
+    ud, idx = ud[(idx >= now - pd.Timedelta(days=QWIN)) & (idx <= now)], idx[(idx >= now - pd.Timedelta(days=QWIN)) & (idx <= now)]
     cur, pri = pd.to_numeric(ud.get("currentPriceTarget"), errors="coerce"), pd.to_numeric(ud.get("priorPriceTarget"), errors="coerce")
     okp = (cur > 0) & (pri > 0)
+    q = dict(pt_up_q=int((okp & (cur > pri)).sum()), pt_down_q=int((okp & (cur < pri)).sum()))  # 60거래일 — 리포(목표가 추종)가 씀
+    recent = np.asarray(idx >= now - pd.Timedelta(days=WINDOW))
+    ud, cur, pri, okp = ud[recent], cur[recent], pri[recent], okp[recent]
+    if not len(ud):
+        return dict(up=0, down=0, pt_up=0, pt_down=0, **q)
     top = ud.iloc[0]
     return dict(up=int((ud["Action"] == "up").sum()), down=int((ud["Action"] == "down").sum()),
-                pt_up=int((okp & (cur > pri)).sum()), pt_down=int((okp & (cur < pri)).sum()),
+                pt_up=int((okp & (cur > pri)).sum()), pt_down=int((okp & (cur < pri)).sum()), **q,
                 last=dict(day=str(ud.index[0])[:10], firm=str(top["Firm"]), grade=str(top["ToGrade"]), action=str(top["Action"]),
                           pt=_num(top.get("currentPriceTarget")), pt_prev=_num(top.get("priorPriceTarget"))))
 
@@ -119,6 +123,12 @@ def fetch_one(sym: str, now: dt.datetime) -> dict:
     return out
 
 
+def has_targets(c) -> bool:
+    """목표가 60거래일 건수를 제대로 받았는지 (의견 이력이 아예 없는 종목도 받은 것으로 침). 받기 실패·v12 전 값은 False."""
+    an = c.get("an") if isinstance(c, dict) else None
+    return isinstance(an, dict) and bool(an.get("none") or "pt_up_q" in an)
+
+
 def earn_days(c: dict | None, today: dt.date) -> int | None:
     """다음 실적 발표까지 남은 날 (읽는 날 기준으로 계산 — 저장된 값이 하루 묵어도 맞게). 지났거나 모르면 None."""
     try:
@@ -176,6 +186,7 @@ class ContextBook:
     def __init__(self, path: Path):
         self.path, self.lock = path, threading.Lock()
         self.busy, self.error = False, None
+        self.pause_until = 0.0  # Yahoo가 막아서 그만둔 뒤 1시간은 다시 시작 안 함
         try:
             raw = json.loads(path.read_text()) if path.exists() else {}
             self.data: dict = {k: v for k, v in raw.items() if isinstance(v, dict)} if isinstance(raw, dict) else {}
@@ -190,8 +201,10 @@ class ContextBook:
         """없거나 TTL이 지난 종목. 저장된 시각을 못 읽으면 오래된 것으로 봄."""
         def old(c) -> bool:
             try:
+                if "an" in c and not has_targets(c):  # v12 전에 받은 값이거나 의견 받기 실패 — 다시 받음
+                    return True
                 return (now - dt.datetime.fromisoformat(c["at"]).replace(tzinfo=None)).total_seconds() > TTL_H * 3600
-            except (KeyError, TypeError, ValueError):
+            except (AttributeError, KeyError, TypeError, ValueError):
                 return True
         with self.lock:
             return [s for s in dict.fromkeys(syms) if s not in self.data or old(self.data[s])]
@@ -203,7 +216,7 @@ class ContextBook:
         if not quiet:
             with self.lock:
                 todo = [s for s in todo if s not in self.data]
-        if self.busy or not todo:
+        if self.busy or not todo or time.time() < self.pause_until:
             return
         self.busy = True
         try:
@@ -221,7 +234,8 @@ class ContextBook:
                 failed = {e.split(":")[0] for e in c.get("err", [])}
                 fails = fails + 1 if len(failed) >= 4 else 0
                 if fails >= 3:  # Yahoo가 막는 중 — 그만두고 다음 기회에 (가격 수집까지 막히지 않게)
-                    self.error = "Yahoo 요청이 연달아 실패 — 주변 정보 갱신을 미룸"
+                    self.error = "Yahoo 요청이 연달아 실패 — 주변 정보 갱신을 1시간 미룸"
+                    self.pause_until = time.time() + 3600
                     return
                 with self.lock:
                     old = self.data.get(s)

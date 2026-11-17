@@ -75,7 +75,9 @@ APPS = Path(__file__).resolve().parent
 DATA = APPS / "journal" / "traders"
 PAGE = APPS / "traders.html"
 PORT = 8503
-RULES = "v11"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
+RULES = "v12"  # 규칙을 바꾸면 올릴 것 — 거래 기록에 남아 버전별 성과 비교 가능
+# v12 (2026-11-17): 리포(목표가 추종) 추가 — analyst_lab.py 검증은 통과 못 함(전 종목 균등보다 샤프 낮음). 애널리스트를 따라 하면 어떻게 되는지 비교용.
+#     다른 트레이더 규칙은 그대로.
 # v3 (2026-10-26): 실시간 뉴스 반영 (traders_news.py) — 아직 백테스트로 검증 안 됨
 # v4 (2026-10-26): 2024.01~2026.10 Alpaca 5분봉으로 v1에서 재튜닝 (학습 24.01~25.06 · 확인 25.07~12 · 최종 시험 26.01~10).
 #     세 명 모두 v1·v2보다 덜 잃지만 여전히 손실 — 주로 거래를 크게 줄여서 좋아진 것 (lab/tune_2026-10-26_2024-01-02.json)
@@ -130,10 +132,10 @@ HOLIDAYS = {dt.date(2026, 11, 26), dt.date(2026, 12, 25), dt.date(2027, 1, 1), d
             dt.date(2027, 7, 5), dt.date(2027, 9, 6), dt.date(2027, 11, 25), dt.date(2027, 12, 24)}
 EARLY = {dt.date(2026, 11, 27): 780, dt.date(2026, 12, 24): 780, dt.date(2027, 11, 26): 780}
 
-SETUP_KO = {"MTICK": "MRNA 초 단위 급등 추종", "MTREND": "MRNA 추세 추종", "MFADE": "MRNA 지정가 받아먹기", "DESK": "퀀트 데스크 배분", "DIP10": "10분 눌림 반등", "MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
+SETUP_KO = {"PT": "목표가 상향 우위 (주간)", "MTICK": "MRNA 초 단위 급등 추종", "MTREND": "MRNA 추세 추종", "MFADE": "MRNA 지정가 받아먹기", "DESK": "퀀트 데스크 배분", "DIP10": "10분 눌림 반등", "MOM": "모멘텀 상위 (스윙)", "BRK": "20일 신고가 돌파 (스윙)", "PB": "RSI(2) 과매도 눌림 (스윙)", "TP": "20일선 지지 반등 (스윙)", "ORB": "오프닝 레인지 돌파", "VWAP": "VWAP 회복", "PULL": "9EMA 눌림목", "GAPGO": "갭 상승 지속",
             "GAPFILL": "갭 메우기 반등", "FADE": "과매도 반등", "SQZ": "스퀴즈 발사", "PDL": "전일 고점 돌파"}
 
-SETUP_OF = {"breakout": "BRK", "pullback": "PB", "trendpull": "TP", "rotation": "MOM", "desk": "DESK"}
+SETUP_OF = {"breakout": "BRK", "pullback": "PB", "trendpull": "TP", "rotation": "MOM", "desk": "DESK", "target": "PT"}
 K10 = math.sqrt(10 / 390)  # 일봉 ATR% → 10분 변동폭 환산 (scalp_lab.py와 같은 값)
 # 분 단위는 ET 자정 기준 (570 = 09:30)
 TRADERS = {
@@ -178,6 +180,11 @@ TRADERS = {
                  motto="모더나의 체결을 한 건 한 건 본다. 가격이 최근 3분 평균보다 평소 변동폭의 4배 넘게 튀는 큰 급등(대개 뉴스)이 나오는 순간 따라 사서, "
                        "익절선 없이 손절선에 닿거나 15:50 ET 마감 정리 때까지 들고 간다. 계좌 전부. 일주일에 한 번쯤만 산다. "
                        "백테스트는 세 기간 모두 플러스였지만(+41%·+4%·+20%) 거래가 122건뿐이라 확실한 우위라고 하긴 이르다."),
+    # v12: 비교용 — 증권사 목표가를 따라 하는 트레이더 (analyst_lab.py '목표가 상향 우위 60일'). 검증 통과 못 했지만 사용자 요청으로 돌림
+    "pt": dict(kind="swing", mode="target", name="목표가 추종", nick="리포", color="#5c8a1e",
+               risk=0.0, max_pos=10, max_trades=10, daily_loss=0.0, min_dvol=2e7, min_rvol=0, cooldown=0, uni="wide",
+               motto="증권사 목표가를 따라 산다. 매주 마지막 거래일 장 마감 후, 최근 60거래일 목표가 상향 − 하향 건수가 가장 많은 10종목(관심종목+나스닥100)을 "
+                     "다음 날 시가에 10%씩 갈아탄다. 손절 없음. 비교용 — 백테스트 샤프 0.9·1.0·1.3·1.8로 전 종목 균등 보유(1.2·1.2·1.5·1.7)보다 못했고 장기 낙폭 −46%."),
 }
 
 LOCK = threading.RLock()
@@ -1032,6 +1039,7 @@ MODE_TXT = {  # mode → (장 마감 후 보는 것, 장중 생각 꼬리말, �
     "trendpull": ("20일선 지지 반등", " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로.", "손절선만 감시"),
     "breakout": ("돌파 신호", " 장중엔 손절선만 지켜보고, 판단은 장 마감 후 일봉으로.", "손절선만 감시"),
     "desk": ("다섯 전략의 목표 비중", " 손절 없이 장 마감 후 목표 비중대로만 조정.", "목표 비중 유지"),
+    "target": ("목표가 상향 순위", " 손절 없이 매주 마지막 거래일 장 마감 후에만 갈아탐.", "주말까지 그대로"),
 }
 
 
@@ -1240,7 +1248,7 @@ class SwingTrader(Trader):
             if b is None:
                 return
             px = float(b["Open"]) * (1 + SLIP)
-            rot = self.P.get("mode") == "rotation"
+            rot = self.P.get("mode") in ("rotation", "target")
             if rot or not self.P.get("stop_atr"):  # 모멘텀·눌림목: 종목당 1/N 비중, 손절 없음 (순위 밖 교체 / 5일선 회복·시간 청산)
                 stop = 0.0
                 shares = int(min(eq * x.get("w", 1 / self.P["max_pos"]), self.cash - self.fee) / px)
@@ -1258,7 +1266,8 @@ class SwingTrader(Trader):
                                       feat=dict(mkt_score=np.nan, rvol=np.nan, rs=np.nan, atr_pct=x["atr"] / px if x["atr"] else np.nan, gap=np.nan))
             self.day["trades"] += 1
             self.log("buy", f"{x['sym']} {shares}주 시가 매수 @ {f2(px)} — {x['why']}. " + (
-                     f"비중 {x['w'] * 100:.0f}%, 손절 없음 — 다음 달 첫 거래일에 순위 밖이면 교체." if rot else
+                     f"비중 {x['w'] * 100:.0f}%, 손절 없음 — " + ("다음 주 리밸런싱 때 목표가 순위 밖이면 교체." if self.P.get("mode") == "target"
+                                                                else "다음 달 첫 거래일에 순위 밖이면 교체.") if rot else
                      f"비중 {100 / self.P['max_pos']:.0f}%, 손절 없음 — 5일선 위로 마감하면 팔고, {self.P['max_hold']}거래일 안에 반등 없으면 정리."
                      if not self.P.get("stop_atr") else
                      f"손절 {f2(stop)} (최대 손실 ${shares * (px - stop):,.0f}). 목표는 없고, 추세가 꺾일 때까지 들고 감."),
@@ -1312,7 +1321,7 @@ class SwingTrader(Trader):
                    "장 끝 — 오늘 일봉이 올라오면 신호를 점검할게.") + f" 보유: {self.held_txt(snaps)}.", "close" + str(self.sig_day) + nxt,
                    f"장 끝 — 내일 {nxt}" if self.sig_day == today.isoformat() and nxt else
                    (f"장 끝 — 주문 없음 · 가장 가까운 {near[0]['sym']}: {near[0]['why']}" if (near := [w for w in self.watch if not w.get("ok")])
-                    and self.P.get("mode") not in ("rotation", "desk") else "장 끝 — 내일 주문 없음") if self.sig_day == today.isoformat() else "장 끝 — 일봉 대기")
+                    and self.P.get("mode") not in ("rotation", "desk", "target") else "장 끝 — 내일 주문 없음") if self.sig_day == today.isoformat() else "장 끝 — 일봉 대기")
 
     def review(self, snaps: dict, today: dt.date, *_):
         eq = self.equity(snaps)
@@ -1379,6 +1388,83 @@ class MomentumTrader(SwingTrader):
             self.log("decide", f"{x['sym']} 내일 시가에 매도 — {x['why']}.", sym=x["sym"])
         for x in buys:
             self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. 비중 {100 / P['max_pos']:.0f}%." + ctx_note(x["sym"]), sym=x["sym"])
+        return True
+
+
+def pt_rank(book: dict, pool: list, liquid: set, n: int) -> tuple[list, list]:
+    """목표가 상향 − 하향 건수(60거래일) 순위. 돌려주는 값: (순위표 [(종목, 순증, 상향, 하향)], 편입 대상 상위 n).
+    analyst_lab.portfolios '목표가 상향 우위 60일'과 같은 정의: 거래대금 $20M·$5 이상, 순증 > 0만. 동점은 상향 건수, 그다음 종목명 순."""
+    rows = []
+    for s in pool:
+        an = (book.get(s) or {}).get("an") or {}
+        up, dn = an.get("pt_up_q"), an.get("pt_down_q")
+        if isinstance(up, int) and isinstance(dn, int) and s in liquid:
+            rows.append((s, up - dn, up, dn))
+    rows.sort(key=lambda r: (-r[1], -r[2], r[0]))
+    return rows, [r[0] for r in rows if r[1] > 0][:n]
+
+
+def week_of(d: dt.date) -> str:
+    """그 주 월요일 날짜 (주 단위 비교용)."""
+    return (d - dt.timedelta(days=d.weekday())).isoformat()
+
+
+def rebal_due(day: dt.date, nxt: dt.date, done_wk: str | None) -> bool:
+    """리포 리밸런싱할 때인지: 처음이거나, 그 주 마지막 거래일인데 이번 주에 아직 안 했거나,
+    지난주 리밸런싱을 놓쳤으면(데이터 부족·가격 오류) 다음 기회에 바로."""
+    if not done_wk:
+        return True
+    wk = week_of(day)
+    last_day_of_week = week_of(nxt) != wk
+    missed = done_wk < (dt.date.fromisoformat(wk) - dt.timedelta(days=7)).isoformat()
+    return (last_day_of_week and done_wk < wk) or missed
+
+
+class TargetTrader(SwingTrader):
+    """목표가 추종 (리포) — 비교용. 매주 마지막 거래일 장 마감 후, 최근 60거래일 증권사 목표가 상향 − 하향 건수가 가장 많은 10종목을
+    다음 거래일 시가에 10%씩 갈아탐. 손절 없음. analyst_lab.py 검증은 통과 못 함 (전 종목 균등 보유보다 샤프 낮음, 장기 낙폭 −46%) —
+    '애널리스트를 따라 하면 어떻게 되나'를 실제로 보려는 사용자 요청으로 돌림."""
+    RETRY, COVER = 900, 0.8
+
+    def __init__(self, key: str, st: dict | None):
+        super().__init__(key, st)
+        self.try_at = 0.0
+
+    def signals(self, day: dt.date, snaps: dict):
+        if time.time() - self.try_at < self.RETRY:
+            return False
+        self.try_at = time.time()
+        P, pool = self.P, self.pool()
+        nxt = next_open(dt.datetime.combine(day, dt.time(17), NY)).date()
+        if not rebal_due(day, nxt, self.orders.get("rebal_wk")):
+            self.sig_day = day.isoformat()
+            self.orders = dict(**{"for": nxt.isoformat()}, buy=[], sell=[], done=False, rebal_wk=self.orders.get("rebal_wk"))
+            return True
+        book = {s: CONTEXT.get(s) for s in pool} if CONTEXT else {}
+        have = sum(1 for c in book.values() if ctx_mod.has_targets(c))
+        if have < len(pool) * self.COVER:
+            self.think("대기", f"목표가 이력이 {have}/{len(pool)}종목만 모여 있어 — 다 모이면 순위를 매길게 (15분마다 다시 봄).",
+                       f"cover{have // 10}", f"목표가 이력 모으는 중 ({have}/{len(pool)})")
+            return False
+        F = self.daily_bars(day)
+        if F is None:
+            return False
+        liquid = {s for s, df in F.items() if float((df["Close"] * df["Volume"]).tail(20).mean()) >= P["min_dvol"] and float(df["Close"].iloc[-1]) >= 5}
+        rows, target = pt_rank(book, pool, liquid, P["max_pos"])
+        info = {r[0]: r for r in rows}
+        tag = lambda s: f"60거래일 목표가 ↑{info[s][2]}/↓{info[s][3]} (순증 {info[s][1]:+d})" if s in info else "목표가 이력 없음"
+        self.watch = [dict(sym=r[0], setup="PT", score=r[1], ok=r[0] in target, src="관심종목" if r[0] in CAT_OF else "나스닥100",
+                           why=f"{k + 1}위 · {tag(r[0])}" + (" · 편입 대상" if r[0] in target else "")) for k, r in enumerate(rows[:10])]
+        sells = [dict(sym=s, why=f"목표가 순위 밖 — {tag(s)}, 갈아타기") for s in self.pos if s not in target]
+        buys = [dict(sym=s, w=1 / P["max_pos"], atr=0, why=tag(s), src="관심종목" if s in CAT_OF else "나스닥100") for s in target if s not in self.pos]
+        self.orders = dict(**{"for": nxt.isoformat()}, buy=buys, sell=sells, done=False, rebal_wk=week_of(day))
+        self.sig_day = day.isoformat()
+        self.log("think", f"주간 리밸런싱 — 목표가 상향 우위 상위 {len(target)}: " + (", ".join(f"{s} {info[s][1]:+d}" for s in target) or "순증 플러스 종목 없음 — 현금")
+                 + (f". 유지: {', '.join(s for s in target if s in self.pos)}" if any(s in self.pos for s in target) else "") + ".")
+        for x in sells:
+            self.log("decide", f"{x['sym']} 내일 시가에 매도 — {x['why']}.", sym=x["sym"])
+        for x in buys:
+            self.log("decide", f"{x['sym']} 내일 시가에 매수 — {x['why']}. 비중 {100 / P['max_pos']:.0f}%, 손절 없음." + ctx_note(x["sym"]), sym=x["sym"])
         return True
 
 
@@ -2021,6 +2107,7 @@ class Engine:
             except Exception:
                 st = {}
         cls = lambda P: (MomentumTrader if P.get("mode") == "rotation" else DeskTrader if P.get("mode") == "desk"
+                         else TargetTrader if P.get("mode") == "target"
                          else SwingTrader if P.get("kind") == "swing" else ScalpTrader if P.get("kind") == "scalp"
                          else MrnaTrader if P.get("kind") == "mrna" else TickTrader if P.get("kind") == "tick" else Trader)
         self.T = {k: cls(P)(k, st.get("traders", {}).get(k)) for k, P in TRADERS.items()}
@@ -2120,7 +2207,8 @@ class Engine:
         """주변 정보를 받아 둘 종목 — 관심종목 + 보유·주문·후보."""
         extra = [s for t in self.T.values() for s in list(t.pos) + [w["sym"] for w in t.watch]]
         pend = [s for t in self.T.values() if isinstance(t, SwingTrader) for s in t.pending()]
-        return [s for s in dict.fromkeys(WATCHLIST + extra + pend) if s not in ctx_mod.SKIP]
+        wide = [s for t in self.T.values() if isinstance(t, TargetTrader) for s in t.pool()]  # 리포는 나스닥100까지 목표가 이력이 필요
+        return [s for s in dict.fromkeys(WATCHLIST + extra + pend + wide) if s not in ctx_mod.SKIP]
 
     def tick(self):
         now = now_ny()
@@ -2585,8 +2673,10 @@ PUBLIC_EN = {
                                         "below it, it rests limit orders under sharp drops and sells the bounce. Prices are checked every few seconds. This rule did not pass validation."),
     "tick": ("Tick", "MRNA tick scalper", "Reads every Moderna trade print. Buys the moment price jumps more than four times its usual move above the 3-minute average (usually news), "
                                           "then holds with a wide stop and no target until 15:50 ET. About one trade a week. Positive in all three test periods, on only 122 trades."),
+    "pt": ("Ripo", "Price-target follower", "After the last close of each week, holds the 10 stocks (watchlist plus Nasdaq-100) with the most analyst price-target raises minus cuts "
+                                            "over the last 60 trading days, 10% each. No stops. A comparison trader: in backtests it did worse than simply holding every stock equally."),
 }
-SETUP_EN = {"MOM": "Momentum", "BRK": "Breakout", "PB": "Pullback", "TP": "Trend bounce", "DESK": "Desk rebalance", "DIP10": "10-min dip", "MTREND": "MRNA trend", "MFADE": "MRNA limit dip", "MTICK": "MRNA tick jump"}
+SETUP_EN = {"PT": "Price-target rank","MOM": "Momentum", "BRK": "Breakout", "PB": "Pullback", "TP": "Trend bounce", "DESK": "Desk rebalance", "DIP10": "10-min dip", "MTREND": "MRNA trend", "MFADE": "MRNA limit dip", "MTICK": "MRNA tick jump"}
 STATE_EN = {"휴장": "Market closed", "장 시작 전": "Before the open", "프리마켓": "Pre-market", "정규장": "Market open", "애프터마켓": "After hours", "장 마감": "Market closed"}
 
 

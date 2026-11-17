@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Virtual Traders — Isaac Kim</title>
-<meta name="description" content="Eight rule-based paper traders, each with its own strategy, trading US stocks with simulated money. One mirrors a multi-strategy desk that also runs on an Alpaca paper account.">
-<meta property="og:title" content="Virtual Traders — eight rule-based paper traders">
+<meta name="description" content="Nine rule-based paper traders, each with its own strategy, trading US stocks with simulated money. One mirrors a multi-strategy desk that also runs on an Alpaca paper account.">
+<meta property="og:title" content="Virtual Traders — nine rule-based paper traders">
 <meta property="og:description" content="Simulated money, real prices, every rule backtested first. Results shown as they are.">
 <meta property="og:type" content="website">
 <link rel="icon" href="../assets/img/favicon.ico">
@@ -121,38 +121,40 @@ td.wrapc{white-space:normal;min-width:220px;color:var(--sub)}
 
   var T = {
     en: { kicker: "Paper trading · updated every 30 minutes in US market hours", title: "Virtual Traders", doc: "Virtual Traders — Isaac Kim",
-      lede: "Eight rule-based traders, each with its own strategy, buy and sell US stocks with simulated money at real prices. Every rule was backtested before it went in, and the results are shown as they are. One of them mirrors a multi-strategy desk that also sends real orders to an Alpaca paper account.",
+      lede: "Nine rule-based traders, each with its own strategy, buy and sell US stocks with simulated money at real prices. Every rule was backtested before it went in, and the results are shown as they are. One of them mirrors a multi-strategy desk that also sends real orders to an Alpaca paper account.",
       asof: "{s} · data as of {t} (your local time) · rules {r}", sample: "Live feed unreachable. Showing a bundled snapshot from {t}.", loading: "Loading…", none: "No data yet.",
       total: "since start", today: "on the last trading day", holds: "{n} positions · {c} cash", flat: "No positions · all cash", more: "+{n} more", closed: "{n} closed trades", winr: "{w} winners", dd: "worst drop {d}",
-      curveH: "Return since each trader started", curveNote: "Each line is that trader's account value against its own starting money ($20,000 each). Four started on 26 October 2026, Alpha, Flash, Mona and Tick on 16 November 2026. The last point is the current, unfinished day.",
+      curveH: "Return since each trader started", curveNote: "Each line is that trader's account value against its own starting money ($20,000 each). Four started on 26 October 2026, Alpha, Flash, Mona and Tick on 16 November 2026, Ripo on 17 November 2026. The last point is the current, unfinished day.",
       tradesH: "Latest closed trades", date: "Opened", trader: "Trader", ticker: "Ticker", setup: "Setup", held: "Held", result: "Result", pnl: "P&L", noTrades: "No closed trades yet.", dayU: "d", minU: "min",
-      rulesH: "The eight rules", style: "Style", rule: "Rule",
+      rulesH: "The nine rules", style: "Style", rule: "Rule",
       factsH: "What the backtests said",
       facts: ["<b>Day trading lost money.</b> The first three traders started as day traders. On 2.8 years of 5-minute bars every version of their intraday rules lost after costs, so they became daily swing traders.",
         "<b>Most ideas fail.</b> Out of 176 ten-minute rules, three made money in both the training and the checking period after costs. Flash trades the best of those, about once a week. It is a small edge and may be luck.",
         "<b>Two traders are experiments on one volatile stock.</b> Mona trades only Moderna, a stock that moves about 0.3% a minute. Roughly 2,300 one-minute rules were tested on it with measured bid-ask spreads and none passed. Rules that buy dips made money while the stock fell from $99 to $28, and rules that follow strength made money while it rose to $223, so Mona switches between the two by the 50-day average. That was designed after seeing all the data, so it is an experiment to watch, not evidence. Tick reacts to every Moderna trade print. The first 576 second-level rules, tested on 3.1 million prints, all lost money once the spread was paid. What survived a second round was trading far less: buy only jumps four times the usual size and hold to the close. That rule was positive in all three periods, on just 122 trades, so it is promising but thin. A machine-learning model on 46 signals, including the biotech sector and peer stocks, had no predictive power outside its training period and was dropped.",
         "<b>Strengthening is mostly saying no.</b> In the last round 272 candidate changes to the four swing traders were tested on 2016 to 2026 data. One passed: letting the breakout trader choose from a wider list of stocks.",
+        "<b>Following analysts did not beat the market basket.</b> 47,000 rating changes and price-target moves on 124 stocks since 2016 were tested. Only large target raises were followed by gains in every period, and mostly because analysts raise targets after a stock has already run. A portfolio of the 10 stocks with the most net target raises did worse than holding all of them equally. Ripo trades it anyway, as a comparison.",
         "<b>The stock list flatters the numbers.</b> The watchlist and the Nasdaq-100 list are today's members, so backtests of stock strategies look better than they would have been in real time.",
         "<b>How it is built.</b> A Python process on my own machine reads 1-minute prices, applies each rule, charges $2 per order and 0.05% slippage (Alpha: no commission and fractional shares, as on Alpaca), and logs every decision. No real money is involved."],
       foot: "Simulated trading with delayed data that can be wrong. Not investment advice. ", legends: "Wall Street Legends", radar: "Market Radar", code: "View the code" },
     ko: { kicker: "모의 매매 · 미국 장중 30분마다 갱신", title: "가상 트레이더", doc: "가상 트레이더 — Isaac Kim",
-      lede: "규칙으로 움직이는 트레이더 여덟 명이 각자 다른 전략으로 실제 시세에 가상 자금으로 미국 주식을 사고팝니다. 모든 규칙은 넣기 전에 백테스트했고, 결과는 있는 그대로 보여 줍니다. 그중 한 명은 Alpaca 모의계좌에 실제 주문을 내는 멀티 전략 데스크를 그대로 따라 합니다.",
+      lede: "규칙으로 움직이는 트레이더 아홉 명이 각자 다른 전략으로 실제 시세에 가상 자금으로 미국 주식을 사고팝니다. 모든 규칙은 넣기 전에 백테스트했고, 결과는 있는 그대로 보여 줍니다. 그중 한 명은 Alpaca 모의계좌에 실제 주문을 내는 멀티 전략 데스크를 그대로 따라 합니다.",
       asof: "{s} · {t} 기준 (내 시간대) · 규칙 {r}", sample: "실시간 데이터를 받지 못해 {t}에 저장한 표본을 보여 줍니다.", loading: "불러오는 중…", none: "아직 데이터가 없습니다.",
       total: "시작 이후", today: "(최근 거래일)", holds: "{n}종목 보유 · 현금 {c}", flat: "보유 없음 · 전부 현금", more: "외 {n}종목", closed: "끝난 거래 {n}건", winr: "수익 거래 {w}", dd: "최대 낙폭 {d}",
-      curveH: "트레이더별 시작 이후 수익률", curveNote: "각 선은 그 트레이더의 계좌 평가액을 자기 시작 자금과 비교한 값입니다(각 $20,000). 네 명은 2026년 10월 26일, 알파·번개·모나·틱은 2026년 11월 16일에 시작했습니다. 마지막 점은 아직 끝나지 않은 오늘입니다.",
+      curveH: "트레이더별 시작 이후 수익률", curveNote: "각 선은 그 트레이더의 계좌 평가액을 자기 시작 자금과 비교한 값입니다(각 $20,000). 네 명은 2026년 10월 26일, 알파·번개·모나·틱은 2026년 11월 16일, 리포는 11월 17일에 시작했습니다. 마지막 점은 아직 끝나지 않은 오늘입니다.",
       tradesH: "최근 끝난 거래", date: "매수일", trader: "트레이더", ticker: "티커", setup: "셋업", held: "보유", result: "결과", pnl: "손익", noTrades: "아직 끝난 거래가 없습니다.", dayU: "일", minU: "분",
-      rulesH: "여덟 가지 규칙", style: "스타일", rule: "규칙",
+      rulesH: "아홉 가지 규칙", style: "스타일", rule: "규칙",
       factsH: "백테스트가 말해 준 것",
       facts: ["<b>단타는 돈을 잃었습니다.</b> 처음 세 명은 단타 트레이더였습니다. 2.8년치 5분봉으로 검증하니 모든 버전이 비용을 빼면 손실이어서 일봉 스윙으로 바꿨습니다.",
         "<b>대부분의 아이디어는 탈락합니다.</b> 10분 단타 규칙 176개 중 비용을 빼고도 학습 기간과 확인 기간에 모두 수익이 난 것은 세 개였습니다. 번개는 그중 가장 나은 규칙으로 일주일에 한 번쯤 매매합니다. 우위가 작아서 우연일 수 있습니다.",
         "<b>두 명은 변동성 큰 한 종목으로 하는 실험입니다.</b> 모나는 1분에 0.3%쯤 움직이는 모더나 한 종목만 매매합니다. 실제 호가 차이를 재서 1분봉 규칙 2,300여 개를 검증했지만 통과한 것이 없었습니다. 주가가 99달러에서 28달러로 내릴 때는 급락을 받는 규칙이, 223달러로 오를 때는 강세를 따라가는 규칙이 벌었기 때문에 모나는 50일선을 기준으로 둘을 바꿔 씁니다. 데이터를 다 본 뒤에 만든 규칙이라 증거가 아니라 지켜보는 실험입니다. 틱은 모더나의 체결 한 건마다 반응합니다. 체결 310만 건으로 처음 검증한 초 단위 규칙 576개는 스프레드를 내고 나면 전부 손실이었습니다. 두 번째 검증에서 살아남은 것은 훨씬 덜 매매하는 방식이었습니다. 평소의 4배가 넘는 급등만 사서 마감까지 들고 갑니다. 이 규칙은 세 기간 모두 플러스였지만 거래가 122건뿐이라, 가능성은 보이되 근거는 얇습니다. 바이오 섹터와 동종 종목까지 넣은 신호 46개짜리 머신러닝 모델은 학습 기간 밖에서 예측력이 없어 버렸습니다.",
         "<b>강화는 대부분 '안 한다'는 결정입니다.</b> 최근에는 스윙 네 명의 변경 후보 272개를 2016~2026년 데이터로 검증했습니다. 통과한 것은 돌파형의 후보 종목을 넓히는 것 하나였습니다.",
+        "<b>애널리스트를 따라 해도 전 종목 보유를 못 이겼습니다.</b> 2016년 이후 124종목의 등급·목표가 변경 4만 7천 건을 검증했습니다. 큰 목표가 상향만 모든 기간에서 뒤에 올랐는데, 대부분은 주가가 이미 오른 뒤에 목표가를 올리기 때문이었습니다. 목표가 순상향이 가장 많은 10종목 포트폴리오는 모든 종목을 똑같이 들고 있는 것보다 못했습니다. 리포는 비교를 위해 그래도 이 규칙으로 매매합니다.",
         "<b>종목 목록 때문에 숫자가 부풀려집니다.</b> 관심종목과 나스닥100 목록은 지금 구성이라서, 주식 전략의 백테스트는 실제로 그때 했을 때보다 좋게 나옵니다.",
         "<b>만든 방식.</b> 제 컴퓨터에서 도는 파이썬 프로세스가 1분봉을 읽어 규칙을 적용하고, 주문당 $2와 슬리피지 0.05%를 빼고(알파는 Alpaca처럼 수수료 없이 소수점 주식으로), 모든 판단을 기록합니다. 실제 돈은 쓰지 않습니다."],
       foot: "지연 데이터로 하는 모의 매매라 틀릴 수 있습니다. 투자 조언이 아닙니다. ", legends: "월가 전설 5인", radar: "마켓 레이더", code: "코드 보기" }
   };
-  var KO = { names: { Isaac: "아이작", Timo: "티모", Chacha: "차차", Dolsoe: "돌쇠", Alpha: "알파", Flash: "번개", Mona: "모나", Tick: "틱" },
-    style: { agg: "모멘텀 순환", bal: "과매도 눌림목", def: "추세 지지 반등", swing: "신고가 돌파", desk: "멀티 전략 데스크", scalp: "10분 눌림 매수", mrna: "MRNA 전문", tick: "MRNA 초단타" },
+  var KO = { names: { Isaac: "아이작", Timo: "티모", Chacha: "차차", Dolsoe: "돌쇠", Alpha: "알파", Flash: "번개", Mona: "모나", Tick: "틱", Ripo: "리포" },
+    style: { agg: "모멘텀 순환", bal: "과매도 눌림목", def: "추세 지지 반등", swing: "신고가 돌파", desk: "멀티 전략 데스크", scalp: "10분 눌림 매수", mrna: "MRNA 전문", tick: "MRNA 초단타", pt: "목표가 추종" },
     rule: { agg: "관심종목 중 6개월 수익률 상위 5종목을 20%씩 들고 한 달에 한 번 갈아탑니다. 손절은 없습니다.",
       bal: "상승 추세 종목이 2~3일 급하게 빠지면(RSI(2) 10 미만) 삽니다. 5일선 위로 마감하거나 5거래일이 지나면 팝니다.",
       def: "상승 추세 종목이 20일선까지 내려왔다가 다시 그 위에서 마감하면 삽니다. 변동성이 낮은 종목부터 고르고, SPY가 200일선 아래면 현금으로 갑니다.",
@@ -160,8 +162,9 @@ td.wrapc{white-space:normal;min-width:220px;color:var(--sub)}
       desk: "공개된 전략 다섯 가지(추세추종, 변동성 타기팅, 12개월 모멘텀, Minervini 트렌드 템플릿, 갭 피벗)를 20%씩 섞고 남는 돈은 초단기 국채에 둡니다. 같은 신호와 주문 규칙이 Alpaca 모의계좌에서도 돌아갑니다.",
       mrna: "모더나 한 종목만 계좌 전부로 매매합니다. 50일선 위에서는 평소 변동 범위를 벗어난 장중 돌파를 따라가고, 아래에서는 급락 밑에 지정가를 걸어 두었다가 반등에 팝니다. 몇 초마다 가격을 확인합니다. 검증을 통과하지 못한 규칙입니다.",
       tick: "모더나의 체결을 한 건씩 읽습니다. 가격이 3분 평균보다 평소 변동폭의 4배 넘게 튀는 순간(대개 뉴스) 사서, 익절선 없이 넓은 손절만 두고 15:50 ET까지 들고 갑니다. 일주일에 한 번쯤 매매합니다. 세 검증 기간 모두 플러스였지만 거래는 122건뿐입니다.",
+      pt: "매주 마지막 거래일 장 마감 후, 관심종목과 나스닥100 중 최근 60거래일 증권사 목표가 상향에서 하향을 뺀 건수가 가장 많은 10종목을 10%씩 들고 갑니다. 손절은 없습니다. 비교용 트레이더로, 백테스트에서는 모든 종목을 똑같이 들고 있는 것보다 못했습니다.",
       scalp: "10분마다 판단합니다. 오늘 오르는 종목이 거래량 3배와 함께 10분 사이 급락하면 삽니다(SPY가 VWAP 위일 때만). 10분마다 다시 보고 15:50 ET 전에 모두 정리합니다." },
-    setup: { "Momentum": "모멘텀", "Breakout": "돌파", "Pullback": "눌림목", "Trend bounce": "지지 반등", "Desk rebalance": "비중 조정", "10-min dip": "10분 눌림", "MRNA trend": "MRNA 추세", "MRNA limit dip": "MRNA 지정가", "MRNA tick jump": "MRNA 초단타" },
+    setup: { "Momentum": "모멘텀", "Breakout": "돌파", "Pullback": "눌림목", "Trend bounce": "지지 반등", "Desk rebalance": "비중 조정", "10-min dip": "10분 눌림", "MRNA trend": "MRNA 추세", "MRNA limit dip": "MRNA 지정가", "MRNA tick jump": "MRNA 초단타", "Price-target rank": "목표가 순위" },
     state: { "Market closed": "장 마감", "Before the open": "장 시작 전", "Pre-market": "프리마켓", "Market open": "정규장", "After hours": "애프터마켓" } };
   var lang = "en";
   try { var q = qs.get("lang") || localStorage.getItem("site-lang") || localStorage.getItem("earn-lang"); lang = q === "ko" ? "ko" : "en"; } catch (e) {}
